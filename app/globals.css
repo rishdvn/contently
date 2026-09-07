@@ -97,33 +97,63 @@
 
 :root {
   /*
-    Green sits at the top-left and warms as it travels down and right, matching
-    the reference. The long green plateau is what stops it reading as "rainbow".
+    Green holds the first third and then warms. The long green plateau is what
+    keeps it from reading as a rainbow.
   */
-  --gradient-spectrum: linear-gradient(
-    135deg,
-    var(--color-spectrum-green) 0%,
-    var(--color-spectrum-green) 48%,
-    var(--color-spectrum-lime) 66%,
-    var(--color-spectrum-amber) 84%,
-    var(--color-spectrum-orange) 100%
-  );
-  --spectrum-fill: var(--color-canvas);
+  --spectrum-stops:
+    var(--color-spectrum-green) 0%, var(--color-spectrum-green) 30%,
+    var(--color-spectrum-lime) 52%, var(--color-spectrum-amber) 74%,
+    var(--color-spectrum-orange) 96%;
+
+  /*
+    Green along the top edge, warming downward. Kept close to 180deg on
+    purpose: on a wide element any angle nearer 135deg is dominated by the
+    horizontal axis and the ring reads left-to-right instead.
+  */
+  --gradient-spectrum: linear-gradient(172deg, var(--spectrum-stops));
+
+  /*
+    Horizontal variant. A near-vertical gradient collapses to a single flat
+    colour on anything only a few pixels tall, so bars and text use this.
+  */
+  --gradient-spectrum-x: linear-gradient(90deg, var(--spectrum-stops));
 }
 
 /*
-  A 1px gradient stroke over an opaque fill. Set --spectrum-fill to match
-  whatever surface the element sits on, or the corners will show through.
+  A 1px gradient ring drawn as a masked pseudo-element rather than a
+  gradient border-box, so the interior stays genuinely transparent and the
+  element can sit on any surface without its fill having to be kept in sync.
 */
 @utility spectrum-edge {
-  border: 1px solid transparent;
-  background:
-    linear-gradient(var(--spectrum-fill), var(--spectrum-fill)) padding-box,
-    var(--gradient-spectrum) border-box;
+  position: relative;
+
+  &::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    border-radius: inherit;
+    padding: 1px;
+    background-image: var(--gradient-spectrum);
+    -webkit-mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    mask-composite: exclude;
+    pointer-events: none;
+  }
+
+  & > * {
+    position: relative;
+    z-index: 1;
+  }
 }
 
 @utility spectrum-text {
-  background: var(--gradient-spectrum);
+  background-image: var(--gradient-spectrum-x);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;

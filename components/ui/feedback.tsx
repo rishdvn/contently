@@ -24,7 +24,7 @@ export function GeneratingBar({ className, ...props }: ComponentProps<"div">) {
     >
       <div
         className="h-full w-1/3 animate-sweep rounded-full"
-        style={{ backgroundImage: "var(--gradient-spectrum)" }}
+        style={{ backgroundImage: "var(--gradient-spectrum-x)" }}
       />
     </div>
   );

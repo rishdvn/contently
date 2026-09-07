@@ -167,10 +167,26 @@ export default function DesignSystemPage() {
         rule="A single gradient, never a fill. It marks generative actions and their results — the button that briefs the model, the bar while it works, the badge on what it produced. If it appears twice on a screen, one of them is wrong."
       >
         <div className="flex flex-col gap-4">
-          <div
-            className="h-14 rounded-card"
-            style={{ backgroundImage: "var(--gradient-spectrum)" }}
-          />
+          <div className="grid gap-2 sm:grid-cols-2">
+            <div className="flex flex-col gap-1.5">
+              <div
+                className="h-14 rounded-card"
+                style={{ backgroundImage: "var(--gradient-spectrum)" }}
+              />
+              <span className="font-mono text-xs text-ink-faint">
+                --gradient-spectrum &middot; edges
+              </span>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <div
+                className="h-14 rounded-card"
+                style={{ backgroundImage: "var(--gradient-spectrum-x)" }}
+              />
+              <span className="font-mono text-xs text-ink-faint">
+                --gradient-spectrum-x &middot; bars and text
+              </span>
+            </div>
+          </div>
           <div className="flex flex-wrap gap-2">
             {spectrumTokens.map(([name, hex]) => (
               <div

@@ -8,7 +8,8 @@ const tones: Record<Tone, { chip: string; dot: string }> = {
   positive: { chip: "bg-raised text-positive", dot: "bg-positive" },
   caution: { chip: "bg-raised text-caution", dot: "bg-caution" },
   critical: { chip: "bg-raised text-critical", dot: "bg-critical" },
-  spectrum: { chip: "spectrum-edge spectrum-text", dot: "bg-spectrum-green" },
+  /* Gradient on the edge, not the text: at 11px a gradient fill is unreadable. */
+  spectrum: { chip: "spectrum-edge text-ink", dot: "bg-spectrum-green" },
 };
 
 /**
@@ -31,10 +32,8 @@ export function Badge({
       )}
       {...props}
     >
-      {dot && tone !== "spectrum" ? (
-        <span className={cn("size-1.5 rounded-full", tones[tone].dot)} />
-      ) : null}
-      {children}
+      {dot ? <span className={cn("size-1.5 rounded-full", tones[tone].dot)} /> : null}
+      <span>{children}</span>
     </span>
   );
 }

@@ -1,26 +1,174 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+/*
+  Contently design tokens.
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+  Values are sampled from reference screenshots rather than invented, so the
+  ramp is deliberately uneven (#191919 / #1b1b1b / #1e1e1e are distinct steps
+  that each carry a different meaning). Do not "tidy" them into an even scale.
+*/
+@theme {
+  /* Surfaces, darkest to lightest. Elevation reads as lightness, never shadow alone. */
+  --color-canvas: #0d0d0d;
+  --color-panel: #151515;
+  --color-sunken: #191919;
+  --color-raised: #1b1b1b;
+  --color-field: #1e1e1e;
+  --color-card: #1f1f1f;
+  --color-selected: #212121;
+  --color-hover: #262626;
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+  --color-line: #212121;
+  --color-line-strong: #2f2f2f;
+
+  --color-ink: #f3f3f3;
+  --color-ink-secondary: #bababa;
+  --color-ink-muted: #8a8a8a;
+  --color-ink-faint: #565656;
+  --color-ink-disabled: #474747;
+
+  /* The only chromatic values in the entire chrome. See --gradient-spectrum. */
+  --color-spectrum-orange: #ff9837;
+  --color-spectrum-amber: #ffd043;
+  --color-spectrum-lime: #a9dc54;
+  --color-spectrum-green: #63e563;
+
+  --color-positive: #63e563;
+  --color-caution: #ffd043;
+  --color-critical: #ff6b5e;
+
+  --radius-chip: 8px;
+  --radius-control: 10px;
+  --radius-card: 12px;
+  --radius-panel: 14px;
+
+  /* Small and tight. 13px is body; anything larger is a deliberate signal. */
+  --text-micro: 11px;
+  --text-micro--line-height: 14px;
+  --text-micro--letter-spacing: 0.02em;
+  --text-xs: 12px;
+  --text-xs--line-height: 16px;
+  --text-sm: 13px;
+  --text-sm--line-height: 18px;
+  --text-base: 14px;
+  --text-base--line-height: 20px;
+  --text-md: 15px;
+  --text-md--line-height: 22px;
+  --text-lg: 18px;
+  --text-lg--line-height: 24px;
+  --text-lg--letter-spacing: -0.01em;
+  --text-xl: 22px;
+  --text-xl--line-height: 28px;
+  --text-xl--letter-spacing: -0.02em;
+  --text-2xl: 28px;
+  --text-2xl--line-height: 34px;
+  --text-2xl--letter-spacing: -0.02em;
+
+  --shadow-panel: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 24px -6px rgb(0 0 0 / 0.6);
+  --shadow-pop: 0 12px 40px -8px rgb(0 0 0 / 0.7);
+
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+
+  --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+
+  --animate-sweep: sweep 1.6s var(--ease-out-quart) infinite;
+  --animate-breathe: breathe 1.8s ease-in-out infinite;
+
+  @keyframes sweep {
+    from {
+      transform: translateX(-100%);
+    }
+    to {
+      transform: translateX(300%);
+    }
+  }
+
+  @keyframes breathe {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.45;
+    }
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+:root {
+  /*
+    Green sits at the top-left and warms as it travels down and right, matching
+    the reference. The long green plateau is what stops it reading as "rainbow".
+  */
+  --gradient-spectrum: linear-gradient(
+    135deg,
+    var(--color-spectrum-green) 0%,
+    var(--color-spectrum-green) 48%,
+    var(--color-spectrum-lime) 66%,
+    var(--color-spectrum-amber) 84%,
+    var(--color-spectrum-orange) 100%
+  );
+  --spectrum-fill: var(--color-canvas);
+}
+
+/*
+  A 1px gradient stroke over an opaque fill. Set --spectrum-fill to match
+  whatever surface the element sits on, or the corners will show through.
+*/
+@utility spectrum-edge {
+  border: 1px solid transparent;
+  background:
+    linear-gradient(var(--spectrum-fill), var(--spectrum-fill)) padding-box,
+    var(--gradient-spectrum) border-box;
+}
+
+@utility spectrum-text {
+  background: var(--gradient-spectrum);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+@layer base {
+  * {
+    border-color: var(--color-line);
+  }
+
+  html {
+    color-scheme: dark;
+  }
+
+  body {
+    background-color: var(--color-canvas);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-size: var(--text-sm);
+    line-height: var(--text-sm--line-height);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  ::selection {
+    background-color: var(--color-selected);
+    color: var(--color-ink);
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background-color: var(--color-selected);
+    border: 3px solid transparent;
+    background-clip: content-box;
+    border-radius: 999px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: var(--color-line-strong);
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
 }

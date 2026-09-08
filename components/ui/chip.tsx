@@ -14,7 +14,7 @@ export function Chip({
     <button
       aria-pressed={selected}
       className={cn(
-        "inline-flex h-8.5 shrink-0 items-center gap-1.5 rounded-control px-3.5 text-cap whitespace-nowrap",
+        "inline-flex h-8.5 shrink-0 items-center gap-1.5 rounded-control px-3.5 text-ui whitespace-nowrap",
         "transition-colors duration-150 ease-out-quart outline-none",
         "focus-visible:ring-2 focus-visible:ring-ink/25",
         selected ? "bg-ink text-canvas" : "bg-raised text-ink hover:bg-line-strong",

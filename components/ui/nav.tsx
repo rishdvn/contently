@@ -4,7 +4,7 @@ import { cn } from "@/lib/cn";
 export function Sidebar({ className, ...props }: ComponentProps<"nav">) {
   return (
     <nav
-      className={cn("flex w-52 shrink-0 flex-col gap-6 bg-canvas px-3 py-4", className)}
+      className={cn("flex w-[289px] shrink-0 flex-col gap-6 bg-canvas px-[22px] py-4", className)}
       {...props}
     />
   );
@@ -42,10 +42,10 @@ export function NavItem({
     <button
       aria-current={active ? "page" : undefined}
       className={cn(
-        "flex h-9.5 items-center gap-2.5 rounded-nav px-2.5 text-default text-ink",
+        "flex h-[39px] items-center gap-2.5 rounded-nav px-[9px] text-body text-ink",
         "transition-colors duration-150 ease-out-quart outline-none",
         "focus-visible:ring-2 focus-visible:ring-ink/25",
-        active ? "bg-[var(--state-selected)]" : "hover:bg-[var(--state-hover)]",
+        active ? "bg-raised" : "hover:bg-[var(--state-hover)]",
         className,
       )}
       {...props}

@@ -67,6 +67,7 @@ const typeScale = [
   ["text-sections", "24 / 30", "Page title, once per screen"],
   ["text-titles", "18 / 25", "Card title, tab, modal heading"],
   ["text-panels", "16 / 22", "Panel heading"],
+  ["text-body", "16 / 24", "Inherited default and navigation — the one role tracked 0.2px"],
   ["text-default", "14 / 20", "Body and button labels"],
   ["text-ui", "13 / 18", "Dense UI text"],
   ["text-cap", "12 / 16", "Metadata, field labels, hints"],

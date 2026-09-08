@@ -67,6 +67,14 @@
   --text-default: 14px;
   --text-default--line-height: 20px;
   --text-default--letter-spacing: 0.8px;
+  /*
+    `body` is the inherited default and is the one role that is *not* tracked
+    +0.8px — it sits at 0.2px. Navigation and prose use it; the named roles
+    below it are for labelled UI.
+  */
+  --text-body: 16px;
+  --text-body--line-height: 24px;
+  --text-body--letter-spacing: 0.2px;
   --text-panels: 16px;
   --text-panels--line-height: 22px;
   --text-panels--letter-spacing: 0.8px;

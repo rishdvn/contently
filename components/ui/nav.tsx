@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { ComponentProps, ReactNode } from "react";
 import { cn } from "@/lib/cn";
 
@@ -27,32 +28,72 @@ export function SidebarGroup({
   );
 }
 
-/**
- * Active state is a light overlay, not a colour or an edge marker. Labels stay
- * at full contrast in both states so the nav never looks half-disabled.
- */
+/*
+  One class builder shared by the button and link forms, so the two can never
+  drift apart. Active state is a solid fill, not a colour or an edge marker,
+  and labels stay at full contrast in both states so the nav never looks
+  half-disabled.
+*/
+function navItemClass(active: boolean, className?: string) {
+  return cn(
+    "flex h-[39px] items-center gap-2.5 rounded-nav px-[9px] text-body text-ink",
+    "transition-colors duration-150 ease-out-quart outline-none",
+    "focus-visible:ring-2 focus-visible:ring-ink/25",
+    active ? "bg-raised" : "hover:bg-[var(--state-hover)]",
+    className,
+  );
+}
+
+function NavItemInner({
+  icon,
+  trailing,
+  children,
+}: {
+  icon?: ReactNode;
+  trailing?: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <>
+      {icon ? <span className="shrink-0 [&>svg]:size-4">{icon}</span> : null}
+      <span className="min-w-0 flex-1 truncate text-left">{children}</span>
+      {trailing ? <span className="shrink-0 text-cap text-ink-disabled">{trailing}</span> : null}
+    </>
+  );
+}
+
 export function NavItem({
   icon,
+  trailing,
   active = false,
   className,
   children,
   ...props
-}: ComponentProps<"button"> & { icon?: ReactNode; active?: boolean }) {
+}: ComponentProps<"button"> & { icon?: ReactNode; trailing?: ReactNode; active?: boolean }) {
   return (
-    <button
-      aria-current={active ? "page" : undefined}
-      className={cn(
-        "flex h-[39px] items-center gap-2.5 rounded-nav px-[9px] text-body text-ink",
-        "transition-colors duration-150 ease-out-quart outline-none",
-        "focus-visible:ring-2 focus-visible:ring-ink/25",
-        active ? "bg-raised" : "hover:bg-[var(--state-hover)]",
-        className,
-      )}
-      {...props}
-    >
-      {icon ? <span className="shrink-0 [&>svg]:size-4">{icon}</span> : null}
-      <span className="truncate">{children}</span>
+    <button aria-current={active ? "page" : undefined} className={navItemClass(active, className)} {...props}>
+      <NavItemInner icon={icon} trailing={trailing}>
+        {children}
+      </NavItemInner>
     </button>
+  );
+}
+
+/** Same item, rendered as a route link. */
+export function NavLink({
+  icon,
+  trailing,
+  active = false,
+  className,
+  children,
+  ...props
+}: ComponentProps<typeof Link> & { icon?: ReactNode; trailing?: ReactNode; active?: boolean }) {
+  return (
+    <Link aria-current={active ? "page" : undefined} className={navItemClass(active, className)} {...props}>
+      <NavItemInner icon={icon} trailing={trailing}>
+        {children}
+      </NavItemInner>
+    </Link>
   );
 }
 

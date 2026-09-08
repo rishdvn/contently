@@ -11,7 +11,6 @@ import {
   Undo2,
   Users,
 } from "lucide-react";
-import type { ReactNode } from "react";
 import { useState } from "react";
 
 import { Alert } from "@/components/ui/alert";
@@ -28,39 +27,11 @@ import {
 } from "@/components/ui/dialog";
 import { Field, Input, Textarea } from "@/components/ui/input";
 import { Menu, MenuDivider, MenuItem, MenuLabel } from "@/components/ui/menu";
-import { SectionLabel } from "@/components/ui/surface";
 import { Switch } from "@/components/ui/switch";
 import { ToastProvider, useToast } from "@/components/ui/toast";
 import { Tooltip } from "@/components/ui/tooltip";
 
-function Section({
-  title,
-  rule,
-  children,
-}: {
-  title: string;
-  rule: string;
-  children: ReactNode;
-}) {
-  return (
-    <section className="flex flex-col gap-4 border-t border-line pt-8">
-      <header className="flex flex-col gap-1">
-        <h2 className="text-titles text-ink">{title}</h2>
-        <p className="max-w-2xl text-default text-ink-secondary">{rule}</p>
-      </header>
-      {children}
-    </section>
-  );
-}
-
-function Row({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div className="flex flex-wrap items-center gap-3">
-      <span className="w-24 shrink-0 text-cap text-ink-disabled">{label}</span>
-      {children}
-    </div>
-  );
-}
+import { Page, PageHeader, Row, Section } from "../_doc";
 
 export function Overlays() {
   return (
@@ -92,23 +63,21 @@ function Inner() {
   const close = () => setOpen(null);
 
   return (
-    <div className="mx-auto flex max-w-5xl flex-col gap-8 px-8 py-12">
-      <header className="flex flex-col gap-3">
-        <SectionLabel>Contently</SectionLabel>
-        <h1 className="text-sections">Overlays</h1>
-        <p className="max-w-2xl text-panels text-ink-secondary">
-          Everything on this page is live — open it, dismiss it with Escape, click
-          the scrim, tab through it.
-        </p>
-        <p className="max-w-2xl text-cap text-ink-disabled">
-          Dialogs and drawers are native <code>&lt;dialog&gt;</code> elements
-          opened with <code>showModal()</code>, so focus trapping, Escape, inert
-          background content and top-layer painting come from the browser rather
-          than from us.
-        </p>
-      </header>
+    <Page>
+      <PageHeader
+        title="Overlays"
+        lede="Everything on this page is live — open it, dismiss it with Escape, click the scrim, tab through it."
+        note={
+          <>
+            Dialogs and drawers are native <code>&lt;dialog&gt;</code> elements opened with{" "}
+            <code>showModal()</code>, so focus trapping, Escape, inert background content and
+            top-layer painting come from the browser rather than from us.
+          </>
+        }
+      />
 
       <Section
+        id="shape"
         title="Choosing a shape"
         rule="Three questions decide it. Must the user respond before continuing? Use a dialog. Is the work secondary to what is on the canvas, and does seeing the canvas help? Use a drawer. Is it a shortcut to an action on one object? Use a menu."
       >
@@ -128,6 +97,7 @@ function Inner() {
       </Section>
 
       <Section
+        id="dialogs"
         title="Dialog sizes"
         rule="Four widths, and the choice is about content rather than importance. A destructive confirm is small because it is one sentence and two buttons; a brief is medium because it is a form; full is for work that needs the room, and is the point at which you should ask whether it wants to be a page."
       >
@@ -140,6 +110,7 @@ function Inner() {
       </Section>
 
       <Section
+        id="drawers"
         title="Drawers"
         rule="Slide from an edge and keep square corners against it, so they read as attached to the viewport rather than floating in it. Right is the default for inspectors; bottom is for pickers, and is the shape that survives contact with a narrow screen."
       >
@@ -151,6 +122,7 @@ function Inner() {
       </Section>
 
       <Section
+        id="flows"
         title="Composed flows"
         rule="The parts are shared between both shapes, so a flow can move from a dialog to a drawer without rewriting its contents. These are the four patterns the product actually needs."
       >
@@ -189,6 +161,7 @@ function Inner() {
       </Section>
 
       <Section
+        id="menus"
         title="Menus"
         rule="A menu is a shortcut, not a task, so it does not trap focus or make the page inert. It closes on Escape, on a click outside, and on choosing an item. Destructive items sit last, below a divider."
       >
@@ -222,6 +195,7 @@ function Inner() {
       </Section>
 
       <Section
+        id="tooltips"
         title="Tooltips"
         rule="Tooltips name unlabelled controls and nothing more. They are unreachable by touch and by keyboard-only users, so anything essential has to live in the interface itself. CSS-only, so they cannot get stuck open."
       >
@@ -245,6 +219,7 @@ function Inner() {
       </Section>
 
       <Section
+        id="alerts"
         title="Alerts"
         rule="An inline banner is for a condition attached to the surface it sits on. The fill is a near-black tinted with the tone rather than a saturated block, so a warning inside a dialog does not out-shout the dialog's own content."
       >
@@ -272,6 +247,7 @@ function Inner() {
       </Section>
 
       <Section
+        id="toasts"
         title="Toasts"
         rule="A toast reports something that already happened, so it never blocks and never asks a question. It inverts to light-on-dark because in an interface this dark a light slab is the only thing that reads as new without borrowing the gradient, which belongs to generation."
       >
@@ -309,6 +285,7 @@ function Inner() {
       </Section>
 
       <Section
+        id="switches"
         title="Switches"
         rule="A switch applies the moment it moves, with no confirming action. If the change needs saving, it should be a checkbox next to a submit button instead."
       >
@@ -566,6 +543,6 @@ function Inner() {
           </Button>
         </DialogFooter>
       </Drawer>
-    </div>
+    </Page>
   );
 }

@@ -37,7 +37,13 @@ const categories = [
 
 export default function ParityPage() {
   return (
-    <div className="flex min-h-screen bg-canvas">
+    <div className="flex flex-col gap-4 px-8 py-12">
+      <p className="max-w-3xl text-cap text-ink-disabled">
+        Reference parity. A like-for-like rebuild of the source product&rsquo;s template browser
+        from Contently primitives, framed at the width it is diffed at. If this drifts from the
+        reference, the system has drifted.
+      </p>
+    <div className="flex min-h-[820px] overflow-hidden rounded-[var(--radius-overlay)] bg-canvas ring-1 ring-line">
       <Sidebar>
         <div className="px-2.5 pt-1 pb-2 text-titles text-ink italic">Contently</div>
         <SidebarGroup label="Home">
@@ -99,6 +105,7 @@ export default function ParityPage() {
           ))}
         </div>
       </main>
+    </div>
     </div>
   );
 }

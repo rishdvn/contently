@@ -90,6 +90,31 @@
   --shadow-overlay: 0 12px 32px rgb(0 0 0 / 0.45);
 
   /*
+    Interpolated between the control radius and the card radius. Not measured
+    from the reference — its overlays were not reachable without an account.
+  */
+  --radius-overlay: 20px;
+
+  /*
+    Tinted near-black surfaces for inline banners, and the pale tints that stay
+    legible on them. Taken from the reference's Alert palette.
+  */
+  --color-critical-surface: #180e0e;
+  --color-critical-ink: #fcd1d1;
+  --color-caution-surface: #19150a;
+  --color-caution-ink: #ffefc3;
+  --color-positive-surface: #0d170d;
+  --color-positive-ink: #d0f7d0;
+  --color-info-surface: #0c1219;
+  --color-info-ink: #cbe2fd;
+
+  /* Toasts invert to light-on-dark, which is the reference's snackbar treatment. */
+  --color-inverse-surface: #fafafa;
+  --color-inverse-ink: #0a0909;
+
+  --color-tooltip: rgb(97 97 97 / 0.92);
+
+  /*
     Die Grotesk A and Graebenbach are the reference's licensed faces. They are
     named first so they take effect wherever a licence exists, with a
     neo-grotesque fallback everywhere else.
@@ -101,6 +126,18 @@
 
   --animate-sweep: sweep 1.6s var(--ease-out-quart) infinite;
   --animate-breathe: breathe 1.8s ease-in-out infinite;
+  --animate-pop: pop 120ms var(--ease-out-quart);
+
+  @keyframes pop {
+    from {
+      opacity: 0;
+      transform: translateY(-4px) scale(0.98);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
 
   @keyframes sweep {
     from {
@@ -163,6 +200,25 @@
     rgb(0 0 0 / 0.42) 60%,
     rgb(0 0 0 / 0.72) 100%
   );
+
+  /*
+    The reference's layering scale. Dialogs and menus here render in the
+    browser's top layer and so ignore z-index entirely; these values exist for
+    everything that does not — sticky headers, floating bars, the toast region.
+  */
+  --z-sticky: 1100;
+  --z-floating-bar: 1200;
+  --z-modal: 1300;
+  --z-toast: 1400;
+  --z-tooltip: 1500;
+
+  /*
+    Overlay motion. Enter is slower than exit: appearing should feel considered,
+    dismissing should feel immediate. Ours, not the reference's.
+  */
+  --overlay-enter: 180ms;
+  --overlay-exit: 120ms;
+  --scrim-color: rgb(0 0 0 / 0.62);
 }
 
 /*
@@ -207,6 +263,127 @@
 /* Bottom-up scrim for text laid over artwork. */
 @utility scrim {
   background-image: var(--gradient-scrim);
+}
+
+/*
+  Overlay motion.
+
+  Dialogs and drawers are native <dialog> elements opened with showModal(), so
+  the browser gives us the top layer, a focus trap, Escape-to-close and inert
+  background content for free. That is why there is no z-index here: top-layer
+  elements are painted above everything regardless.
+
+  Animating them out requires `allow-discrete`, because `display` and `overlay`
+  are discrete properties — without it the element would vanish on close and
+  the exit transition would never be seen. `@starting-style` supplies the
+  before-open state that the entry transition runs from.
+*/
+@layer components {
+  .overlay {
+    margin: 0;
+    max-width: none;
+    max-height: none;
+    padding: 0;
+    border: 0;
+    background: var(--color-panel);
+    color: var(--color-ink);
+    box-shadow: var(--shadow-overlay);
+    transition:
+      opacity var(--overlay-exit) var(--ease-out-quart),
+      translate var(--overlay-exit) var(--ease-out-quart),
+      scale var(--overlay-exit) var(--ease-out-quart),
+      overlay var(--overlay-exit) allow-discrete,
+      display var(--overlay-exit) allow-discrete;
+  }
+
+  .overlay[open] {
+    transition-duration: var(--overlay-enter);
+    opacity: 1;
+    translate: 0 0;
+    scale: 1;
+  }
+
+  .overlay::backdrop {
+    background: rgb(0 0 0 / 0);
+    backdrop-filter: blur(0px);
+    transition:
+      background var(--overlay-exit) var(--ease-out-quart),
+      backdrop-filter var(--overlay-exit) var(--ease-out-quart),
+      overlay var(--overlay-exit) allow-discrete,
+      display var(--overlay-exit) allow-discrete;
+  }
+
+  .overlay[open]::backdrop {
+    transition-duration: var(--overlay-enter);
+    background: var(--scrim-color);
+    backdrop-filter: blur(2px);
+  }
+
+  @starting-style {
+    .overlay[open]::backdrop {
+      background: rgb(0 0 0 / 0);
+      backdrop-filter: blur(0px);
+    }
+  }
+
+  /* Centred dialog: rises slightly and settles. */
+  .overlay-dialog {
+    inset: 0;
+    opacity: 0;
+    translate: 0 8px;
+    scale: 0.98;
+    border-radius: var(--radius-overlay);
+  }
+
+  @starting-style {
+    .overlay-dialog[open] {
+      opacity: 0;
+      translate: 0 8px;
+      scale: 0.98;
+    }
+  }
+
+  /*
+    Drawers slide from an edge and keep square corners against it, so they read
+    as attached to the viewport rather than floating in it.
+  */
+  .overlay-drawer {
+    opacity: 1;
+    scale: 1;
+    height: 100dvh;
+    inset: 0 0 0 auto;
+  }
+
+  .overlay-drawer-right {
+    translate: 100% 0;
+    border-radius: var(--radius-overlay) 0 0 var(--radius-overlay);
+  }
+
+  .overlay-drawer-left {
+    inset: 0 auto 0 0;
+    translate: -100% 0;
+    border-radius: 0 var(--radius-overlay) var(--radius-overlay) 0;
+  }
+
+  .overlay-drawer-bottom {
+    inset: auto 0 0 0;
+    height: auto;
+    width: 100%;
+    translate: 0 100%;
+    border-radius: var(--radius-overlay) var(--radius-overlay) 0 0;
+  }
+
+  @starting-style {
+    .overlay-drawer-right[open] {
+      translate: 100% 0;
+    }
+    .overlay-drawer-left[open] {
+      translate: -100% 0;
+    }
+    .overlay-drawer-bottom[open] {
+      translate: 0 100%;
+    }
+  }
 }
 
 @layer base {

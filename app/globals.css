@@ -279,7 +279,14 @@
   before-open state that the entry transition runs from.
 */
 @layer components {
+  /*
+    Display is owned here rather than by a utility class. A `flex` utility on
+    the element would override the UA's `dialog:not([open]) { display: none }`,
+    leaving every closed dialog in the layout where it silently swallows clicks
+    meant for the page beneath.
+  */
   .overlay {
+    display: none;
     margin: 0;
     max-width: none;
     max-height: none;
@@ -297,6 +304,8 @@
   }
 
   .overlay[open] {
+    display: flex;
+    flex-direction: column;
     transition-duration: var(--overlay-enter);
     opacity: 1;
     translate: 0 0;

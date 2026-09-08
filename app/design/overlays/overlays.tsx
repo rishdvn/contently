@@ -451,7 +451,7 @@ function Inner() {
           </Field>
           <div className="flex flex-col gap-2">
             <span className="text-cap text-ink-secondary">Awareness stages</span>
-            <ChipRow>
+            <ChipRow wrap>
               <Chip selected>Problem-aware</Chip>
               <Chip selected>Solution-aware</Chip>
               <Chip>Product-aware</Chip>
@@ -541,7 +541,7 @@ function Inner() {
           </Field>
           <div className="flex flex-col gap-2">
             <span className="text-cap text-ink-secondary">Angle types covered</span>
-            <ChipRow>
+            <ChipRow wrap>
               <Chip selected>Social proof</Chip>
               <Chip selected>Before / after</Chip>
               <Chip>New mechanism</Chip>

@@ -119,6 +119,20 @@ export default function DesignSystemPage() {
           set rather than sampled from screenshots. The full capture lives in
           docs/butter-tokens.txt.
         </p>
+        <nav className="flex flex-wrap items-center gap-2 pt-1">
+          <a
+            href="/design/overlays"
+            className="rounded-control bg-raised px-3 py-1.5 text-cap text-ink hover:bg-line-strong"
+          >
+            Overlays &rarr;
+          </a>
+          <a
+            href="/design/parity"
+            className="rounded-control bg-raised px-3 py-1.5 text-cap text-ink hover:bg-line-strong"
+          >
+            Reference parity &rarr;
+          </a>
+        </nav>
       </header>
 
       <Section

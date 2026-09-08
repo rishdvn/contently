@@ -97,7 +97,7 @@ export function Dialog({
       onClick={dismissable ? onBackdropClick : undefined}
       onCancel={dismissable ? undefined : (e) => e.preventDefault()}
       className={cn(
-        "overlay overlay-dialog m-auto flex max-h-[calc(100dvh-64px)] flex-col",
+        "overlay overlay-dialog m-auto max-h-[calc(100dvh-64px)]",
         sizes[size],
         className,
       )}
@@ -125,7 +125,7 @@ export function Drawer({
       ref={ref}
       onClick={dismissable ? onBackdropClick : undefined}
       onCancel={dismissable ? undefined : (e) => e.preventDefault()}
-      className={cn("overlay overlay-drawer flex flex-col", sides[side], className)}
+      className={cn("overlay overlay-drawer", sides[side], className)}
     >
       {children}
     </dialog>

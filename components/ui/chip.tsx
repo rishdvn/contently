@@ -25,10 +25,23 @@ export function Chip({
   );
 }
 
-export function ChipRow({ className, ...props }: ComponentProps<"div">) {
+/**
+ * Scrolls horizontally by default, matching the reference's category rail.
+ * Inside a constrained container such as a dialog, `wrap` is usually right —
+ * a row that scrolls within a panel that also scrolls is hard to discover.
+ */
+export function ChipRow({
+  wrap = false,
+  className,
+  ...props
+}: ComponentProps<"div"> & { wrap?: boolean }) {
   return (
     <div
-      className={cn("flex items-center gap-2 overflow-x-auto", className)}
+      className={cn(
+        "flex items-center gap-2",
+        wrap ? "flex-wrap" : "overflow-x-auto",
+        className,
+      )}
       {...props}
     />
   );

@@ -1,7 +1,7 @@
 ---
 name: map-web-app-ui
 description: "Log into a live web app, systematically map every screen with screenshots and screen recordings, and publish the result as a Notion page. Use when asked to document, audit, map, or capture the UI of an external product or platform."
-environments: [cloud]
+compatibility: "Requires a Cloud Agent environment with Chrome, an X display, ffmpeg, the computerUse and RecordScreen tools, the /opt/cursor/artifacts mount, and an authenticated Notion MCP connection. Phase 0 checks for these."
 ---
 
 # Mapping a web app's UI and publishing it to Notion

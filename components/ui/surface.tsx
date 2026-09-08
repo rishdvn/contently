@@ -1,18 +1,20 @@
 import type { ComponentProps, ElementType } from "react";
 import { cn } from "@/lib/cn";
 
-type Level = "panel" | "sunken" | "raised" | "card";
+type Level = "panel" | "card" | "raised";
 
 const levels: Record<Level, string> = {
-  panel: "bg-panel border border-line rounded-panel",
-  sunken: "bg-sunken border border-line rounded-card",
-  raised: "bg-raised border border-line rounded-card",
-  card: "bg-card border border-line rounded-card",
+  panel: "bg-panel rounded-nav",
+  card: "bg-card rounded-card",
+  raised: "bg-raised rounded-control",
 };
 
 /**
- * Every enclosed region in the app is a Surface. Elevation is expressed as
- * lightness first; `floating` adds shadow only for things that overlay content.
+ * Every enclosed region is a Surface. Elevation is expressed as lightness;
+ * `floating` adds shadow only for things that overlay content.
+ *
+ * Note there are no borders by default — the reference separates surfaces by
+ * value alone, and adding hairlines everywhere makes the UI look boxed in.
  */
 export function Surface({
   as: Tag = "div",
@@ -27,7 +29,7 @@ export function Surface({
 }) {
   return (
     <Tag
-      className={cn(levels[level], floating && "shadow-panel", className)}
+      className={cn(levels[level], floating && "shadow-overlay", className)}
       {...props}
     />
   );
@@ -36,28 +38,19 @@ export function Surface({
 export function SurfaceHeader({ className, ...props }: ComponentProps<"div">) {
   return (
     <div
-      className={cn(
-        "flex items-center justify-between gap-3 border-b border-line px-4 py-3",
-        className,
-      )}
+      className={cn("flex items-center justify-between gap-3 px-5 pt-4 pb-3", className)}
       {...props}
     />
   );
 }
 
 export function SurfaceBody({ className, ...props }: ComponentProps<"div">) {
-  return <div className={cn("p-4", className)} {...props} />;
+  return <div className={cn("px-5 pb-5", className)} {...props} />;
 }
 
-/** Small all-caps label that titles a group of controls. */
+/** Small label that titles a group of controls. */
 export function SectionLabel({ className, ...props }: ComponentProps<"div">) {
   return (
-    <div
-      className={cn(
-        "text-micro font-medium uppercase tracking-wider text-ink-faint",
-        className,
-      )}
-      {...props}
-    />
+    <div className={cn("text-cap text-ink-disabled", className)} {...props} />
   );
 }

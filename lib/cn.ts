@@ -4,13 +4,15 @@ import { extendTailwindMerge } from "tailwind-merge";
 /*
   tailwind-merge only knows Tailwind's stock scale keys. Our theme replaces the
   type ramp and radius ramp with custom keys, so they have to be declared here
-  or `text-md` and `rounded-panel` won't deduplicate against their siblings.
+  or `text-titles` and `rounded-card` won't deduplicate against their siblings.
 */
 const twMerge = extendTailwindMerge({
   extend: {
     classGroups: {
-      "font-size": [{ text: ["micro", "md"] }],
-      rounded: [{ rounded: ["chip", "control", "card", "panel"] }],
+      "font-size": [
+        { text: ["tiny", "cap", "ui", "default", "panels", "titles", "sections", "hero"] },
+      ],
+      rounded: [{ rounded: ["control", "nav", "pill", "card"] }],
     },
   },
 });

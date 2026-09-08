@@ -10,7 +10,7 @@ export function Toolbar({ className, ...props }: ComponentProps<"div">) {
     <div
       role="toolbar"
       className={cn(
-        "inline-flex items-center gap-1 rounded-panel border border-line bg-panel p-1 shadow-panel",
+        "inline-flex items-center gap-1 rounded-pill bg-panel p-1.5 shadow-overlay",
         className,
       )}
       {...props}

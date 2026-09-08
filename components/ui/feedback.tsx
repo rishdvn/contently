@@ -4,15 +4,15 @@ import { cn } from "@/lib/cn";
 export function Skeleton({ className, ...props }: ComponentProps<"div">) {
   return (
     <div
-      className={cn("animate-breathe rounded-card bg-raised", className)}
+      className={cn("animate-breathe rounded-control bg-raised", className)}
       {...props}
     />
   );
 }
 
 /**
- * Indeterminate progress for model work. The spectrum sweep is the same mark
- * used on the action that started it, so the user can connect cause to effect.
+ * Indeterminate progress for model work. The sweep carries the same gradient as
+ * the action that started it, so the user can connect cause to effect.
  */
 export function GeneratingBar({ className, ...props }: ComponentProps<"div">) {
   return (
@@ -24,7 +24,7 @@ export function GeneratingBar({ className, ...props }: ComponentProps<"div">) {
     >
       <div
         className="h-full w-1/3 animate-sweep rounded-full"
-        style={{ backgroundImage: "var(--gradient-spectrum-x)" }}
+        style={{ backgroundImage: "var(--gradient-spectrum-fill)" }}
       />
     </div>
   );
@@ -46,15 +46,15 @@ export function EmptyState({
   return (
     <div
       className={cn(
-        "flex flex-col items-center justify-center gap-3 rounded-panel border border-dashed border-line px-6 py-14 text-center",
+        "flex flex-col items-center justify-center gap-3 rounded-card bg-panel px-6 py-16 text-center",
         className,
       )}
     >
-      {icon ? <span className="text-ink-faint [&>svg]:size-6">{icon}</span> : null}
+      {icon ? <span className="text-ink-disabled [&>svg]:size-6">{icon}</span> : null}
       <div className="flex flex-col gap-1">
-        <p className="text-base font-medium text-ink">{title}</p>
+        <p className="text-titles text-ink">{title}</p>
         {description ? (
-          <p className="max-w-sm text-sm text-ink-muted">{description}</p>
+          <p className="max-w-sm text-default text-ink-secondary">{description}</p>
         ) : null}
       </div>
       {action}

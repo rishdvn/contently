@@ -19,9 +19,9 @@ import {
 
 import { Badge, Kbd } from "@/components/ui/badge";
 import { Button, IconButton } from "@/components/ui/button";
-import { Chip, ChipRow } from "@/components/ui/chip";
+import { Chip, ChipRow, TextTab } from "@/components/ui/chip";
 import { EmptyState, GeneratingBar, Skeleton } from "@/components/ui/feedback";
-import { Field, Input, Textarea } from "@/components/ui/input";
+import { Field, Input, SearchInput, Textarea } from "@/components/ui/input";
 import { NavItem, RailItem, Sidebar, SidebarGroup } from "@/components/ui/nav";
 import {
   SectionLabel,
@@ -36,40 +36,41 @@ export const metadata = {
 };
 
 const surfaceTokens = [
-  ["canvas", "#0d0d0d", "Page background. The floor everything sits on."],
+  ["canvas", "#0a0909", "Page background. Near-black, very slightly warm."],
   ["panel", "#151515", "Persistent chrome: rails, toolbars, docked panels."],
-  ["sunken", "#191919", "Recessed tokens inside a panel, e.g. filter chips."],
-  ["raised", "#1b1b1b", "Secondary buttons and hover targets."],
   ["field", "#1e1e1e", "Text inputs at rest."],
-  ["card", "#1f1f1f", "Content containers in a grid."],
-  ["selected", "#212121", "Active nav, pressed chip, current tab."],
-  ["hover", "#262626", "Hover on an already-raised element."],
+  ["card", "#1d1d1d", "Content containers in a grid."],
+  ["raised", "#252525", "Chips, secondary fills — also the divider value."],
+  ["line-strong", "#3a3a3a", "Hairline where a border is unavoidable."],
+];
+
+const stateTokens = [
+  ["--state-hover", "white / 8%", "Hover on any surface."],
+  ["--state-selected", "white / 16%", "Active nav item, current tab."],
+  ["--state-focus", "white / 12%", "Keyboard focus fill."],
 ];
 
 const inkTokens = [
-  ["ink", "#f3f3f3", "Primary text and icons."],
-  ["ink-secondary", "#bababa", "Supporting copy, inactive nav labels."],
-  ["ink-muted", "#8a8a8a", "Metadata, timestamps, counts."],
-  ["ink-faint", "#565656", "Placeholders and section labels."],
-  ["ink-disabled", "#474747", "Non-interactive text."],
+  ["ink", "#f5f5f5", "Primary text and icons."],
+  ["ink-secondary", "#a1a1aa", "Supporting copy, inactive labels."],
+  ["ink-disabled", "#52525b", "Placeholders, inactive tabs, non-interactive text."],
 ];
 
 const spectrumTokens = [
-  ["spectrum-green", "#63e563"],
-  ["spectrum-lime", "#a9dc54"],
-  ["spectrum-amber", "#ffd043"],
-  ["spectrum-orange", "#ff9837"],
+  ["spectrum-green", "#6ee86e"],
+  ["spectrum-amber", "#ffd84d"],
+  ["spectrum-orange", "#ff9a3c"],
 ];
 
 const typeScale = [
-  ["text-2xl", "28 / 34", "Page title, used once per screen"],
-  ["text-xl", "22 / 28", "Section heading"],
-  ["text-lg", "18 / 24", "Card title, modal heading"],
-  ["text-md", "15 / 22", "Emphasised body"],
-  ["text-base", "14 / 20", "Body, button labels"],
-  ["text-sm", "13 / 18", "Default UI text"],
-  ["text-xs", "12 / 16", "Metadata, hints"],
-  ["text-micro", "11 / 14", "Section labels, badges"],
+  ["text-hero", "36 / 40", "Marketing and empty-canvas moments only"],
+  ["text-sections", "24 / 30", "Page title, once per screen"],
+  ["text-titles", "18 / 25", "Card title, tab, modal heading"],
+  ["text-panels", "16 / 22", "Panel heading"],
+  ["text-default", "14 / 20", "Body and button labels"],
+  ["text-ui", "13 / 18", "Dense UI text"],
+  ["text-cap", "12 / 16", "Metadata, field labels, hints"],
+  ["text-tiny", "11 / 14", "Badges, rail labels"],
 ];
 
 function Section({
@@ -84,8 +85,8 @@ function Section({
   return (
     <section className="flex flex-col gap-4 border-t border-line pt-8">
       <header className="flex flex-col gap-1">
-        <h2 className="text-xl font-medium text-ink">{title}</h2>
-        <p className="max-w-2xl text-sm text-ink-muted">{rule}</p>
+        <h2 className="text-titles text-ink">{title}</h2>
+        <p className="max-w-2xl text-default text-ink-secondary">{rule}</p>
       </header>
       {children}
     </section>
@@ -95,7 +96,7 @@ function Section({
 function Row({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="flex flex-wrap items-center gap-3">
-      <span className="w-24 shrink-0 text-xs text-ink-faint">{label}</span>
+      <span className="w-24 shrink-0 text-cap text-ink-disabled">{label}</span>
       {children}
     </div>
   );
@@ -106,35 +107,48 @@ export default function DesignSystemPage() {
     <div className="mx-auto flex max-w-5xl flex-col gap-8 px-8 py-12">
       <header className="flex flex-col gap-3">
         <SectionLabel>Contently</SectionLabel>
-        <h1 className="text-2xl font-medium">Design system</h1>
-        <p className="max-w-2xl text-base text-ink-muted">
+        <h1 className="text-sections">Design system</h1>
+        <p className="max-w-2xl text-panels text-ink-secondary">
           The interface is monochrome so that the only colour on screen belongs to
-          the user&rsquo;s work. One chromatic mark exists — a gradient hairline —
-          and it is spent exclusively on the moment the model acts on your behalf.
+          the user&rsquo;s work. One chromatic mark exists — a gradient ring — and
+          it is spent exclusively on the moment the model acts on your behalf.
+        </p>
+        <p className="max-w-2xl text-cap text-ink-disabled">
+          Values are taken from the reference product&rsquo;s own published token
+          set rather than sampled from screenshots. The full capture lives in
+          docs/butter-tokens.txt.
         </p>
       </header>
 
       <Section
         title="Surfaces"
-        rule="Elevation is lightness, not shadow. Each step up the ramp means one step closer to the user; shadow is added only when an element floats free of the layout."
+        rule="There are really only two surfaces — canvas and panel — and a scale of white overlays on top of them. The named values below are those composites, kept as tokens for ergonomics. Elevation is lightness; shadow is reserved for things that float free of the layout."
       >
         <div className="grid gap-2 sm:grid-cols-2">
           {surfaceTokens.map(([name, hex, use]) => (
-            <div
-              key={name}
-              className="flex items-center gap-3 rounded-card border border-line p-2.5"
-            >
+            <div key={name} className="flex items-center gap-3 rounded-control bg-panel p-2.5">
               <div
-                className="size-10 shrink-0 rounded-chip border border-line"
+                className="size-10 shrink-0 rounded-control"
                 style={{ backgroundColor: hex }}
               />
               <div className="min-w-0">
                 <div className="flex items-baseline gap-2">
-                  <span className="text-sm font-medium">{name}</span>
-                  <span className="font-mono text-xs text-ink-faint">{hex}</span>
+                  <span className="text-default">{name}</span>
+                  <span className="font-mono text-cap text-ink-disabled">{hex}</span>
                 </div>
-                <p className="truncate text-xs text-ink-muted">{use}</p>
+                <p className="truncate text-cap text-ink-secondary">{use}</p>
               </div>
+            </div>
+          ))}
+        </div>
+        <div className="flex flex-col gap-1 pt-1">
+          {stateTokens.map(([name, value, use]) => (
+            <div key={name} className="flex flex-wrap items-baseline gap-3 py-0.5">
+              <span className="w-44 shrink-0 font-mono text-cap text-ink">{name}</span>
+              <span className="w-24 shrink-0 font-mono text-cap text-ink-disabled">
+                {value}
+              </span>
+              <span className="text-cap text-ink-secondary">{use}</span>
             </div>
           ))}
         </div>
@@ -142,21 +156,18 @@ export default function DesignSystemPage() {
 
       <Section
         title="Ink"
-        rule="Five steps, all neutral. Hierarchy is carried by contrast alone, which is what lets a full-colour thumbnail sit next to a label without either fighting."
+        rule="Three steps. Secondary and disabled are very slightly cool rather than pure neutral, which keeps grey text from looking muddy against a warm-black canvas."
       >
         <div className="flex flex-col gap-1">
           {inkTokens.map(([name, hex, use]) => (
-            <div key={name} className="flex items-baseline gap-3 py-1">
-              <span
-                className="w-32 shrink-0 text-base font-medium"
-                style={{ color: hex }}
-              >
+            <div key={name} className="flex flex-wrap items-baseline gap-3 py-1">
+              <span className="w-32 shrink-0 text-panels" style={{ color: hex }}>
                 {name}
               </span>
-              <span className="w-20 shrink-0 font-mono text-xs text-ink-faint">
+              <span className="w-20 shrink-0 font-mono text-cap text-ink-disabled">
                 {hex}
               </span>
-              <span className="text-sm text-ink-muted">{use}</span>
+              <span className="text-default text-ink-secondary">{use}</span>
             </div>
           ))}
         </div>
@@ -164,41 +175,45 @@ export default function DesignSystemPage() {
 
       <Section
         title="The spectrum"
-        rule="A single gradient, never a fill. It marks generative actions and their results — the button that briefs the model, the bar while it works, the badge on what it produced. If it appears twice on a screen, one of them is wrong."
+        rule="A single gradient, and almost always a ring rather than a fill. It marks generative actions and their results — the button that briefs the model, the bar while it works, the badge on what it produced. If it appears twice on a screen, one of them is wrong."
       >
         <div className="flex flex-col gap-4">
           <div className="grid gap-2 sm:grid-cols-2">
             <div className="flex flex-col gap-1.5">
               <div
-                className="h-14 rounded-card"
-                style={{ backgroundImage: "var(--gradient-spectrum)" }}
+                className="h-20 rounded-card"
+                style={{ backgroundImage: "var(--gradient-spectrum-outline)" }}
               />
-              <span className="font-mono text-xs text-ink-faint">
-                --gradient-spectrum &middot; edges
+              <span className="font-mono text-cap text-ink-disabled">
+                --gradient-spectrum-outline &middot; conic, 1.5px ring
               </span>
             </div>
             <div className="flex flex-col gap-1.5">
               <div
-                className="h-14 rounded-card"
-                style={{ backgroundImage: "var(--gradient-spectrum-x)" }}
+                className="h-20 rounded-card"
+                style={{ backgroundImage: "var(--gradient-spectrum-fill)" }}
               />
-              <span className="font-mono text-xs text-ink-faint">
-                --gradient-spectrum-x &middot; bars and text
+              <span className="font-mono text-cap text-ink-disabled">
+                --gradient-spectrum-fill &middot; 45°, bars and text
               </span>
             </div>
           </div>
+          <p className="max-w-2xl text-cap text-ink-secondary">
+            The ring is conic, not linear, and two of its sectors are pure white.
+            That is what makes it read as light catching a metal edge rather than
+            as a rainbow — and it is why sampling a rendered button suggests a
+            vertical gradient: green sits at the top of the sweep and both sides
+            warm as they descend.
+          </p>
           <div className="flex flex-wrap gap-2">
             {spectrumTokens.map(([name, hex]) => (
               <div
                 key={name}
-                className="flex items-center gap-2 rounded-chip bg-sunken px-2.5 py-1.5"
+                className="flex items-center gap-2 rounded-control bg-raised px-2.5 py-1.5"
               >
-                <span
-                  className="size-3 rounded-full"
-                  style={{ backgroundColor: hex }}
-                />
-                <span className="text-xs">{name}</span>
-                <span className="font-mono text-xs text-ink-faint">{hex}</span>
+                <span className="size-3 rounded-full" style={{ backgroundColor: hex }} />
+                <span className="text-cap">{name}</span>
+                <span className="font-mono text-cap text-ink-disabled">{hex}</span>
               </div>
             ))}
           </div>
@@ -207,30 +222,26 @@ export default function DesignSystemPage() {
               <Sparkles /> Generate carousel
             </Button>
             <Badge tone="spectrum">AI draft</Badge>
-            <span className="spectrum-text text-lg font-medium">
-              Spectrum text
-            </span>
+            <span className="spectrum-text text-titles">Spectrum text</span>
           </div>
         </div>
       </Section>
 
       <Section
         title="Type"
-        rule="Small and tight. 13px is the default, and anything above 18px is a deliberate signal that appears at most once per screen."
+        rule="Eight named roles, all at regular weight, and every one of them tracked +0.8px. The loose tracking is the most characteristic thing about the typeface treatment — tightening it is the fastest way to stop looking like the reference."
       >
         <div className="flex flex-col divide-y divide-line">
           {typeScale.map(([cls, metrics, use]) => (
-            <div key={cls} className="flex items-baseline gap-4 py-2.5">
-              <span className={`${cls} w-56 shrink-0 font-medium`}>
-                Persona &times; angle
-              </span>
-              <span className="w-24 shrink-0 font-mono text-xs text-ink-faint">
+            <div key={cls} className="flex flex-wrap items-baseline gap-4 py-2.5">
+              <span className={`${cls} w-64 shrink-0`}>Persona &times; angle</span>
+              <span className="w-28 shrink-0 font-mono text-cap text-ink-disabled">
                 {cls}
               </span>
-              <span className="w-16 shrink-0 font-mono text-xs text-ink-faint">
+              <span className="w-16 shrink-0 font-mono text-cap text-ink-disabled">
                 {metrics}
               </span>
-              <span className="text-xs text-ink-muted">{use}</span>
+              <span className="text-cap text-ink-secondary">{use}</span>
             </div>
           ))}
         </div>
@@ -238,7 +249,7 @@ export default function DesignSystemPage() {
 
       <Section
         title="Buttons"
-        rule="Exactly one primary per surface. White is for the safe, expected next step; the spectrum edge is for spending model time; everything else recedes."
+        rule="Exactly one primary per surface. White is for the safe, expected next step; the spectrum ring is for spending model time; everything else recedes. Corners are 10px and icon buttons are fully round."
       >
         <div className="flex flex-col gap-4">
           <Row label="primary">
@@ -277,9 +288,6 @@ export default function DesignSystemPage() {
               Cancel
             </Button>
             <Button variant="ghost">Cancel</Button>
-            <Button variant="ghost" size="lg">
-              Cancel
-            </Button>
           </Row>
           <Row label="danger">
             <Button variant="danger" size="sm">
@@ -289,13 +297,13 @@ export default function DesignSystemPage() {
           </Row>
           <Row label="icon">
             <IconButton aria-label="Undo">
-              <Undo2 className="size-4" />
-            </IconButton>
-            <IconButton aria-label="Redo">
-              <Redo2 className="size-4" />
+              <Undo2 />
             </IconButton>
             <IconButton aria-label="More" variant="secondary">
-              <MoreHorizontal className="size-4" />
+              <MoreHorizontal />
+            </IconButton>
+            <IconButton aria-label="Create" variant="primary">
+              <Plus />
             </IconButton>
           </Row>
         </div>
@@ -303,11 +311,11 @@ export default function DesignSystemPage() {
 
       <Section
         title="Inputs"
-        rule="Fields are darker than the panel they sit in, so a form reads as a set of holes rather than a stack of boxes. Focus lightens the fill instead of adding a ring of colour."
+        rule="Fields are darker than the panel they sit in, so a form reads as a set of holes rather than a stack of boxes. Search is a pill; everything else takes the 10px control radius."
       >
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Search" hint="Matches angle statements and hooks.">
-            <Input placeholder="Search templates" leading={<Search className="size-4" />} />
+            <SearchInput placeholder="Search templates" leading={<Search />} />
           </Field>
           <Field label="Persona">
             <Input placeholder="Bride-to-be, 25–35" />
@@ -317,10 +325,7 @@ export default function DesignSystemPage() {
             hint="Conversational. Write what the person would think, not a tagline."
             className="sm:col-span-2"
           >
-            <Textarea
-              rows={3}
-              placeholder="Your dermatologist wrecked your skin"
-            />
+            <Textarea rows={3} placeholder="Your dermatologist wrecked your skin" />
           </Field>
           <Field label="Disabled">
             <Input placeholder="Not editable" disabled />
@@ -329,8 +334,8 @@ export default function DesignSystemPage() {
       </Section>
 
       <Section
-        title="Chips and badges"
-        rule="Chips filter; badges report. Chips show selection with a lighter fill. Badges pair a dot with a word so state never rests on hue alone."
+        title="Chips, tabs and badges"
+        rule="Chips filter, tabs switch a view in place, badges report. Chips invert to a light fill when selected; tabs mark the current one with an underline and drop the rest to the disabled ink."
       >
         <div className="flex flex-col gap-4">
           <ChipRow>
@@ -340,8 +345,12 @@ export default function DesignSystemPage() {
             <Chip>Us vs them</Chip>
             <Chip>Social proof</Chip>
             <Chip>Identity</Chip>
-            <Chip>Before / after</Chip>
           </ChipRow>
+          <div className="flex items-center gap-5">
+            <TextTab active>Carousels</TextTab>
+            <TextTab>Static</TextTab>
+            <TextTab>Video</TextTab>
+          </div>
           <Row label="badges">
             <Badge>Draft</Badge>
             <Badge tone="positive">Scheduled</Badge>
@@ -350,7 +359,7 @@ export default function DesignSystemPage() {
             <Badge tone="spectrum">AI draft</Badge>
           </Row>
           <Row label="keys">
-            <span className="flex items-center gap-1 text-sm text-ink-muted">
+            <span className="flex items-center gap-1 text-default text-ink-secondary">
               Generate <Kbd>⌘</Kbd> <Kbd>⏎</Kbd>
             </span>
           </Row>
@@ -359,11 +368,11 @@ export default function DesignSystemPage() {
 
       <Section
         title="Navigation"
-        rule="Two shapes. A labelled sidebar for moving between workspaces, and a narrow glyph rail for switching tools without leaving the canvas. Active state is a fill in both."
+        rule="Two shapes. A labelled sidebar for moving between workspaces, and a narrow glyph rail for switching tools without leaving the canvas. Active state is a white overlay in both, on a 12px radius."
       >
         <div className="flex flex-wrap gap-4">
           <Surface className="overflow-hidden p-0">
-            <Sidebar className="border-r-0">
+            <Sidebar>
               <SidebarGroup label="Home">
                 <NavItem icon={<Compass />}>Explore</NavItem>
                 <NavItem icon={<LayoutTemplate />} active>
@@ -379,7 +388,7 @@ export default function DesignSystemPage() {
             </Sidebar>
           </Surface>
 
-          <Surface level="panel" className="flex flex-col gap-1 p-1.5">
+          <Surface level="panel" className="flex h-fit flex-col gap-1 p-1.5">
             <RailItem icon={<Wand2 />} active>
               Build
             </RailItem>
@@ -394,13 +403,13 @@ export default function DesignSystemPage() {
         title="Toolbar"
         rule="Overlays the canvas, so it always carries a shadow. Groups are separated by a hairline, and the one consequential action sits at the right end."
       >
-        <div className="flex items-center justify-center rounded-panel bg-sunken p-8">
+        <div className="flex items-center justify-center rounded-card bg-panel p-8">
           <Toolbar>
-            <IconButton aria-label="Undo">
-              <Undo2 className="size-4" />
+            <IconButton aria-label="Undo" size="sm">
+              <Undo2 />
             </IconButton>
-            <IconButton aria-label="Redo">
-              <Redo2 className="size-4" />
+            <IconButton aria-label="Redo" size="sm">
+              <Redo2 />
             </IconButton>
             <ToolbarDivider />
             <Button variant="ghost" size="sm">
@@ -422,12 +431,12 @@ export default function DesignSystemPage() {
 
       <Section
         title="Model states"
-        rule="Generation is slow and probabilistic, so it gets first-class states rather than a spinner. The spectrum sweep is the same mark as the button that triggered it."
+        rule="Generation is slow and probabilistic, so it gets first-class states rather than a spinner. The sweep carries the same gradient as the button that triggered it."
       >
         <div className="grid gap-4 sm:grid-cols-2">
           <Surface level="card">
             <SurfaceHeader>
-              <span className="text-sm font-medium">Generating 8 slides</span>
+              <span className="text-default">Generating 8 slides</span>
               <Badge tone="spectrum">AI draft</Badge>
             </SurfaceHeader>
             <SurfaceBody className="flex flex-col gap-3">
@@ -438,7 +447,7 @@ export default function DesignSystemPage() {
                 <Skeleton className="aspect-[4/5]" />
                 <Skeleton className="aspect-[4/5]" />
               </div>
-              <p className="text-xs text-ink-muted">
+              <p className="text-cap text-ink-secondary">
                 Writing hooks for <span className="text-ink">Problem-aware</span>{" "}
                 &middot; 3 of 8
               </p>
@@ -465,23 +474,21 @@ export default function DesignSystemPage() {
         <Surface level="card" className="max-w-xl">
           <SurfaceHeader>
             <div className="flex min-w-0 flex-col">
-              <span className="truncate text-base font-medium">
-                Vitamin C — Glow Seekers
-              </span>
-              <span className="text-xs text-ink-muted">
+              <span className="truncate text-titles">Vitamin C — Glow Seekers</span>
+              <span className="text-cap text-ink-secondary">
                 8 carousels &middot; modified 2 hours ago
               </span>
             </div>
             <div className="flex items-center gap-1.5">
               <Badge tone="caution">Needs review</Badge>
-              <IconButton aria-label="More">
-                <MoreHorizontal className="size-4" />
+              <IconButton aria-label="More" size="sm">
+                <MoreHorizontal />
               </IconButton>
             </div>
           </SurfaceHeader>
           <SurfaceBody className="flex flex-col gap-3">
-            <div className="rounded-chip bg-sunken px-2.5 py-2 text-xs text-ink-secondary">
-              <span className="text-ink-faint">Angle</span> &middot; Your
+            <div className="rounded-control bg-raised px-3 py-2 text-cap text-ink-secondary">
+              <span className="text-ink-disabled">Angle</span> &middot; Your
               dermatologist wrecked your skin
             </div>
             <div className="grid grid-cols-4 gap-2">
@@ -493,11 +500,11 @@ export default function DesignSystemPage() {
               ].map((bg, i) => (
                 <div
                   key={i}
-                  className="relative aspect-[4/5] overflow-hidden rounded-chip"
+                  className="relative aspect-[4/5] overflow-hidden rounded-control"
                   style={{ backgroundImage: bg }}
                 >
                   {i === 3 ? (
-                    <span className="absolute inset-0 flex items-center justify-center text-base font-medium text-ink">
+                    <span className="absolute inset-0 flex items-center justify-center text-default text-ink">
                       +5
                     </span>
                   ) : null}

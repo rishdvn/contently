@@ -4,7 +4,7 @@ import { cn } from "@/lib/cn";
 type Tone = "neutral" | "positive" | "caution" | "critical" | "spectrum";
 
 const tones: Record<Tone, { chip: string; dot: string }> = {
-  neutral: { chip: "bg-raised text-ink-secondary", dot: "bg-ink-faint" },
+  neutral: { chip: "bg-raised text-ink-secondary", dot: "bg-ink-disabled" },
   positive: { chip: "bg-raised text-positive", dot: "bg-positive" },
   caution: { chip: "bg-raised text-caution", dot: "bg-caution" },
   critical: { chip: "bg-raised text-critical", dot: "bg-critical" },
@@ -26,7 +26,7 @@ export function Badge({
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-chip px-2 py-0.5 text-micro font-medium",
+        "inline-flex items-center gap-1.5 rounded-control px-2.5 py-1 text-tiny",
         tones[tone].chip,
         className,
       )}
@@ -43,7 +43,7 @@ export function Kbd({ className, ...props }: ComponentProps<"kbd">) {
     <kbd
       className={cn(
         "inline-flex h-5 min-w-5 items-center justify-center rounded px-1.5",
-        "border border-line-strong bg-raised font-sans text-micro text-ink-muted",
+        "bg-raised font-sans text-tiny text-ink-secondary",
         className,
       )}
       {...props}

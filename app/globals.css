@@ -3,72 +3,91 @@
 /*
   Contently design tokens.
 
-  Values are sampled from reference screenshots rather than invented, so the
-  ramp is deliberately uneven (#191919 / #1b1b1b / #1e1e1e are distinct steps
-  that each carry a different meaning). Do not "tidy" them into an even scale.
+  Values are taken from the reference product's own published token set (its
+  `--butter-dark-*` custom properties, captured in docs/butter-tokens.txt),
+  not sampled from screenshots. Where a value here differs from the reference
+  it is a deliberate choice and is commented as such.
+
+  The reference is a Material UI dark theme with a custom palette, which is why
+  its elevation is expressed as white-alpha overlays over two base surfaces
+  rather than as a ladder of solid greys. We keep that model.
 */
 @theme {
-  /* Surfaces, darkest to lightest. Elevation reads as lightness, never shadow alone. */
-  --color-canvas: #0d0d0d;
+  /* The two real surfaces. Everything else is one of these plus an overlay. */
+  --color-canvas: #0a0909;
   --color-panel: #151515;
-  --color-sunken: #191919;
-  --color-raised: #1b1b1b;
+
+  /* Composited surfaces, kept as solid tokens for ergonomics. */
+  --color-card: #1d1d1d;
+  --color-raised: #252525;
   --color-field: #1e1e1e;
-  --color-card: #1f1f1f;
-  --color-selected: #212121;
-  --color-hover: #262626;
 
-  --color-line: #212121;
-  --color-line-strong: #2f2f2f;
+  --color-line: #252525;
+  --color-line-strong: #3a3a3a;
 
-  --color-ink: #f3f3f3;
-  --color-ink-secondary: #bababa;
-  --color-ink-muted: #8a8a8a;
-  --color-ink-faint: #565656;
-  --color-ink-disabled: #474747;
+  --color-ink: #f5f5f5;
+  --color-ink-secondary: #a1a1aa;
+  --color-ink-disabled: #52525b;
 
-  /* The only chromatic values in the entire chrome. See --gradient-spectrum. */
-  --color-spectrum-orange: #ff9837;
-  --color-spectrum-amber: #ffd043;
-  --color-spectrum-lime: #a9dc54;
-  --color-spectrum-green: #63e563;
+  /*
+    The gradient stops. Three, not four: the chartreuse that shows up when you
+    sample a rendered edge is interpolation between green and amber, not a stop.
+  */
+  --color-spectrum-green: #6ee86e;
+  --color-spectrum-amber: #ffd84d;
+  --color-spectrum-orange: #ff9a3c;
 
-  --color-positive: #63e563;
-  --color-caution: #ffd043;
-  --color-critical: #ff6b5e;
+  --color-positive: #6ee86e;
+  --color-caution: #ffce47;
+  --color-critical: #f87171;
+  --color-info: #60a5fa;
 
-  --radius-chip: 8px;
   --radius-control: 10px;
-  --radius-card: 12px;
-  --radius-panel: 14px;
+  --radius-nav: 12px;
+  --radius-pill: 14px;
+  --radius-card: 32px;
 
-  /* Small and tight. 13px is body; anything larger is a deliberate signal. */
-  --text-micro: 11px;
-  --text-micro--line-height: 14px;
-  --text-micro--letter-spacing: 0.02em;
-  --text-xs: 12px;
-  --text-xs--line-height: 16px;
-  --text-sm: 13px;
-  --text-sm--line-height: 18px;
-  --text-base: 14px;
-  --text-base--line-height: 20px;
-  --text-md: 15px;
-  --text-md--line-height: 22px;
-  --text-lg: 18px;
-  --text-lg--line-height: 24px;
-  --text-lg--letter-spacing: -0.01em;
-  --text-xl: 22px;
-  --text-xl--line-height: 28px;
-  --text-xl--letter-spacing: -0.02em;
-  --text-2xl: 28px;
-  --text-2xl--line-height: 34px;
-  --text-2xl--letter-spacing: -0.02em;
+  /*
+    The reference's named type roles, kept under its own names because they
+    encode intent that "sm/md/lg" would lose.
 
-  --shadow-panel: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 24px -6px rgb(0 0 0 / 0.6);
-  --shadow-pop: 0 12px 40px -8px rgb(0 0 0 / 0.7);
+    Note the tracking: every UI role is +0.8px, i.e. deliberately loose. This is
+    the single most characteristic thing about the typography and it is the
+    opposite of the usual "tighten as it gets bigger" instinct.
+  */
+  --text-tiny: 11px;
+  --text-tiny--line-height: 14px;
+  --text-tiny--letter-spacing: 0.8px;
+  --text-cap: 12px;
+  --text-cap--line-height: 16px;
+  --text-cap--letter-spacing: 0.8px;
+  --text-ui: 13px;
+  --text-ui--line-height: 18px;
+  --text-ui--letter-spacing: 0.8px;
+  --text-default: 14px;
+  --text-default--line-height: 20px;
+  --text-default--letter-spacing: 0.8px;
+  --text-panels: 16px;
+  --text-panels--line-height: 22px;
+  --text-panels--letter-spacing: 0.8px;
+  --text-titles: 18px;
+  --text-titles--line-height: 25px;
+  --text-titles--letter-spacing: 0.8px;
+  --text-sections: 24px;
+  --text-sections--line-height: 30px;
+  --text-sections--letter-spacing: 0.8px;
+  --text-hero: 36px;
+  --text-hero--line-height: 40px;
 
-  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
-  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+  --shadow-overlay: 0 12px 32px rgb(0 0 0 / 0.45);
+
+  /*
+    Die Grotesk A and Graebenbach are the reference's licensed faces. They are
+    named first so they take effect wherever a licence exists, with a
+    neo-grotesque fallback everywhere else.
+  */
+  --font-sans: "Die Grotesk A", var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "ABC Diatype Mono", var(--font-geist-mono), ui-monospace, monospace;
 
   --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
 
@@ -96,33 +115,51 @@
 }
 
 :root {
-  /*
-    Green holds the first third and then warms. The long green plateau is what
-    keeps it from reading as a rainbow.
-  */
-  --spectrum-stops:
-    var(--color-spectrum-green) 0%, var(--color-spectrum-green) 30%,
-    var(--color-spectrum-lime) 52%, var(--color-spectrum-amber) 74%,
-    var(--color-spectrum-orange) 96%;
+  /* Interaction states are white at an alpha, so they work over any surface. */
+  --state-hover: rgb(255 255 255 / 0.08);
+  --state-selected: rgb(255 255 255 / 0.16);
+  --state-focus: rgb(255 255 255 / 0.12);
+  --state-disabled-bg: rgb(255 255 255 / 0.12);
+
+  --gradient-spectrum-fill: linear-gradient(
+    45deg,
+    var(--color-spectrum-green),
+    var(--color-spectrum-amber),
+    var(--color-spectrum-orange)
+  );
 
   /*
-    Green along the top edge, warming downward. Kept close to 180deg on
-    purpose: on a wide element any angle nearer 135deg is dominated by the
-    horizontal axis and the ring reads left-to-right instead.
+    Conic, not linear. The two white sectors are what make it read as a light
+    catching a metal edge rather than as a rainbow, and they are why sampling a
+    rendered button suggests a "vertical" gradient: green sits at the top
+    because the sweep starts there, and both sides warm as they descend.
   */
-  --gradient-spectrum: linear-gradient(172deg, var(--spectrum-stops));
+  --gradient-spectrum-outline: conic-gradient(
+    from 0deg,
+    #6ee86e 0deg,
+    #6ee86e 55deg,
+    #ffd84d 85deg,
+    #ff9a3c 91deg,
+    #ffffff 115deg,
+    #ffffff 250deg,
+    #ff9a3c 264deg,
+    #ffd84d 272deg,
+    #6ee86e 290deg,
+    #6ee86e 360deg
+  );
+  --gradient-spectrum-outline-width: 1.5px;
 
-  /*
-    Horizontal variant. A near-vertical gradient collapses to a single flat
-    colour on anything only a few pixels tall, so bars and text use this.
-  */
-  --gradient-spectrum-x: linear-gradient(90deg, var(--spectrum-stops));
+  --gradient-scrim: linear-gradient(
+    180deg,
+    rgb(0 0 0 / 0) 0%,
+    rgb(0 0 0 / 0.42) 60%,
+    rgb(0 0 0 / 0.72) 100%
+  );
 }
 
 /*
-  A 1px gradient ring drawn as a masked pseudo-element rather than a
-  gradient border-box, so the interior stays genuinely transparent and the
-  element can sit on any surface without its fill having to be kept in sync.
+  The gradient ring, drawn as a masked pseudo-element so the interior stays
+  transparent and the mark works on any surface.
 */
 @utility spectrum-edge {
   position: relative;
@@ -133,8 +170,8 @@
     inset: 0;
     z-index: 0;
     border-radius: inherit;
-    padding: 1px;
-    background-image: var(--gradient-spectrum);
+    padding: var(--gradient-spectrum-outline-width);
+    background-image: var(--gradient-spectrum-outline);
     -webkit-mask:
       linear-gradient(#000 0 0) content-box,
       linear-gradient(#000 0 0);
@@ -153,10 +190,15 @@
 }
 
 @utility spectrum-text {
-  background-image: var(--gradient-spectrum-x);
+  background-image: var(--gradient-spectrum-fill);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
+}
+
+/* Bottom-up scrim for text laid over artwork. */
+@utility scrim {
+  background-image: var(--gradient-scrim);
 }
 
 @layer base {
@@ -172,13 +214,14 @@
     background-color: var(--color-canvas);
     color: var(--color-ink);
     font-family: var(--font-sans);
-    font-size: var(--text-sm);
-    line-height: var(--text-sm--line-height);
+    font-size: var(--text-default);
+    line-height: var(--text-default--line-height);
+    letter-spacing: var(--text-default--letter-spacing);
     -webkit-font-smoothing: antialiased;
   }
 
   ::selection {
-    background-color: var(--color-selected);
+    background-color: var(--state-selected);
     color: var(--color-ink);
   }
 
@@ -188,7 +231,7 @@
   }
 
   ::-webkit-scrollbar-thumb {
-    background-color: var(--color-selected);
+    background-color: var(--color-raised);
     border: 3px solid transparent;
     background-clip: content-box;
     border-radius: 999px;

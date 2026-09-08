@@ -211,6 +211,9 @@ export function DialogBody({ className, ...props }: ComponentProps<"div">) {
 /**
  * Actions sit right, in ascending order of consequence, so the confirming
  * action lands closest to the thumb and the pointer's resting position.
+ *
+ * No fill of its own: an overlay is one object, and tinting the action row
+ * splits it into two stacked slabs. Padding does the separating.
  */
 export function DialogFooter({
   className,
@@ -220,10 +223,7 @@ export function DialogFooter({
 }: ComponentProps<"div"> & { secondary?: ReactNode }) {
   return (
     <footer
-      className={cn(
-        "flex items-center justify-between gap-3 bg-canvas/40 px-5 py-4",
-        className,
-      )}
+      className={cn("flex items-center justify-between gap-3 px-5 pt-1 pb-5", className)}
       {...props}
     >
       <div className="flex items-center gap-2">{secondary}</div>

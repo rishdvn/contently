@@ -2,7 +2,7 @@
 
 import { TableKit } from "@tiptap/extension-table";
 import { TaskItem, TaskList } from "@tiptap/extension-list";
-import { Placeholder } from "@tiptap/extensions";
+import { Placeholder, TrailingNode } from "@tiptap/extensions";
 import { EditorContent, useEditor, type Editor, type JSONContent } from "@tiptap/react";
 import { BubbleMenu } from "@tiptap/react/menus";
 import StarterKit from "@tiptap/starter-kit";
@@ -147,6 +147,8 @@ export function DocEditor({
       Citation,
       DocMention,
       Swatch,
+      /* There is always a paragraph after the last table or block, so the caret has somewhere to go. */
+      TrailingNode,
       Placeholder.configure({
         placeholder: ({ node, editor }) => {
           if (node.type.name === "heading") return "Section heading";
@@ -410,6 +412,16 @@ export function DocEditor({
             ) : null}
           </Toolbar>
         </BubbleMenu>
+      ) : null}
+
+      {trigger && !menuItems.length && trigger.query ? (
+        <div
+          role="status"
+          className="fixed w-[300px] rounded-control bg-panel px-3 py-2 text-cap text-ink-disabled shadow-overlay animate-pop"
+          style={{ ...place(trigger.left, trigger.top, trigger.caretTop, 300, 40), zIndex: "var(--z-floating-bar)" }}
+        >
+          {trigger.mode === "slash" ? `No block matches “${trigger.query}”` : `No document matches “${trigger.query}”`}
+        </div>
       ) : null}
 
       {trigger && menuItems.length ? (

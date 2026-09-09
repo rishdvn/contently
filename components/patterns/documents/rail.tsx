@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Menu, MenuDivider, MenuItem, MenuLabel } from "@/components/ui/menu";
 import { Popover } from "@/components/ui/popover";
 import { SearchInput } from "@/components/ui/input";
+import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/cn";
 import { outline } from "@/lib/documents/markdown";
 import { brandTypes, channelLabels, docTypes, relationLabels, statusLabels, subtypeLabel } from "@/lib/documents/registry";
@@ -42,6 +43,7 @@ function Group({ icon, title, count, defaultOpen = true, children }: { icon: Rea
 
 export function DocRail({ doc, onJump, className }: { doc: Document; onJump?: (anchor: string) => void; className?: string }) {
   const store = useStore();
+  const toast = useToast();
   const heads = outline(doc.body);
   const versions = store.versions.filter((v) => v.docId === doc.id).sort((a, b) => b.version - a.version);
   const activity = store.activity.filter((a) => a.docId === doc.id).slice(0, 12);
@@ -91,13 +93,17 @@ export function DocRail({ doc, onJump, className }: { doc: Document; onJump?: (a
                 <button
                   type="button"
                   aria-label={`Restore v${v.version}`}
-                  title="Restore this version"
-                  onClick={() => store.restoreVersion(doc.id, v.id)}
-                  className="mt-px flex size-5 items-center justify-center rounded text-ink-disabled opacity-0 hover:text-ink group-hover/ver:opacity-100"
+                  onClick={() => {
+                    store.restoreVersion(doc.id, v.id);
+                    toast({ title: `Restored v${v.version}`, description: `Saved as v${doc.version + 1} of ${doc.title.split(" — ")[0]}` });
+                  }}
+                  className="mt-px inline-flex h-5 items-center gap-1 rounded px-1.5 text-tiny text-ink-secondary hover:bg-[var(--state-selected)] hover:text-ink"
                 >
-                  <RotateCcw className="size-3" />
+                  <RotateCcw className="size-3" /> Restore
                 </button>
-              ) : null}
+              ) : (
+                <span className="mt-px inline-flex h-5 items-center px-1.5 text-tiny text-ink-disabled">Current</span>
+              )}
             </li>
           ))}
         </ol>

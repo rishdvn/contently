@@ -1,7 +1,8 @@
 "use client";
 
 import { Heading } from "@tiptap/extension-heading";
-import { mergeAttributes, Node } from "@tiptap/core";
+import { mergeAttributes, Node, type Editor } from "@tiptap/core";
+import { TextSelection } from "@tiptap/pm/state";
 import { NodeViewContent, NodeViewWrapper, ReactNodeViewRenderer, type NodeViewProps } from "@tiptap/react";
 import { AlertTriangle, CheckCircle2, Info, Link2, XCircle } from "lucide-react";
 import { createContext, useContext } from "react";
@@ -43,6 +44,35 @@ export const HeadingWithId = Heading.extend({
 }).configure({ levels: [2, 3] });
 
 /* ------------------------------------------------------------- callout --- */
+
+/**
+ * Enter on an empty last line of a wrapping block leaves the block, the way a
+ * list ends when you press Enter twice. Without this, callouts and anchor
+ * blocks swallow everything typed after them.
+ */
+function exitOnEmptyLastLine(editor: Editor, blockName: string) {
+  const { state } = editor;
+  const { $from, empty } = state.selection;
+  if (!empty || $from.parent.type.name !== "paragraph" || $from.parent.content.size !== 0) return false;
+  for (let depth = $from.depth - 1; depth >= 1; depth--) {
+    const node = $from.node(depth);
+    if (node.type.name !== blockName) continue;
+    if ($from.index(depth) !== node.childCount - 1 || node.childCount < 2) return false;
+    const paraStart = $from.before($from.depth);
+    const paraEnd = $from.after($from.depth);
+    const insertAt = $from.after(depth) - (paraEnd - paraStart);
+    return editor.commands.command(({ tr, dispatch }) => {
+      if (dispatch) {
+        tr.delete(paraStart, paraEnd);
+        tr.insert(insertAt, state.schema.nodes.paragraph.create());
+        tr.setSelection(TextSelection.create(tr.doc, insertAt + 1));
+        tr.scrollIntoView();
+      }
+      return true;
+    });
+  }
+  return false;
+}
 
 const toneIcon = {
   info: <Info />,
@@ -101,6 +131,9 @@ export const Callout = Node.create({
   },
   addNodeView() {
     return ReactNodeViewRenderer(CalloutView);
+  },
+  addKeyboardShortcuts() {
+    return { Enter: ({ editor }) => exitOnEmptyLastLine(editor, this.name) };
   },
   addCommands() {
     return {
@@ -214,6 +247,9 @@ export const AnchorBlock = Node.create({
   },
   addNodeView() {
     return ReactNodeViewRenderer(AnchorBlockView);
+  },
+  addKeyboardShortcuts() {
+    return { Enter: ({ editor }) => exitOnEmptyLastLine(editor, this.name) };
   },
   addCommands() {
     return {

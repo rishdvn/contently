@@ -21,13 +21,31 @@ Do not use for testing code you just changed — that is ordinary manual verific
 You need four things. Ask only for what is genuinely missing; infer the rest.
 
 1. **URL** of the product.
-2. **Credentials**, and how it authenticates. Prefer a dedicated test account with 2FA disabled. If the account requires a time-based code from the user's device, or only offers SSO or a magic link, stop and say so rather than looping on the login screen.
+2. **Credentials**, and how it authenticates. Prefer a dedicated test account with 2FA disabled. If the account only offers SSO or a magic link, stop and say so rather than looping on the login screen. If it wants a one-time code from the user's device, read "Authentication" below before asking for one.
 3. **Scope** — which areas matter. Absent direction, map everything reachable.
 4. **Destination** — where the output goes. Default to a Notion page.
 
 Credentials belong in Cloud Agent secrets (Dashboard → Cloud Agents → Secrets), not in chat. Note the timing trap: **secrets are injected at VM boot, so a run that is already in progress cannot see secrets added mid-session.** Check with `env | grep -i <PREFIX>`; if they are absent and the user supplied credentials in chat, use those and mention that the secrets will be picked up by the next run.
 
 If the user pasted a real password into chat, tell them to rotate it once you are done.
+
+## Authentication
+
+**Relaying a one-time code through a human usually fails.** The codes expire in about ten minutes, the email can take several minutes to arrive, and the user is not sitting waiting for it. Two consecutive attempts were burned this way on a Clerk-backed app: the first code expired during the eighteen minutes it took to reach the agent, and the resend endpoint started returning `429` after four requests. Treat a code round-trip as a last resort, not the default.
+
+Before asking for a code, **check whether the account has a password.** Submitting the email may reveal a password screen, in which case a code flow you found earlier was probably a side path — on that app the email-code option was only reachable via "Forgot password?", and the primary flow was an ordinary password prompt all along. If the user already supplied a password for the same address, try it: password reuse across the products someone is documenting is common, and it turns a multi-turn code relay into one step.
+
+**Attempt a password exactly once.** Tell the subagent explicitly not to retry or try variations, because repeated failures can lock the owner out of a real account, which is much worse than the mapping failing. Then report the exact error and ask, rather than guessing again.
+
+When you do need a code, minimise the round trip: get the browser parked on the code screen with the field focused and empty *before* asking, so the code can be typed the moment it arrives.
+
+## Orchestration
+
+**`computerUse` is a singleton that auto-resumes.** There is one browser session, so the exploration passes must run sequentially — launching a second `computerUse` task while one is running will resume or collide with it rather than opening a parallel browser. Do not, for example, start a password attempt and then try to type a code that arrives while it is still running.
+
+What *can* run alongside a browser pass is non-browser work: `videoReview` on an already-saved recording, Notion lookups, and reading reports. Use that to fill the wait instead of polling.
+
+Sequence heavy `ffmpeg` work outside capture windows. Trimming or compressing an earlier video while a new recording is capturing puts avoidable CPU load against the frame grabber; there is no reason to risk a degraded capture when the encode can wait.
 
 ## Phase 0 — Preflight
 
@@ -41,6 +59,8 @@ df -h /
 ```
 
 A non-200 status, a redirect to a login wall you have no credentials for, or an unreachable host means the target is behind a VPN or allowlist. Say so and stop; do not spend a browser session discovering it.
+
+**Distinguish a wrong domain from a blocked one.** If the host does not resolve, confirm with `getent hosts <domain>` or `dig` that it is a genuine `NXDOMAIN` rather than egress filtering, then search the web for the product by name — a user-supplied URL is often a misremembering of the real one, and a single letter is enough to break it. `getstantly.ai` did not exist; the product was at `getstanley.ai`. Find the right domain before reporting the target unreachable.
 
 ## Phase 1 — Recon pass over the outer app
 
@@ -162,7 +182,8 @@ Note relevant details the user did not ask for but will care about. Cross-refere
 
 ## Checklist
 
-- [ ] Target reachable, browser and display available
+- [ ] Target reachable at the *correct* domain, browser and display available
+- [ ] Login path settled before exploring — password preferred, attempted at most once
 - [ ] Read-only contract in every subagent prompt
 - [ ] Recording started before each pass, saved after
 - [ ] Core product surface covered, not just the shell

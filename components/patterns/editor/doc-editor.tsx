@@ -69,7 +69,16 @@ export type DocEditorProps = {
   className?: string;
 };
 
-type Trigger = { mode: "slash" | "mention"; query: string; from: number; to: number; left: number; top: number };
+type Trigger = { mode: "slash" | "mention"; query: string; from: number; to: number; left: number; top: number; caretTop: number };
+
+/** Fixed-position menus open below their anchor, or above it when the viewport runs out. */
+function place(left: number, below: number, above: number, width: number, estHeight: number): React.CSSProperties {
+  const flip = below + estHeight > window.innerHeight - 8;
+  return {
+    left: Math.max(8, Math.min(left, window.innerWidth - width - 8)),
+    ...(flip ? { bottom: window.innerHeight - above } : { top: below }),
+  };
+}
 
 type SlashItem = { label: string; hint: string; icon: LucideIcon; keywords: string; run: (e: Editor) => void };
 
@@ -170,7 +179,7 @@ export function DocEditor({
     const mode = slash ? "slash" : "mention";
     const from = $from.pos - m[1].length - 1;
     const coords = editor.view.coordsAtPos(from);
-    const next: Trigger = { mode, query: m[1], from, to: $from.pos, left: coords.left, top: coords.bottom + 6 };
+    const next: Trigger = { mode, query: m[1], from, to: $from.pos, left: coords.left, top: coords.bottom + 6, caretTop: coords.top - 6 };
     triggerRef.current = next;
     setTrigger(next);
     indexRef.current = 0;
@@ -246,9 +255,20 @@ export function DocEditor({
   useEffect(() => {
     if (!editor || seen.current === revision) return;
     seen.current = revision;
-    const wasFocused = editor.isFocused;
-    editor.commands.setContent(body as JSONContent, { emitUpdate: false });
-    if (wasFocused) editor.commands.focus("end");
+    /*
+      Deferred past React's commit: new node views render with flushSync, which
+      React refuses to do from inside an effect.
+    */
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (cancelled || editor.isDestroyed) return;
+      const wasFocused = editor.isFocused;
+      editor.commands.setContent(body as JSONContent, { emitUpdate: false });
+      if (wasFocused) editor.commands.focus("end");
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [editor, revision, body]);
 
   /* Flash the section the agent just touched. */
@@ -285,7 +305,7 @@ export function DocEditor({
 
   /* -------------------------------------------------------- chip hover --- */
 
-  const [hover, setHover] = useState<{ kind: "citation" | "mention"; ref: string; anchor: string | null; left: number; top: number } | null>(null);
+  const [hover, setHover] = useState<{ kind: "citation" | "mention"; ref: string; anchor: string | null; left: number; top: number; chipTop: number } | null>(null);
   const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const onMouseOver = (e: React.MouseEvent) => {
@@ -294,7 +314,7 @@ export function DocEditor({
     if (hoverTimer.current) clearTimeout(hoverTimer.current);
     const r = chip.getBoundingClientRect();
     const kind = chip.dataset.kind === "citation" ? "citation" : "mention";
-    setHover({ kind, ref: kind === "citation" ? (chip.dataset.ref ?? "") : (chip.dataset.docId ?? ""), anchor: chip.dataset.anchor ?? null, left: r.left, top: r.bottom + 6 });
+    setHover({ kind, ref: kind === "citation" ? (chip.dataset.ref ?? "") : (chip.dataset.docId ?? ""), anchor: chip.dataset.anchor ?? null, left: r.left, top: r.bottom + 6, chipTop: r.top - 6 });
   };
   const onMouseOut = (e: React.MouseEvent) => {
     const chip = (e.target as HTMLElement).closest(".doc-chip");
@@ -397,7 +417,7 @@ export function DocEditor({
           role="listbox"
           aria-label={trigger.mode === "slash" ? "Insert block" : "Mention a document"}
           className="fixed w-[300px] rounded-control bg-panel p-1.5 shadow-overlay animate-pop"
-          style={{ left: trigger.left, top: trigger.top, zIndex: "var(--z-floating-bar)" }}
+          style={{ ...place(trigger.left, trigger.top, trigger.caretTop, 300, 44 + menuItems.length * 36), zIndex: "var(--z-floating-bar)" }}
           onMouseDown={(e) => e.preventDefault()}
         >
           <div className="px-2.5 pt-1 pb-1.5 text-cap text-ink-disabled">{trigger.mode === "slash" ? "Insert" : "Mention a document"}</div>
@@ -429,7 +449,7 @@ export function DocEditor({
         <div
           role="tooltip"
           className="fixed w-[320px] rounded-control bg-panel p-3 shadow-overlay animate-pop"
-          style={{ left: Math.min(hover.left, window.innerWidth - 340), top: hover.top, zIndex: "var(--z-tooltip)" }}
+          style={{ ...place(hover.left, hover.top, hover.chipTop, 320, 140), zIndex: "var(--z-tooltip)" }}
           onMouseEnter={() => hoverTimer.current && clearTimeout(hoverTimer.current)}
           onMouseLeave={() => setHover(null)}
         >

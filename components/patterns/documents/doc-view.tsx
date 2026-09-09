@@ -5,6 +5,7 @@ import {
   Check,
   Copy,
   FileCode2,
+  Maximize2,
   MessageSquare,
   MoreHorizontal,
   PanelRightClose,
@@ -25,6 +26,7 @@ import { Dialog, DialogBody, DialogHeader } from "@/components/ui/dialog";
 import { GeneratingBar } from "@/components/ui/feedback";
 import { Menu, MenuDivider, MenuItem } from "@/components/ui/menu";
 import { useToast } from "@/components/ui/toast";
+import { Tooltip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/cn";
 import { frontmatter } from "@/lib/documents/markdown";
 import { brandTypes, docTypes, typeSuffix } from "@/lib/documents/registry";
@@ -271,7 +273,13 @@ export function DocView({
             <IconButton aria-label={railOpen ? "Hide rail" : "Show rail"} size="sm" onClick={() => setRailOpen((o) => !o)}>
               {railOpen ? <PanelRightClose /> : <PanelRightOpen />}
             </IconButton>
-          ) : null}
+          ) : (
+            <Tooltip label="Open full page">
+              <IconButton aria-label="Open full page" size="sm" onClick={() => router.push(`/documents/${doc.id}`)}>
+                <Maximize2 />
+              </IconButton>
+            </Tooltip>
+          )}
           {onClose ? (
             <IconButton aria-label="Close document" size="sm" onClick={onClose}>
               <X />

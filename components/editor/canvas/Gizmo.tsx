@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type RefObject } from "react";
 import { flushSync } from "react-dom";
-import Moveable, { type OnClick, type OnDrag, type OnResize, type OnRotate } from "react-moveable";
+import Moveable, { type OnClick, type OnClickGroup, type OnDrag, type OnResize, type OnRotate } from "react-moveable";
 import Selecto from "react-selecto";
 
 import { findBlock, useEditor } from "@/lib/editor/store";
@@ -64,6 +64,8 @@ export function Gizmo({ container, worldRef }: { container: HTMLDivElement | nul
       .map((id) => root.querySelector<HTMLElement>(`.block[data-block-id="${id}"]`))
       .filter((el): el is HTMLElement => !!el && !el.dataset.locked);
     setTargets(els);
+    /* Selection is owned by the store; Selecto only needs it for shift-toggling. */
+    selectoRef.current?.setSelectedTargets(els);
 
     const artboard = els[0]?.closest(".artboard");
     if (artboard) {
@@ -142,6 +144,20 @@ export function Gizmo({ container, worldRef }: { container: HTMLDivElement | nul
     if (e.isDouble && el.dataset.type === "text") setEditingText(el.dataset.blockId!);
     else if (e.inputEvent?.shiftKey && el.dataset.blockId) select([el.dataset.blockId], true);
   };
+  /* Group mode covers its members with an area element, so clicks arrive here instead. */
+  const onClickGroup = (e: OnClickGroup) => {
+    const el = e.targets[e.targetIndex] as HTMLElement | undefined;
+    if (!el?.dataset.blockId) {
+      /* Empty space inside the group box behaves like empty canvas. */
+      if (!e.inputEvent?.shiftKey) clearSelection();
+      return;
+    }
+    if (e.inputEvent?.shiftKey) select([el.dataset.blockId], true);
+    else if (e.isDouble && el.dataset.type === "text") {
+      select([el.dataset.blockId]);
+      setEditingText(el.dataset.blockId);
+    } else if (!e.isDouble) select([el.dataset.blockId]);
+  };
 
   const begin = () => setInteracting(true);
   const end = () => setInteracting(false);
@@ -179,6 +195,7 @@ export function Gizmo({ container, worldRef }: { container: HTMLDivElement | nul
         useMutationObserver
         preventClickDefault
         onClick={onClick}
+        onClickGroup={onClickGroup}
         onDragStart={begin}
         onDrag={applyDrag}
         onDragEnd={(e) => {

@@ -211,7 +211,7 @@ function ArtboardWithLabel({
           top: y,
           width,
           height,
-          boxShadow: `0 0 0 ${1 / zoom}px rgb(255 255 255 / 0.07), 0 ${24 / zoom}px ${64 / zoom}px rgb(0 0 0 / 0.55)`,
+          boxShadow: `0 0 0 ${1 / zoom}px rgb(255 255 255 / 0.1), 0 ${24 / zoom}px ${64 / zoom}px rgb(0 0 0 / 0.55)`,
         }}
       />
       {showLabel ? (

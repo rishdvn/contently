@@ -63,9 +63,10 @@ export function useHotkeys() {
         const slide = s.project.slides.find((x) => x.id === s.activeSlideId);
         return slide && s.select(slide.blocks.filter((b) => !b.locked).map((b) => b.id));
       }
-      if (mod && (e.key === "]" || e.key === "[")) {
+      if (e.key === "]" || e.key === "[") {
         e.preventDefault();
-        return s.selection.forEach((id) => s.reorder(id, e.key === "]" ? "forward" : "backward"));
+        const up = e.key === "]";
+        return s.selection.forEach((id) => s.reorder(id, mod ? (up ? "front" : "back") : up ? "forward" : "backward"));
       }
       if (mod && (e.key === "=" || e.key === "+")) {
         e.preventDefault();

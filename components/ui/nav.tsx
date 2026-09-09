@@ -13,13 +13,15 @@ export function Sidebar({ className, ...props }: ComponentProps<"nav">) {
 
 export function SidebarGroup({
   label,
+  className,
   children,
 }: {
   label?: string;
+  className?: string;
   children: ReactNode;
 }) {
   return (
-    <div className="flex flex-col gap-0.5">
+    <div className={cn("flex flex-col gap-0.5", className)}>
       {label ? (
         <div className="px-2.5 pb-1.5 text-cap text-ink-disabled">{label}</div>
       ) : null}

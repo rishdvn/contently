@@ -115,6 +115,19 @@
   --color-tooltip: rgb(97 97 97 / 0.92);
 
   /*
+    Document type hues. Muted, close in value, and used only on the type glyph
+    and the left rule of a card — never on text — so a list of seven types
+    reads as one system with a quiet key rather than as seven products.
+  */
+  --color-type-brand: #d7b56d;
+  --color-type-product: #9bb8d4;
+  --color-type-visual: #d49bb8;
+  --color-type-research: #8fc7c0;
+  --color-type-persona: #c8a2e0;
+  --color-type-strategy: #a7c88a;
+  --color-type-brief: #e0a887;
+
+  /*
     Die Grotesk A and Graebenbach are the reference's licensed faces. They are
     named first so they take effect wherever a licence exists, with a
     neo-grotesque fallback everywhere else.
@@ -392,6 +405,384 @@
     .overlay-drawer-bottom[open] {
       translate: 0 100%;
     }
+  }
+}
+
+/*
+  Document prose. One set of rules for the read view and the editor, so a
+  document never changes shape when it becomes editable. Measured for a 680px
+  column; the type roles come from the token set above.
+*/
+@layer components {
+  .doc-prose {
+    font-size: var(--text-body);
+    line-height: var(--text-body--line-height);
+    letter-spacing: var(--text-body--letter-spacing);
+    color: var(--color-ink);
+  }
+
+  .doc-prose > * + * {
+    margin-top: 0.9em;
+  }
+
+  .doc-prose h2 {
+    font-size: var(--text-titles);
+    line-height: var(--text-titles--line-height);
+    letter-spacing: 0.2px;
+    font-weight: 500;
+    margin-top: 2.2em;
+    padding-top: 1.1em;
+    border-top: 1px solid var(--color-line);
+    scroll-margin-top: 96px;
+  }
+
+  .doc-prose > h2:first-child {
+    margin-top: 0;
+    padding-top: 0;
+    border-top: 0;
+  }
+
+  .doc-prose h3 {
+    font-size: var(--text-panels);
+    line-height: var(--text-panels--line-height);
+    letter-spacing: 0.2px;
+    font-weight: 500;
+    margin-top: 1.6em;
+    scroll-margin-top: 96px;
+  }
+
+  .doc-prose p {
+    color: var(--color-ink);
+  }
+
+  .doc-prose strong {
+    font-weight: 500;
+    color: var(--color-ink);
+  }
+
+  .doc-prose em {
+    color: var(--color-ink-secondary);
+  }
+
+  .doc-prose a {
+    color: var(--color-ink);
+    text-decoration: underline;
+    text-decoration-color: var(--color-line-strong);
+    text-underline-offset: 3px;
+  }
+
+  .doc-prose code {
+    font-family: var(--font-mono);
+    font-size: 0.85em;
+    background: var(--color-raised);
+    padding: 0.1em 0.4em;
+    border-radius: 6px;
+  }
+
+  .doc-prose ul,
+  .doc-prose ol {
+    padding-left: 1.4em;
+  }
+
+  .doc-prose ul {
+    list-style: disc;
+  }
+
+  .doc-prose ol {
+    list-style: decimal;
+  }
+
+  .doc-prose li + li {
+    margin-top: 0.35em;
+  }
+
+  .doc-prose li::marker {
+    color: var(--color-ink-disabled);
+  }
+
+  .doc-prose li > p {
+    display: inline;
+  }
+
+  .doc-prose ul[data-type="taskList"] {
+    list-style: none;
+    padding-left: 0;
+  }
+
+  .doc-prose ul[data-type="taskList"] li {
+    display: flex;
+    gap: 0.6em;
+    align-items: flex-start;
+  }
+
+  .doc-prose ul[data-type="taskList"] li > label {
+    flex: 0 0 auto;
+    margin-top: 0.3em;
+  }
+
+  .doc-prose ul[data-type="taskList"] li > label input {
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 5px;
+    background: var(--color-field);
+    box-shadow: inset 0 0 0 1px var(--color-line-strong);
+    display: grid;
+    place-content: center;
+    cursor: pointer;
+  }
+
+  .doc-prose ul[data-type="taskList"] li > label input:checked {
+    background: var(--color-ink);
+    box-shadow: none;
+  }
+
+  .doc-prose ul[data-type="taskList"] li > label input:checked::after {
+    content: "";
+    width: 8px;
+    height: 5px;
+    border-left: 2px solid var(--color-canvas);
+    border-bottom: 2px solid var(--color-canvas);
+    transform: translateY(-1px) rotate(-45deg);
+  }
+
+  .doc-prose ul[data-type="taskList"] li[data-checked="true"] > div {
+    color: var(--color-ink-secondary);
+    text-decoration: line-through;
+    text-decoration-color: var(--color-line-strong);
+  }
+
+  .doc-prose blockquote {
+    border-left: 2px solid var(--color-line-strong);
+    padding-left: 1em;
+    color: var(--color-ink-secondary);
+  }
+
+  .doc-prose hr {
+    border: 0;
+    border-top: 1px solid var(--color-line);
+    margin: 2em 0;
+  }
+
+  .doc-prose .tableWrapper {
+    overflow-x: auto;
+  }
+
+  /* A grid, not just rules: an empty table must still read as a table. */
+  .doc-prose table {
+    width: 100% !important;
+    min-width: 100%;
+    border-collapse: collapse;
+    font-size: var(--text-default);
+    line-height: var(--text-default--line-height);
+    letter-spacing: 0.2px;
+    table-layout: fixed;
+    border-radius: var(--radius-control);
+    box-shadow: inset 0 0 0 1px var(--color-line-strong);
+  }
+
+  .doc-prose th,
+  .doc-prose td {
+    text-align: left;
+    vertical-align: top;
+    padding: 0.55em 0.75em;
+    border: 1px solid var(--color-line-strong);
+    position: relative;
+    min-height: 2.2em;
+  }
+
+  .doc-prose th {
+    font-weight: 500;
+    color: var(--color-ink-secondary);
+    font-size: var(--text-cap);
+    letter-spacing: var(--text-cap--letter-spacing);
+    text-transform: uppercase;
+    background: var(--color-raised);
+  }
+
+  .doc-prose td > p,
+  .doc-prose th > p {
+    margin: 0;
+  }
+
+  .doc-prose .selectedCell::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: var(--state-selected);
+    pointer-events: none;
+  }
+
+  /* Callouts: a tinted slab, same palette as Alert. */
+  .doc-callout {
+    border-radius: var(--radius-control);
+    padding: 0.85em 1em;
+    background: var(--color-info-surface);
+    color: var(--color-info-ink);
+  }
+
+  .doc-callout[data-tone="caution"] {
+    background: var(--color-caution-surface);
+    color: var(--color-caution-ink);
+  }
+
+  .doc-callout[data-tone="positive"] {
+    background: var(--color-positive-surface);
+    color: var(--color-positive-ink);
+  }
+
+  .doc-callout[data-tone="critical"] {
+    background: var(--color-critical-surface);
+    color: var(--color-critical-ink);
+  }
+
+  .doc-callout > * + * {
+    margin-top: 0.5em;
+  }
+
+  .doc-callout p,
+  .doc-callout strong {
+    color: inherit;
+  }
+
+  /*
+    Repeating blocks (Angle, Pillar, Hypothesis). They carry a stable anchor so
+    other documents can point at them, which is why they look like objects —
+    a card with a header — rather than like a heading.
+  */
+  .doc-anchor-block {
+    border-radius: var(--radius-nav);
+    background: var(--color-panel);
+    padding: 0.9em 1em 1em;
+    scroll-margin-top: 96px;
+  }
+
+  .doc-anchor-block > .doc-anchor-body > * + * {
+    margin-top: 0.5em;
+  }
+
+  .doc-anchor-block .doc-anchor-body ul {
+    padding-left: 1.2em;
+  }
+
+  /* Inline chips: citations, document mentions, swatches. */
+  .doc-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3em;
+    vertical-align: baseline;
+    height: 1.35em;
+    padding: 0 0.5em;
+    border-radius: 6px;
+    background: var(--color-raised);
+    font-size: 0.78em;
+    letter-spacing: 0.4px;
+    line-height: 1;
+    color: var(--color-ink-secondary);
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background-color 120ms var(--ease-out-quart), color 120ms var(--ease-out-quart);
+    user-select: none;
+  }
+
+  .doc-chip:hover {
+    background: var(--color-line-strong);
+    color: var(--color-ink);
+  }
+
+  .doc-chip[data-kind="citation"] {
+    font-family: var(--font-mono);
+    font-size: 0.72em;
+    letter-spacing: 0;
+  }
+
+  .doc-chip[data-kind="mention"] {
+    color: var(--color-ink);
+  }
+
+  .doc-chip[data-kind="mention"]::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-radius: 999px;
+    background: var(--chip-hue, var(--color-ink-disabled));
+  }
+
+  .doc-swatch {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35em;
+    vertical-align: baseline;
+    font-family: var(--font-mono);
+    font-size: 0.78em;
+    color: var(--color-ink-secondary);
+  }
+
+  .doc-swatch::before {
+    content: "";
+    width: 0.85em;
+    height: 0.85em;
+    border-radius: 4px;
+    background: var(--swatch);
+    box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.12);
+  }
+
+  /* The agent just wrote here. Fades over two seconds so it reads as a glance, not a state. */
+  .doc-patched {
+    animation: patched 2.4s var(--ease-out-quart) forwards;
+    border-radius: 6px;
+  }
+
+  @keyframes patched {
+    0% {
+      background-color: rgb(110 232 110 / 0.18);
+      box-shadow: 0 0 0 6px rgb(110 232 110 / 0.18);
+    }
+    100% {
+      background-color: transparent;
+      box-shadow: 0 0 0 6px transparent;
+    }
+  }
+
+  /* Editor-only affordances. */
+  .doc-editor .ProseMirror {
+    outline: none;
+    min-height: 40vh;
+  }
+
+  .doc-editor .ProseMirror p.is-editor-empty:first-child::before {
+    content: attr(data-placeholder);
+    color: var(--color-ink-disabled);
+    float: left;
+    height: 0;
+    pointer-events: none;
+  }
+
+  .doc-editor .ProseMirror h2.is-empty::after,
+  .doc-editor .ProseMirror p.is-empty:not(:first-child)::after {
+    content: attr(data-placeholder);
+    color: var(--color-ink-disabled);
+    pointer-events: none;
+  }
+
+  .doc-editor .ProseMirror-selectednode {
+    outline: 2px solid var(--color-line-strong);
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+
+  .doc-editor .ProseMirror .column-resize-handle {
+    position: absolute;
+    right: -2px;
+    top: 0;
+    bottom: 0;
+    width: 4px;
+    background: var(--color-line-strong);
+    pointer-events: none;
+  }
+
+  .doc-editor .resize-cursor {
+    cursor: col-resize;
   }
 }
 

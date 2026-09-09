@@ -36,6 +36,25 @@ export function Gizmo({ container, worldRef }: { container: HTMLDivElement | nul
   const [targets, setTargets] = useState<HTMLElement[]>([]);
   const [guidelines, setGuidelines] = useState<Element[]>([]);
   const [keepRatio, setKeepRatio] = useState(false);
+  const pointerDown = useRef(false);
+  useEffect(() => {
+    const down = (e: PointerEvent) => {
+      if (e.button === 0) pointerDown.current = true;
+    };
+    const up = () => {
+      pointerDown.current = false;
+    };
+    window.addEventListener("pointerdown", down, true);
+    window.addEventListener("pointerup", up, true);
+    window.addEventListener("pointercancel", up, true);
+    window.addEventListener("blur", up);
+    return () => {
+      window.removeEventListener("pointerdown", down, true);
+      window.removeEventListener("pointerup", up, true);
+      window.removeEventListener("pointercancel", up, true);
+      window.removeEventListener("blur", up);
+    };
+  }, []);
 
   /* Resolve selection ids to live DOM nodes after every render that could change them. */
   useEffect(() => {
@@ -231,9 +250,14 @@ export function Gizmo({ container, worldRef }: { container: HTMLDivElement | nul
           const target = e.inputEvent.target as Element;
           const btn = (e.inputEvent as PointerEvent).button;
           if (btn !== 0 || spaceHeld || editing) return e.stop();
+          /*
+            Panels float inside the viewport, so their presses reach this
+            native listener regardless of React's stopPropagation. Only a
+            press on the world plane or the bare canvas starts a selection.
+          */
+          if (target !== container && !target.closest(".world")) return e.stop();
           /* Let Moveable own presses on its handles or on an already-selected block. */
           if (moveable?.isMoveableElement(target) || targets.some((t) => t === target || t.contains(target))) e.stop();
-          if (target.closest(".selection-toolbar, .context-menu")) e.stop();
         }}
         onSelectEnd={(e) => {
           const ids = (e.selected as HTMLElement[]).map((el) => el.dataset.blockId!).filter(Boolean);
@@ -248,10 +272,16 @@ export function Gizmo({ container, worldRef }: { container: HTMLDivElement | nul
           } else {
             clearSelection();
           }
-          /* A press-and-drag on an unselected block selects it and starts moving it in one motion. */
-          if (e.isDragStartEnd && ids.length) {
+          /*
+            A press-and-drag on an unselected block selects it and starts moving
+            it in one motion. Only hand the gesture to Moveable while the button
+            is still down; a stale dragStart would glue the block to the cursor.
+          */
+          if (e.isDragStartEnd && ids.length && pointerDown.current) {
             e.inputEvent.preventDefault();
-            moveableRef.current?.waitToChangeTarget().then(() => moveableRef.current?.dragStart(e.inputEvent));
+            moveableRef.current?.waitToChangeTarget().then(() => {
+              if (pointerDown.current) moveableRef.current?.dragStart(e.inputEvent);
+            });
           }
         }}
       />

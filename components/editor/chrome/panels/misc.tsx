@@ -84,7 +84,7 @@ export function StockPanel() {
     const w = Math.round(width * 0.7);
     const h = Math.round(w * (item.kind === "video" ? 9 / 16 : 1.25));
     const geo = { x: (width - w) / 2, y: (height - h) / 2, w, h };
-    addBlock(item.kind === "video" ? videoBlock({ src: item.src, radius: 24, ...geo }) : imageBlock({ src: item.src, radius: 24, ...geo }));
+    addBlock(item.kind === "video" ? videoBlock({ src: item.src, ...geo }) : imageBlock({ src: item.src, ...geo }));
   };
 
   return (
@@ -281,7 +281,7 @@ export function UploadsPanel() {
     if (one && (one.type === "image" || one.type === "video") && one.type === u.kind) return updateBlock(one.id, { src: u.src });
     const w = Math.round(width * 0.7);
     const h = Math.round(w * (u.kind === "video" ? 9 / 16 : 1));
-    const geo = { x: (width - w) / 2, y: (height - h) / 2, w, h, radius: 24 };
+    const geo = { x: (width - w) / 2, y: (height - h) / 2, w, h };
     addBlock(u.kind === "video" ? videoBlock({ src: u.src, ...geo }) : imageBlock({ src: u.src, ...geo }));
   };
 

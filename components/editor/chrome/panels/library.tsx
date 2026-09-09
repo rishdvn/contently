@@ -232,7 +232,7 @@ export function TextPanel() {
 /* A preset rendered at thumbnail scale, using the same style pipeline as the canvas. */
 function PresetPreview({ preset }: { preset: TextPreset }) {
   const b = textBlock({ x: 0, y: 0, w: 100, ...preset.block, text: preset.preview.text });
-  const scale = Math.min(1, 18 / b.fontSize);
+  const scale = Math.min(1, 16 / b.fontSize);
   const base = textStyle({ ...b, fontSize: Math.max(9, b.fontSize * scale), letterSpacing: b.letterSpacing * scale });
   const hl = highlightStyle(b);
   const style: React.CSSProperties = {

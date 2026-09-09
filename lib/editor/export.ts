@@ -1,6 +1,6 @@
 "use client";
 
-import { toCanvas } from "html-to-image";
+import { getFontEmbedCSS, toCanvas, toSvg } from "html-to-image";
 import { ArrayBufferTarget, Muxer } from "mp4-muxer";
 
 import { useEditor } from "./store";
@@ -17,17 +17,41 @@ function artboardNode(slideId: string) {
   zoomed world, so its clone is pinned to the origin and rendered at document
   size; `scale` multiplies that for 2x exports.
 */
+const captureOptions = (project: Project, fontEmbedCSS?: string) => ({
+  width: project.width,
+  height: project.height,
+  cacheBust: false,
+  fontEmbedCSS,
+  style: { left: "0px", top: "0px", transform: "none" },
+  filter: (el: HTMLElement) => !el.classList?.contains("moveable-control-box"),
+});
+
 export async function renderSlide(project: Project, slideId: string, scale = 1): Promise<HTMLCanvasElement> {
   const node = artboardNode(slideId);
   if (!node) throw new Error("Slide is not on the canvas");
-  return toCanvas(node, {
-    width: project.width,
-    height: project.height,
-    pixelRatio: scale,
-    cacheBust: false,
-    style: { left: "0px", top: "0px", transform: "none" },
-    filter: (el) => !(el as HTMLElement).classList?.contains("moveable-control-box"),
+  return toCanvas(node, { ...captureOptions(project), pixelRatio: scale });
+}
+
+/*
+  Frame capture for video: rasterise the SVG snapshot into one reused canvas.
+  toCanvas allocates a fresh 1080×1920 canvas per call, and a few hundred of
+  those in flight is enough to take the renderer down; one stage canvas keeps
+  memory flat across a long render.
+*/
+async function paintFrame(project: Project, slideId: string, ctx: CanvasRenderingContext2D, fontEmbedCSS: string) {
+  const node = artboardNode(slideId);
+  if (!node) throw new Error("Scene left the canvas during export");
+  const svg = await toSvg(node, captureOptions(project, fontEmbedCSS));
+  const img = new Image();
+  img.decoding = "sync";
+  await new Promise<void>((resolve, reject) => {
+    img.onload = () => resolve();
+    img.onerror = () => reject(new Error("Frame rasterisation failed"));
+    img.src = svg;
   });
+  ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+  ctx.drawImage(img, 0, 0, ctx.canvas.width, ctx.canvas.height);
+  img.src = "";
 }
 
 export async function slideToBlob(project: Project, slideId: string, format: ImageFormat, scale = 1): Promise<Blob> {
@@ -115,9 +139,12 @@ export async function renderVideo(
   const stage = document.createElement("canvas");
   stage.width = width;
   stage.height = height;
-  const ctx = stage.getContext("2d")!;
+  /* willReadFrequently keeps the stage in system memory, where VideoFrame reads it cheaply. */
+  const ctx = stage.getContext("2d", { willReadFrequently: true })!;
 
   try {
+    const firstNode = artboardNode(project.slides[0].id);
+    const fontEmbedCSS = firstNode ? await getFontEmbedCSS(firstNode) : "";
     let frame = 0;
     let elapsed = 0;
     for (const scene of project.slides) {
@@ -131,14 +158,13 @@ export async function renderVideo(
         const node = artboardNode(scene.id);
         if (!node) throw new Error("Scene left the canvas during export");
         await settleMedia(node);
-        const canvas = await renderSlide(project, scene.id, 1);
-        ctx.clearRect(0, 0, width, height);
-        ctx.drawImage(canvas, 0, 0, width, height);
+        await paintFrame(project, scene.id, ctx, fontEmbedCSS);
         const vf = new VideoFrame(stage, { timestamp: Math.round((elapsed + i / opts.fps) * 1_000_000), duration: Math.round(1_000_000 / opts.fps) });
         encoder.encode(vf, { keyFrame: frame % (opts.fps * 2) === 0 });
         vf.close();
-        /* Keep the encoder queue bounded so memory stays flat on long renders. */
-        while (encoder.encodeQueueSize > 4) await new Promise((r) => setTimeout(r, 5));
+        /* Keep the encoder queue short so memory stays flat on long renders. */
+        while (encoder.encodeQueueSize > 2) await new Promise((r) => setTimeout(r, 5));
+        if (frame % 15 === 14) await encoder.flush();
         opts.onProgress?.((frame + 1) / frames);
       }
       elapsed += scene.duration;

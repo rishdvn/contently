@@ -64,7 +64,7 @@ export function ArtifactDrawer({
               </Badge>
             ) : null}
             {isBrief && artifact?.saved ? (
-              <Badge dot={false} className="gap-1 [&>svg]:size-3">
+              <Badge dot={false} className="shrink-0 gap-1 whitespace-nowrap [&>svg]:size-3">
                 <BookmarkCheck /> In ideas
               </Badge>
             ) : null}

@@ -89,14 +89,14 @@ export function ArtifactCard({
         <div className="flex min-w-0 flex-1 flex-col gap-1">
           <div className="flex items-center gap-2">
             <span className="truncate text-default text-ink">{artifact.title}</span>
-            {artifact.status === "draft" ? <Badge dot={false}>Draft</Badge> : null}
+            {artifact.status === "draft" ? <Badge dot={false} className="shrink-0">Draft</Badge> : null}
             {generating ? (
               <Badge tone="spectrum" dot={false}>
                 Generating
               </Badge>
             ) : null}
             {isBrief && artifact.saved ? (
-              <Badge dot={false} className="gap-1 [&>svg]:size-3">
+              <Badge dot={false} className="shrink-0 gap-1 whitespace-nowrap [&>svg]:size-3">
                 <BookmarkCheck /> In ideas
               </Badge>
             ) : null}

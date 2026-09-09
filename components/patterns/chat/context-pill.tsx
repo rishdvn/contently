@@ -171,7 +171,7 @@ export function ContextPickerBody({
 
       <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-2">
         {layout === "cards" ? (
-          <div className="grid gap-2.5 sm:grid-cols-3">
+          <div className="grid gap-2.5 pt-3 sm:grid-cols-3">
             {items.map((item) => (
               <PersonaCard
                 key={item.id}
@@ -324,14 +324,16 @@ function AssetTile({ item, checked, onToggle }: { item: ContextItem; checked: bo
         )}
         style={item.image ? { backgroundImage: item.image, backgroundSize: "cover" } : undefined}
       >
-        <Checkbox
-          checked={checked}
-          onCheckedChange={onToggle}
+        <span
+          aria-hidden
           className={cn(
-            "absolute top-2 right-2 bg-canvas/70 backdrop-blur",
-            !checked && "opacity-0 group-hover/tile:opacity-100",
+            "absolute top-2 right-2 flex size-5 items-center justify-center rounded-[6px] backdrop-blur transition-opacity duration-100",
+            checked ? "bg-ink text-canvas" : "bg-canvas/70 ring-1 ring-inset ring-line-strong",
+            !checked && "opacity-0 group-hover/tile:opacity-100 group-focus-visible/tile:opacity-100",
           )}
-        />
+        >
+          {checked ? <Check className="size-3" strokeWidth={2.5} /> : null}
+        </span>
       </span>
       <span className="truncate text-cap text-ink">{item.label}</span>
       {item.detail ? <span className="-mt-1 truncate text-tiny text-ink-disabled">{item.detail}</span> : null}

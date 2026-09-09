@@ -49,6 +49,21 @@ export function zoomAt(v: Viewport, nextZoom: number, sx: number, sy: number): V
   return { zoom: z, x: sx - w.x * z, y: sy - w.y * z };
 }
 
+/*
+  Keep some of `rect` (world px) inside `area` (screen px) so the content can
+  never be scrolled fully out of sight. `keep` is how much must stay visible.
+*/
+export function clampViewport(v: Viewport, rect: Rect, area: Rect, keep = 120): Viewport {
+  const w = rect.w * v.zoom;
+  const h = rect.h * v.zoom;
+  const k = { x: Math.min(keep, w), y: Math.min(keep, h) };
+  const minX = area.x + k.x - (rect.x + rect.w) * v.zoom;
+  const maxX = area.x + area.w - k.x - rect.x * v.zoom;
+  const minY = area.y + k.y - (rect.y + rect.h) * v.zoom;
+  const maxY = area.y + area.h - k.y - rect.y * v.zoom;
+  return { zoom: v.zoom, x: Math.min(maxX, Math.max(minX, v.x)), y: Math.min(maxY, Math.max(minY, v.y)) };
+}
+
 export function unionRects(rects: Rect[]): Rect | null {
   if (!rects.length) return null;
   const x1 = Math.min(...rects.map((r) => r.x));

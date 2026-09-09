@@ -2,9 +2,9 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 
-import { fitViewport, slideOrigin, slideRect, worldBounds, zoomAt } from "@/lib/editor/geometry";
+import { clampViewport, fitViewport, slideOrigin, slideRect, worldBounds, zoomAt } from "@/lib/editor/geometry";
 import { useEditor } from "@/lib/editor/store";
-import type { Rect } from "@/lib/editor/types";
+import type { Rect, Viewport } from "@/lib/editor/types";
 
 import { Artboard } from "./Artboard";
 import { ContextMenu } from "./ContextMenu";
@@ -43,6 +43,20 @@ export function Viewport({ insets, children }: { insets: Insets; children?: Reac
     if (!el) return { x: 0, y: 0, w: 1, h: 1 };
     return { x: i.left, y: i.top, w: el.clientWidth - i.left - i.right, h: el.clientHeight - i.top - i.bottom };
   }, []);
+
+  /* Panning is free, but the content can never leave the visible area entirely. */
+  const projectRef = useRef(project);
+  useLayoutEffect(() => {
+    projectRef.current = project;
+  });
+  const clamp = useCallback(
+    (v: Viewport): Viewport => {
+      const p = projectRef.current;
+      const rect = p.kind === "video" ? slideRect(p, Math.max(0, p.slides.findIndex((s) => s.id === useEditor.getState().activeSlideId))) : worldBounds(p);
+      return clampViewport(v, rect, visibleArea());
+    },
+    [visibleArea],
+  );
 
   /* Fit once per project; after that the user owns the camera. */
   const fittedFor = useRef<string | null>(null);
@@ -93,14 +107,14 @@ export function Viewport({ insets, children }: { insets: Insets; children?: Reac
       const rect = el.getBoundingClientRect();
       if (e.ctrlKey || e.metaKey) {
         const factor = Math.exp(-e.deltaY * 0.0022);
-        setViewport((v) => zoomAt(v, v.zoom * factor, e.clientX - rect.left, e.clientY - rect.top));
+        setViewport((v) => clamp(zoomAt(v, v.zoom * factor, e.clientX - rect.left, e.clientY - rect.top)));
       } else {
-        setViewport((v) => ({ ...v, x: v.x - e.deltaX, y: v.y - e.deltaY }));
+        setViewport((v) => clamp({ ...v, x: v.x - e.deltaX, y: v.y - e.deltaY }));
       }
     };
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => el.removeEventListener("wheel", onWheel);
-  }, [setViewport]);
+  }, [setViewport, clamp]);
 
   /* Middle button or space + primary button pans. */
   const pan = useRef<{ x: number; y: number; vx: number; vy: number } | null>(null);
@@ -117,7 +131,7 @@ export function Viewport({ insets, children }: { insets: Insets; children?: Reac
   const onPointerMove = (e: React.PointerEvent) => {
     const p = pan.current;
     if (!p) return;
-    setViewport({ zoom: viewport.zoom, x: p.vx + (e.clientX - p.x), y: p.vy + (e.clientY - p.y) });
+    setViewport(clamp({ zoom: viewport.zoom, x: p.vx + (e.clientX - p.x), y: p.vy + (e.clientY - p.y) }));
   };
   const onPointerUp = () => {
     pan.current = null;

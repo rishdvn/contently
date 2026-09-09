@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, ChevronRight, Copy, RotateCcw, ThumbsDown, ThumbsUp } from "lucide-react";
+import { ArrowRight, Check, ChevronRight, Copy, Pencil, RotateCcw, ThumbsDown, ThumbsUp } from "lucide-react";
 import type { ComponentProps, ReactNode } from "react";
 
 import { AgentMark, Avatar } from "@/components/ui/avatar";
@@ -8,6 +8,9 @@ import { IconButton } from "@/components/ui/button";
 import { Chip, ChipRow } from "@/components/ui/chip";
 import { Tooltip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/cn";
+
+import { artifactKinds } from "./kinds";
+import type { Artifact } from "./types";
 
 /** The column both kinds of message share. Readable measure, generous rhythm. */
 export function Thread({ className, ...props }: ComponentProps<"div">) {
@@ -147,6 +150,44 @@ export function Steps({
         ))}
       </ul>
     </details>
+  );
+}
+
+/**
+ * The agent changed a document that already existed. One quiet line — what,
+ * and which section — so the transcript stays an honest log of edits without
+ * re-printing the document. Click opens the document at the change.
+ */
+export function DocUpdate({
+  artifact,
+  change,
+  onOpen,
+}: {
+  artifact: Artifact;
+  change: string;
+  onOpen?: (artifact: Artifact) => void;
+}) {
+  const Icon = artifactKinds[artifact.kind].icon;
+  return (
+    <button
+      type="button"
+      onClick={() => onOpen?.(artifact)}
+      className={cn(
+        "group/upd -mx-2 flex w-fit max-w-full items-center gap-2 rounded-[10px] px-2 py-1.5 text-left text-cap outline-none",
+        "text-ink-secondary transition-colors duration-100 hover:bg-[var(--state-hover)] hover:text-ink",
+        "focus-visible:ring-2 focus-visible:ring-ink/25",
+      )}
+    >
+      <Pencil className="size-3.5 shrink-0 text-ink-disabled" />
+      <span className="truncate">
+        Updated <span className="text-ink">{artifact.title}</span>
+        <span className="mx-1.5 text-ink-disabled">&middot;</span>
+        {change}
+      </span>
+      <span className="inline-flex shrink-0 items-center gap-1 text-tiny text-ink-disabled group-hover/upd:text-ink-secondary [&>svg]:size-3">
+        <Icon /> <ArrowRight />
+      </span>
+    </button>
   );
 }
 

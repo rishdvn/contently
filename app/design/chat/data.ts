@@ -1,6 +1,6 @@
 import { Compass, FileText, Images, Layers, Package, Palette, Target, Users, Wand2 } from "lucide-react";
 
-import type { Artifact, ContextSource, PromptGroup } from "@/components/patterns/chat";
+import type { Artifact, ContentBlock, ContextSource, PromptGroup, StoredEvent } from "@/components/patterns/chat";
 import type { PersonaDocData } from "@/components/patterns/docs/persona-doc";
 import type { StrategyDocData } from "@/components/patterns/docs/strategy-doc";
 
@@ -282,6 +282,123 @@ export const q4Strategy: StrategyDocData = {
     "Park the Stay-home Mom until we have interview evidence; two of three cells are empty and the persona is inferred.",
   ],
 };
+
+/* ---------------------------------------------------------------------------
+   The session, as the SDK would have emitted it and as we would have stored
+   it: complete messages only, in receipt order. Everything the thread shows is
+   reduced from this list.
+   ------------------------------------------------------------------------ */
+
+const S = "sess_7f3a";
+const env = (uuid: string) => ({ uuid, session_id: S, parent_tool_use_id: null });
+const user = (uuid: string, text: string, attachments?: { kind: string; label: string }[]): StoredEvent => ({
+  ...env(uuid),
+  type: "user",
+  message: { role: "user", content: text },
+  attachments,
+});
+const toolResult = (uuid: string, tool_use_id: string, content: string, structured?: unknown, is_error?: boolean): StoredEvent => ({
+  ...env(uuid),
+  type: "user",
+  message: { role: "user", content: [{ type: "tool_result", tool_use_id, content, is_error }] },
+  tool_use_result: structured,
+});
+const assistant = (uuid: string, id: string, content: ContentBlock[], stop: string | null = "tool_use"): StoredEvent => ({
+  ...env(uuid),
+  type: "assistant",
+  message: { id, role: "assistant", model: "claude-sonnet-4-5", content, stop_reason: stop },
+});
+
+export const sessionEvents: StoredEvent[] = [
+  { ...env("e0"), type: "system", subtype: "init", model: "claude-sonnet-4-5" },
+
+  user(
+    "u1",
+    "Build a content strategy for the Vitamin C serum. Focus on women 28–40 who've been burned by dermatologist prescriptions — and tell me who else we're missing.",
+    [
+      { kind: "brand", label: "Glow Labs guide" },
+      { kind: "product", label: "Vitamin C Serum 15%" },
+    ],
+  ),
+  assistant("a1", "msg_01", [
+    { type: "tool_use", id: "tu_read1", name: "read_source", input: { title: "Glow Labs voice & visual guide" } },
+    { type: "tool_use", id: "tu_read2", name: "read_source", input: { title: "312 product reviews" } },
+  ]),
+  toolResult("r1", "tu_read1", "Tone: plain, unhurried, no exclamation marks. Palette: bone, oxblood, ink. Never say 'glow'."),
+  toolResult("r2", "tu_read2", "312 reviews. 41% mention a prior prescription; 23% mention an event; 12% mention children."),
+  assistant("a2", "msg_02", [
+    { type: "tool_use", id: "tu_scan", name: "scan_accounts", input: { accounts: ["glossier", "theordinary", "drunkelephant"], days: 30 } },
+  ]),
+  toolResult("r3", "tu_scan", "184 posts. Angle types: social proof 61%, before/after 22%, greed 11%, new mechanism 0%."),
+  assistant("a3", "msg_03", [
+    {
+      type: "text",
+      text: "Starting from the pain rather than the demographic: the serum solves **over-treated skin**, not dullness. Two personas have enough evidence in the reviews to stand behind. A third — the stay-home mom — shows up in comments but not in purchases, so I've parked her.",
+    },
+    { type: "tool_use", id: "tu_p1", name: "create_persona", input: { title: "The Burned Professional" } },
+    { type: "tool_use", id: "tu_p2", name: "create_persona", input: { title: "The Bride" } },
+  ]),
+  toolResult("r4", "tu_p1", "Created persona burned", { artifact: { ...artifactsSeed("burned"), status: "draft" } }),
+  toolResult("r5", "tu_p2", "Created persona bride", { artifact: { ...artifactsSeed("bride"), status: "draft" } }),
+  assistant("a4", "msg_04", [
+    { type: "tool_use", id: "tu_cov", name: "coverage_matrix", input: {} },
+    { type: "tool_use", id: "tu_strat", name: "create_strategy", input: { title: "Vitamin C — Q4 organic strategy" } },
+  ]),
+  toolResult("r6", "tu_cov", "3 pains × 3 personas. 7 angles. Empty: Bride×Sensitivity, Mom×Acne, Mom×Dullness, Professional×Dullness."),
+  toolResult("r7", "tu_strat", "Created strategy", { artifact: { ...artifactsSeed("strategy"), status: "draft" } }),
+  assistant(
+    "a5",
+    "msg_05",
+    [
+      {
+        type: "text",
+        text: "Here is how they cover the three pains. Seven angles are drafted; two cells are still empty, and only one of them is worth filling right now — the Burned Professional × Dullness, with an identity angle.\n\nNobody in the competitor set is running a new-mechanism angle. That is the gap.",
+      },
+    ],
+    "end_turn",
+  ),
+  { ...env("res1"), type: "result", subtype: "success", duration_ms: 42300, num_turns: 5, is_error: false },
+
+  user("u2", "Good. Brief a carousel batch for the Burned Professional at problem-aware — start with two and check the claims.", [
+    { kind: "persona", label: "The Burned Professional" },
+    { kind: "angle", label: "Your dermatologist wrecked your skin" },
+  ]),
+  assistant("a6", "msg_06", [
+    { type: "tool_use", id: "tu_b1", name: "create_brief", input: { title: "Why does your prescription burn more than your acne?" } },
+    { type: "tool_use", id: "tu_b2", name: "create_brief", input: { title: "The mirror test" } },
+  ]),
+  toolResult("r8", "tu_b1", "Created brief", { artifact: { ...artifactsSeed("brief"), status: "ready" } }),
+  toolResult("r9", "tu_b2", "Created brief", {
+    artifact: {
+      id: "brief2",
+      kind: "brief",
+      title: "The mirror test",
+      summary: "Carousel, 6 slides. Problem-aware; the 7am mirror as the moment of choice. Ends on the barrier mechanism.",
+      meta: ["Carousel", "6 slides", "Instagram"],
+      status: "ready",
+    },
+  }),
+  assistant("a7", "msg_07", [
+    { type: "tool_use", id: "tu_comp", name: "compliance_check", input: { count: 9 } },
+  ]),
+  toolResult("r10", "tu_comp", "1 flag: slide 4 of brief 1 implies 'cures' — rephrase as 'calms'.", undefined, true),
+  assistant(
+    "a8",
+    "msg_08",
+    [
+      {
+        type: "text",
+        text: "Two briefs, both problem-aware, both proving the barrier-damage mechanism from different doors. The compliance check flagged one claim on slide 4 of the first — I've left it for you to decide rather than soften it silently.",
+      },
+    ],
+    "end_turn",
+  ),
+  { ...env("res2"), type: "result", subtype: "success", duration_ms: 18900, num_turns: 3, is_error: false },
+];
+
+function artifactsSeed(id: string): Artifact {
+  return artifacts[id];
+}
 
 export const recents = [
   "Vitamin C — Q4 strategy",

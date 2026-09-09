@@ -69,6 +69,7 @@ export function Menu({
 export function MenuItem({
   icon,
   shortcut,
+  trailing,
   destructive = false,
   className,
   children,
@@ -76,6 +77,8 @@ export function MenuItem({
 }: ComponentProps<"button"> & {
   icon?: ReactNode;
   shortcut?: string;
+  /** Trailing slot for a check mark or a count. */
+  trailing?: ReactNode;
   destructive?: boolean;
 }) {
   return (
@@ -97,6 +100,7 @@ export function MenuItem({
       {shortcut ? (
         <span className="shrink-0 text-cap text-ink-disabled">{shortcut}</span>
       ) : null}
+      {trailing ? <span className="shrink-0 [&>svg]:size-3.5">{trailing}</span> : null}
     </button>
   );
 }

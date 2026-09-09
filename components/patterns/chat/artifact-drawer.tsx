@@ -8,7 +8,7 @@ import { Button, IconButton } from "@/components/ui/button";
 import { DialogBody, DialogFooter, Drawer } from "@/components/ui/dialog";
 import { Tooltip } from "@/components/ui/tooltip";
 
-import { artifactKinds } from "./artifact-card";
+import { artifactKinds } from "./artifact-block";
 import type { Artifact } from "./types";
 
 /**

@@ -13,12 +13,14 @@ import { cn } from "@/lib/cn";
 import type { ContextItem, ContextSource } from "./types";
 
 /**
- * One attachable source of grounding, shown in the row beneath the composer.
+ * One attachable source of grounding, shown in the chip row inside the
+ * composer — the `@`-mention row in Cursor, made explicit per source.
  *
  * Deliberately a different shape from Chip: a Chip filters a list, a pill
- * changes what the model knows. Rest state is an outline with a plus; once
+ * changes what the model knows. Rest state is a hairline with a plus; once
  * something is attached it fills and shows the count, and the clear affordance
- * appears on hover so the row stays quiet.
+ * appears on hover so the row stays quiet. Small on purpose: the row must not
+ * compete with the message.
  */
 export function ContextPill({
   icon,
@@ -42,22 +44,22 @@ export function ContextPill({
       <button
         type="button"
         className={cn(
-          "inline-flex h-8 items-center gap-1.5 rounded-full pr-3 pl-2.5 text-ui whitespace-nowrap",
+          "inline-flex h-6.5 items-center gap-1 rounded-[7px] px-1.5 text-cap whitespace-nowrap",
           "transition-colors duration-150 ease-out-quart outline-none",
           "focus-visible:ring-2 focus-visible:ring-ink/25",
           attached
             ? "bg-raised text-ink hover:bg-line-strong"
-            : "text-ink-secondary ring-1 ring-inset ring-line-strong hover:bg-[var(--state-hover)] hover:text-ink",
-          attached && onClear && "group-hover/pill:pr-7",
+            : "text-ink-secondary ring-1 ring-inset ring-line hover:bg-[var(--state-hover)] hover:text-ink",
+          attached && onClear && "group-hover/pill:pr-6",
         )}
         {...props}
       >
-        <span className="[&>svg]:size-3.5">{icon}</span>
+        <span className="[&>svg]:size-3">{icon}</span>
         <span>{label}</span>
         {attached ? (
-          <span className="text-ink-secondary">{count}</span>
+          <span className="text-ink-secondary tabular-nums">{count}</span>
         ) : (
-          <Plus className="size-3 text-ink-disabled" />
+          <Plus className="size-2.5 text-ink-disabled" />
         )}
       </button>
       {attached && onClear ? (
@@ -69,12 +71,12 @@ export function ContextPill({
             onClear();
           }}
           className={cn(
-            "absolute top-1/2 right-1.5 flex size-5 -translate-y-1/2 items-center justify-center rounded-full",
+            "absolute top-1/2 right-1 flex size-4 -translate-y-1/2 items-center justify-center rounded-[4px]",
             "text-ink-secondary opacity-0 transition-opacity duration-100 hover:bg-line-strong hover:text-ink",
             "group-hover/pill:opacity-100 focus-visible:opacity-100",
           )}
         >
-          <X className="size-3" />
+          <X className="size-2.5" />
         </button>
       ) : null}
     </span>

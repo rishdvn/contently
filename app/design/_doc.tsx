@@ -40,7 +40,7 @@ export function Section({
   children: ReactNode;
 }) {
   return (
-    <section id={id} className="flex scroll-mt-8 flex-col gap-4 border-t border-line pt-8">
+    <section id={id} className="flex flex-col gap-4 border-t border-line pt-8">
       <header className="flex flex-col gap-1">
         <h2 className="text-titles text-ink">{title}</h2>
         <p className="max-w-2xl text-default text-ink-secondary">{rule}</p>

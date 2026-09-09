@@ -1,593 +1,269 @@
 "use client";
 
-import {
-  Calendar,
-  ChevronRight,
-  ChevronsUpDown,
-  FileText,
-  KanbanSquare,
-  LayoutTemplate,
-  Library,
-  MessageSquare,
-  MoreHorizontal,
-  Palette,
-  Package,
-  Plus,
-  Sparkles,
-  Users,
-} from "lucide-react";
+import { Compass, FileText, MessageCircleQuestion, Play, Search, SkipForward, Sparkles } from "lucide-react";
 import { useState } from "react";
 
 import {
-  ActionRow,
-  ArtifactCard,
-  ArtifactCardSkeleton,
   ArtifactDrawer,
-  ArtifactGroup,
-  AssistantMessage,
   Composer,
   ContextAttachment,
-  ContextEcho,
-  ContextPickerPanel,
-  ContextPill,
   QuickPrompts,
-  QuickPromptsPanel,
-  Steps,
-  StreamingText,
   Suggestions,
   Thread,
-  UserMessage,
   artifactKinds,
   type Artifact,
   type ContextSource,
 } from "@/components/patterns/chat";
-import { Doc, DocSection } from "@/components/patterns/docs/doc";
 import { PersonaDoc } from "@/components/patterns/docs/persona-doc";
 import { CoverageMatrix, StrategyDoc } from "@/components/patterns/docs/strategy-doc";
-import { AgentMark, Avatar } from "@/components/ui/avatar";
-import { Kbd } from "@/components/ui/badge";
-import { Button, IconButton } from "@/components/ui/button";
-import { Chip, ChipRow } from "@/components/ui/chip";
+import { Button } from "@/components/ui/button";
+import { Illustration } from "@/components/ui/imagery";
 import { Menu, MenuItem, MenuLabel } from "@/components/ui/menu";
-import { NavItem, Sidebar, SidebarGroup } from "@/components/ui/nav";
+import { Progress } from "@/components/ui/progress";
+import { Select } from "@/components/ui/select";
+import { Table, TableBody, TableHead, Td, Th, Tr } from "@/components/ui/table";
 import { cn } from "@/lib/cn";
 
-import { Page, PageHeader, Row, Section } from "../_doc";
-import { artifacts, burnedPersona, promptGroups, q4Strategy, recents, sources as initialSources } from "./data";
+import { AppFrame, AppHeader } from "../_app-shell";
+import { Page, PageHeader, Section } from "../_doc";
+import { useReplay } from "./_replay";
+import { burnedPersona, promptGroups, q4Strategy, recents, sessionEvents, sources as initialSources } from "./data";
 
-/* ------------------------------------------------------------------ */
-/*  The surface                                                        */
-/* ------------------------------------------------------------------ */
+type Mode = "strategy" | "research" | "briefs" | "ask";
+const modes = [
+  { value: "strategy" as Mode, label: "Strategy", icon: <Compass />, detail: "Personas, angles, coverage" },
+  { value: "research" as Mode, label: "Research", icon: <Search />, detail: "Scan, mine, cluster" },
+  { value: "briefs" as Mode, label: "Briefs", icon: <FileText />, detail: "Hooks and slide beats" },
+  { value: "ask" as Mode, label: "Ask", icon: <MessageCircleQuestion />, detail: "No tools, just an answer" },
+];
+const models = [
+  { value: "sonnet", label: "Sonnet 4.5", detail: "Fast, default" },
+  { value: "opus", label: "Opus 4.1", detail: "For strategy from scratch" },
+];
 
-function AppSidebar() {
-  return (
-    <Sidebar className="w-[240px] gap-4 px-3 py-3">
-      <button className="flex h-10 items-center gap-2.5 rounded-nav px-2 text-left hover:bg-[var(--state-hover)]">
-        <Avatar name="Glow Labs" shape="square" size="sm" />
-        <span className="min-w-0 flex-1 truncate text-default text-ink">Glow Labs</span>
-        <ChevronsUpDown className="size-3.5 text-ink-disabled" />
-      </button>
-
-      <SidebarGroup>
-        <NavItem icon={<Plus />} trailing={<Kbd>⌘K</Kbd>} className="h-9 text-default">
-          New chat
-        </NavItem>
-      </SidebarGroup>
-
-      <SidebarGroup label="Workspace">
-        <NavItem icon={<MessageSquare />} active className="h-9 text-default">
-          Chat
-        </NavItem>
-        <NavItem icon={<KanbanSquare />} trailing="6" className="h-9 text-default">
-          Board
-        </NavItem>
-        <NavItem icon={<Calendar />} className="h-9 text-default">
-          Calendar
-        </NavItem>
-        <NavItem icon={<Library />} className="h-9 text-default">
-          Library
-        </NavItem>
-        <NavItem icon={<LayoutTemplate />} className="h-9 text-default">
-          Templates
-        </NavItem>
-      </SidebarGroup>
-
-      <SidebarGroup label="Recent">
-        {recents.map((r, i) => (
-          <NavItem key={r} active={i === 0} className="h-8 text-ui">
-            {r}
-          </NavItem>
-        ))}
-      </SidebarGroup>
-
-      <div className="mt-auto flex items-center gap-2.5 px-2 pt-2">
-        <Avatar name="Hanna Moore" size="md" />
-        <div className="flex min-w-0 flex-1 flex-col">
-          <span className="truncate text-ui text-ink">Hanna Moore</span>
-          <span className="truncate text-tiny text-ink-disabled">hanna@glowlabs.co</span>
-        </div>
-        <IconButton aria-label="Account" size="sm">
-          <MoreHorizontal />
-        </IconButton>
+/** Kind-specific previews in the thread. Only strategy earns one: the matrix is the point. */
+function renderPreview(a: Artifact) {
+  if (a.kind === "strategy") {
+    return (
+      <div className="flex flex-col gap-2">
+        <CoverageMatrix personas={q4Strategy.personas} pains={q4Strategy.pains} cells={q4Strategy.cells} compact />
+        <p className="text-cap text-ink-disabled">{a.meta?.join(" · ")}</p>
       </div>
-    </Sidebar>
-  );
+    );
+  }
+  return undefined;
 }
 
-function ChatHeader({ onOpen }: { onOpen: (a: Artifact) => void }) {
-  const made = [artifacts.burned, artifacts.bride, artifacts.strategy];
-  return (
-    <header className="flex h-12 shrink-0 items-center justify-between gap-4 px-5">
-      <div className="flex min-w-0 items-center gap-1.5 text-cap">
-        <span className="text-ink-secondary">Chat</span>
-        <ChevronRight className="size-3 text-ink-disabled" />
-        <span className="truncate text-ink">Vitamin C — Q4 strategy</span>
-      </div>
-      <div className="flex items-center gap-1">
-        <Menu
-          align="end"
-          trigger={(props) => (
-            <Button variant="ghost" size="sm" {...props}>
-              <FileText /> {made.length} artifacts
-            </Button>
-          )}
-        >
-          <MenuLabel>Made in this chat</MenuLabel>
-          {made.map((a) => {
-            const Icon = artifactKinds[a.kind].icon;
-            return (
-              <MenuItem key={a.id} icon={<Icon />} onClick={() => onOpen(a)}>
-                {a.title}
-              </MenuItem>
-            );
-          })}
-        </Menu>
-        <Button size="sm">Share</Button>
-      </div>
-    </header>
-  );
-}
-
-function DemoThread({ onOpen }: { onOpen: (a: Artifact) => void }) {
-  return (
-    <Thread>
-      <UserMessage
-        author={{ name: "Hanna Moore" }}
-        context={
-          <>
-            <ContextEcho icon={<Palette />}>Glow Labs guide</ContextEcho>
-            <ContextEcho icon={<Package />}>Vitamin C Serum 15%</ContextEcho>
-          </>
-        }
-      >
-        Build a content strategy for the Vitamin C serum. Focus on women 28–40 who&rsquo;ve
-        been burned by dermatologist prescriptions — and tell me who else we&rsquo;re missing.
-      </UserMessage>
-
-      <AssistantMessage>
-        <Steps
-          summary="Read 2 sources · scanned 3 accounts · drafted 2 personas"
-          items={[
-            { label: "Read Glow Labs voice & visual guide" },
-            { label: "Read 312 product reviews" },
-            { label: "Scanned Glossier, The Ordinary, Drunk Elephant — last 30 days" },
-            { label: "Drafted personas with evidence" },
-          ]}
-        />
-        <p>
-          Starting from the pain rather than the demographic: the serum solves{" "}
-          <strong>over-treated skin</strong>, not dullness. Two personas have enough evidence in
-          the reviews to stand behind. A third — the stay-home mom — shows up in comments but
-          not in purchases, so I&rsquo;ve parked her.
-        </p>
-        <ArtifactGroup>
-          <ArtifactCard artifact={artifacts.burned} onOpen={onOpen} />
-          <ArtifactCard artifact={artifacts.bride} onOpen={onOpen} />
-        </ArtifactGroup>
-        <p>
-          Here is how they cover the three pains. Seven angles are drafted; two cells are still
-          empty, and only one of them is worth filling right now.
-        </p>
-        <ArtifactCard artifact={artifacts.strategy} onOpen={onOpen} />
-        <ActionRow>
-          <Button variant="spectrum" size="sm">
-            <Sparkles /> Generate 8 briefs
-          </Button>
-          <Button size="sm">Edit strategy</Button>
-          <Button variant="ghost" size="sm">
-            Explain the gaps
-          </Button>
-        </ActionRow>
-        <Suggestions
-          items={[
-            "Why park the stay-home mom?",
-            "Show hooks for the first angle",
-            "Who runs new-mechanism angles?",
-          ]}
-        />
-      </AssistantMessage>
-
-      <UserMessage author={{ name: "Hanna Moore" }}>
-        Brief a carousel batch for the burned professional at problem-aware.
-      </UserMessage>
-
-      <AssistantMessage streaming>
-        <Steps
-          running
-          summary="Writing briefs · 3 of 8"
-          items={[
-            { label: "Loaded angle: Your dermatologist wrecked your skin" },
-            { label: "Selected assets: before/after library, Sept shoot" },
-            { label: "Brief 1 — Why does your prescription burn more than your acne?" },
-            { label: "Brief 2 — The mirror test", done: true },
-            { label: "Brief 3 — What your derm didn't tell you about retinoids", done: false },
-          ]}
-        />
-        <StreamingText>
-          Eight briefs, each proving one claim about barrier damage. The first two are ready to
-          open; the rest will land here as they finish
-        </StreamingText>
-        <ArtifactGroup>
-          <ArtifactCard artifact={artifacts.brief} onOpen={onOpen} />
-          <ArtifactCardSkeleton label="Brief 3 of 8 — drafting slide beats…" />
-        </ArtifactGroup>
-      </AssistantMessage>
-    </Thread>
-  );
-}
-
-function EmptyThread({ onStarter }: { onStarter: (text: string) => void }) {
-  return (
-    <div className="flex flex-1 flex-col items-center justify-center gap-6 px-8 text-center">
-      <AgentMark size="lg" />
-      <div className="flex flex-col gap-1.5">
-        <h2 className="text-sections text-ink">
-          <span className="text-ink-secondary">Hey Hanna,</span> what are we making?
-        </h2>
-        <p className="text-default text-ink-secondary">
-          A strategy, a persona, a batch of briefs. Attach what I should work from below.
-        </p>
-      </div>
-      <ChipRow wrap className="justify-center">
-        {promptGroups.map((g) => (
-          <Chip key={g.label} onClick={() => onStarter(g.prompts[0].text)}>
-            <g.icon className="size-3.5" /> {g.prompts[0].title}
-          </Chip>
-        ))}
-      </ChipRow>
-    </div>
-  );
-}
-
-function AppFrame({
-  mode,
+function ComposerBar({
   sources,
-  onSources,
-  onOpen,
+  setSources,
+  generating,
+  onStop,
 }: {
-  mode: "thread" | "empty";
   sources: ContextSource[];
-  onSources: (next: ContextSource[]) => void;
-  onOpen: (a: Artifact) => void;
+  setSources: (s: ContextSource[]) => void;
+  generating: boolean;
+  onStop: () => void;
 }) {
   const [draft, setDraft] = useState("");
-  const update = (kind: ContextSource["kind"], selected: string[]) =>
-    onSources(sources.map((s) => (s.kind === kind ? { ...s, selected } : s)));
-
-  const composer = (
+  const [mode, setMode] = useState<Mode>("strategy");
+  const [model, setModel] = useState("sonnet");
+  return (
     <Composer
       value={draft}
       onChange={setDraft}
       onSend={() => setDraft("")}
-      generating={mode === "thread"}
-      onStop={() => undefined}
-      tools={<QuickPrompts groups={promptGroups} onPick={(p) => setDraft(p.text)} />}
+      onStop={onStop}
+      generating={generating}
       context={sources.map((s) => (
-        <ContextAttachment key={s.kind} source={s} onChange={(sel) => update(s.kind, sel)} />
+        <ContextAttachment
+          key={s.kind}
+          source={s}
+          onChange={(selected) => setSources(sources.map((x) => (x.kind === s.kind ? { ...x, selected } : x)))}
+        />
       ))}
+      leading={
+        <>
+          <Select variant="inline" size="sm" value={mode} options={modes} onChange={setMode} />
+          <Select variant="inline" size="sm" value={model} options={models} onChange={setModel} />
+          <QuickPrompts groups={promptGroups} onPick={(p) => setDraft(p.text)} />
+        </>
+      }
     />
-  );
-
-  return (
-    <div className="flex h-[780px] overflow-hidden rounded-[var(--radius-overlay)] bg-canvas ring-1 ring-line">
-      <AppSidebar />
-      <div className="flex min-w-0 flex-1 flex-col">
-        {mode === "thread" ? (
-          <>
-            <ChatHeader onOpen={onOpen} />
-            <div className="min-h-0 flex-1 overflow-y-auto px-8 pt-4 pb-6">
-              <DemoThread onOpen={onOpen} />
-            </div>
-            <div className="shrink-0 px-8 pt-1 pb-5">
-              <div className="mx-auto max-w-[760px]">{composer}</div>
-            </div>
-          </>
-        ) : (
-          <>
-            <header className="flex h-12 shrink-0 items-center justify-end px-5">
-              <Button size="sm">Share</Button>
-            </header>
-            <EmptyThread onStarter={setDraft} />
-            <div className="flex-1" />
-            <div className="shrink-0 px-8 pt-1 pb-5">
-              <div className="mx-auto max-w-[760px]">{composer}</div>
-            </div>
-            <div className="flex-1" />
-          </>
-        )}
-      </div>
-    </div>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/*  Page                                                               */
-/* ------------------------------------------------------------------ */
-
-function StaticPills() {
-  return (
-    <div className="flex flex-wrap items-center gap-1.5">
-      {initialSources.map((s) => (
-        <ContextPill key={s.kind} icon={<s.icon />} label={s.label} count={s.selected.length} onClear={() => undefined} />
-      ))}
-    </div>
   );
 }
 
 export function ChatDemo() {
-  const [mode, setMode] = useState<"thread" | "empty">("thread");
   const [sources, setSources] = useState(initialSources);
-  const [open, setOpen] = useState<Artifact | null>(null);
-  const [docSources, setDocSources] = useState(initialSources);
-  const [docDraft, setDocDraft] = useState("");
+  const [openArtifact, setOpenArtifact] = useState<Artifact | null>(null);
+  const { transcript, playing, replay, finish, progress } = useReplay(sessionEvents);
 
-  const openArtifact = (a: Artifact) => setOpen(a);
+  const made = transcript.turns.flatMap((t) => t.blocks.flatMap((b) => (b.kind === "artifact" && b.status === "done" ? [b.artifact] : [])));
+  const last = transcript.turns[transcript.turns.length - 1];
+  const finished = last && !last.streaming && last.role === "assistant";
 
   return (
     <Page>
       <PageHeader
         eyebrow="Patterns"
         title="Chat"
-        lede="Where strategy gets made. The user tells the model what to work from, the model answers in prose and in artifacts, and every artifact is a real object — a persona, a strategy, a brief — that opens in place and lives on in the board, the calendar and the library."
-        note="Built entirely from the primitives on the Controls, Views and Overlays pages. Nothing here defines a colour, a radius or a button of its own."
-      >
-        <ChipRow className="pt-1">
-          <Chip selected={mode === "thread"} onClick={() => setMode("thread")}>
-            Mid-conversation
-          </Chip>
-          <Chip selected={mode === "empty"} onClick={() => setMode("empty")}>
-            Empty state
-          </Chip>
-        </ChipRow>
-      </PageHeader>
+        lede="Where strategy gets made. The transcript is rendered from a stored event log in the Claude Agent SDK's own shape, so the same reducer draws a live stream, a reload and a reconnect. Press replay to watch the log arrive as it would over the wire."
+        note="Idiom borrowed from Cursor, Devin and Codex: the assistant has no bubble, the user's message is a quiet block, tool work folds into one row, documents are inline blocks with a header."
+      />
 
-      <Section
-        id="surface"
-        title="The surface"
-        rule="Live. Attach personas from the pill row, browse prompts with the lightning button, open any artifact, hover a reply for its actions. The sidebar is the app's real navigation: one chat, one board, one calendar, one library, and the conversations you have had."
-      >
-        <AppFrame mode={mode} sources={sources} onSources={setSources} onOpen={openArtifact} />
-      </Section>
-
-      <Section
-        id="composer"
-        title="Composer"
-        rule="Three rows with fixed jobs. The text is the message. The bar beneath holds tools for this message — attach, saved prompts, send. The pill row beneath the panel is context for the whole conversation, so it sits outside the message. Send is white, not spectrum: asking is cheap, generating is not."
-      >
-        <div className="grid gap-6 lg:grid-cols-2">
-          <div className="flex flex-col gap-2">
-            <span className="text-cap text-ink-disabled">Empty</span>
-            <Composer value="" onChange={() => undefined} onSend={() => undefined} />
-          </div>
-          <div className="flex flex-col gap-2">
-            <span className="text-cap text-ink-disabled">Typing — shortcut appears, send enables</span>
-            <Composer
-              value={docDraft || "Draft an identity angle for the burned professional × dullness."}
-              onChange={setDocDraft}
-              onSend={() => setDocDraft("")}
-            />
-          </div>
-          <div className="flex flex-col gap-2 lg:col-span-2">
-            <span className="text-cap text-ink-disabled">Generating — send becomes stop; context stays editable</span>
-            <Composer
-              value=""
-              onChange={() => undefined}
-              onSend={() => undefined}
-              generating
-              tools={<QuickPrompts groups={promptGroups} onPick={() => undefined} />}
-              context={docSources.map((s) => (
-                <ContextAttachment
-                  key={s.kind}
-                  source={s}
-                  onChange={(sel) =>
-                    setDocSources(docSources.map((x) => (x.kind === s.kind ? { ...x, selected: sel } : x)))
-                  }
-                />
-              ))}
-            />
-          </div>
+      <Section title="The surface" rule="Sidebar, header, thread, composer. Nothing in the frame scrolls on its own; the page does.">
+        <div className="flex items-center gap-2">
+          <Button size="sm" onClick={replay} disabled={playing}>
+            <Play /> Replay session
+          </Button>
+          <Button size="sm" variant="ghost" onClick={finish} disabled={!playing}>
+            <SkipForward /> Skip to end
+          </Button>
+          <Progress value={Math.round(progress * 100)} size="sm" spectrum className="w-40" />
+          <span className="text-cap text-ink-disabled tabular-nums">
+            {transcript.turns.length} turns · {transcript.model ?? "—"} · {transcript.sessionId ?? "—"}
+          </span>
         </div>
-      </Section>
 
-      <Section
-        id="pickers"
-        title="Context pills & pickers"
-        rule="A pill is an attachable source of grounding, and a different object from a Chip: chips filter a list, pills change what the model knows. Rest is an outline with a plus; attached is a fill with a count. Clicking opens a picker — search, a checklist, a way out to the library — and nothing heavier. Creating a persona is a page, not a popover."
-      >
-        <div className="flex flex-col gap-5">
-          <Row label="rest / attached">
-            <StaticPills />
-          </Row>
-          <Row label="picker">
-            <div className="overflow-hidden rounded-[var(--radius-overlay)] bg-panel shadow-overlay">
-              <ContextPickerPanel
-                source={docSources[0]}
-                onChange={(sel) =>
-                  setDocSources(docSources.map((x) => (x.kind === "persona" ? { ...x, selected: sel } : x)))
-                }
-              />
-            </div>
-          </Row>
-          <div className="grid gap-2 sm:grid-cols-3">
-            {[
-              ["Personas · Angles · Products", "Small, curated lists. Picker with search.", "Popover"],
-              ["Brand · Skills", "One or two items, rarely changed. Picker without search.", "Popover"],
-              ["Assets", "Hundreds of items, visual. Opens the library as a drawer with a grid.", "Drawer"],
-            ].map(([kind, why, shape]) => (
-              <div key={kind} className="flex flex-col gap-1 rounded-control bg-panel p-3.5">
-                <span className="text-default text-ink">{kind}</span>
-                <span className="text-cap text-ink-secondary">{why}</span>
-                <span className="text-cap text-ink-disabled">{shape}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </Section>
-
-      <Section
-        id="prompts"
-        title="Quick prompts"
-        rule="Saved prompts live in groups and the groups switch on hover, so the whole library is one horizontal sweep of the pointer. The band at the foot prints the full text of whatever is under the cursor, so nothing is sent unread. Choosing a prompt fills the composer; it never sends. Placeholders in braces are what the user is expected to edit."
-      >
-        <div className="flex flex-col gap-4">
-          <div className="w-fit overflow-hidden rounded-[var(--radius-overlay)] bg-panel shadow-overlay">
-            <QuickPromptsPanel groups={promptGroups} onPick={() => undefined} />
-          </div>
-          <Row label="starters">
-            <ChipRow wrap>
-              {promptGroups.map((g) => (
-                <Chip key={g.label}>
-                  <g.icon className="size-3.5" /> {g.prompts[0].title}
-                </Chip>
-              ))}
-            </ChipRow>
-          </Row>
-          <p className="max-w-2xl text-cap text-ink-secondary">
-            Starters on the empty state are the first prompt of each group. The same groups appear
-            later as the &ldquo;Prompts&rdquo; button in the composer, so there is one library, seen
-            two ways.
-          </p>
-        </div>
-      </Section>
-
-      <Section
-        id="messages"
-        title="Messages"
-        rule="The user's turn is a bubble; the model's is not. A bubble says 'this is a quote', which is what a prompt is. The reply is the working surface — full measure, no container, attributed by the spectrum mark alone. What the model did before answering collapses to one line of evidence; its actions appear on hover and never compete with the content."
-      >
-        <div className="rounded-[var(--radius-overlay)] bg-canvas p-6 ring-1 ring-line">
-          <Thread>
-            <UserMessage
-              author={{ name: "Hanna Moore" }}
-              context={<ContextEcho icon={<Users />}>2 personas</ContextEcho>}
+        <AppFrame active="chat" recents={recents}>
+          <AppHeader crumbs={["Chat", "Vitamin C — Q4 strategy"]}>
+            <Menu
+              align="end"
+              trigger={(props) => (
+                <Button variant="ghost" size="sm" {...props}>
+                  <FileText /> {made.length} artifacts
+                </Button>
+              )}
             >
-              Which of these two personas should we lead with in October?
-            </UserMessage>
-            <AssistantMessage>
-              <Steps
-                summary="Compared 2 personas against Q4 calendar"
-                items={[{ label: "Read both persona docs" }, { label: "Checked seasonality in reviews" }]}
+              <MenuLabel>Made in this chat</MenuLabel>
+              {made.map((a) => {
+                const Icon = artifactKinds[a.kind].icon;
+                return (
+                  <MenuItem key={a.id} icon={<Icon />} onClick={() => setOpenArtifact(a)}>
+                    {a.title}
+                  </MenuItem>
+                );
+              })}
+            </Menu>
+            <Button size="sm">Share</Button>
+          </AppHeader>
+
+          <div className="mx-auto flex w-full max-w-[720px] flex-1 flex-col gap-6 px-6 pt-4 pb-6">
+            <Thread transcript={transcript} onOpenArtifact={setOpenArtifact} renderPreview={renderPreview} />
+            {finished ? (
+              <Suggestions
+                items={["Fill Burned Professional × Dullness", "Write eight hooks for the top angle", "Explain the two empty cells"]}
+                className="-mt-2 px-1"
               />
-              <p>
-                Lead with <strong>the Burned Professional</strong>. She enters problem-aware, which
-                is where organic wins; the Bride is solution-aware and will convert on retargeting
-                anyway. October also has no wedding peak.
-              </p>
-              <Suggestions items={["Make that the default persona", "Show the October calendar"]} />
-            </AssistantMessage>
-            <UserMessage author={{ name: "Hanna Moore" }}>Do it.</UserMessage>
-            <AssistantMessage streaming>
-              <StreamingText>Setting the Burned Professional as the default persona for Q4 and re-ordering the board</StreamingText>
-            </AssistantMessage>
-          </Thread>
-        </div>
+            ) : null}
+            <div className="mt-auto pt-4">
+              <ComposerBar sources={sources} setSources={setSources} generating={playing} onStop={finish} />
+            </div>
+          </div>
+        </AppFrame>
+
+        <ArtifactDrawer artifact={openArtifact} open={openArtifact !== null} onClose={() => setOpenArtifact(null)} onGenerate={() => setOpenArtifact(null)}>
+          {openArtifact?.kind === "persona" ? <PersonaDoc data={burnedPersona} /> : null}
+          {openArtifact?.kind === "strategy" ? <StrategyDoc data={q4Strategy} /> : null}
+          {openArtifact && openArtifact.kind !== "persona" && openArtifact.kind !== "strategy" ? (
+            <p className="text-default text-ink-secondary">{openArtifact.summary}</p>
+          ) : null}
+        </ArtifactDrawer>
+      </Section>
+
+      <Section title="Empty thread" rule="One question and the composer. No feature tour, no wall of suggestions — the prompts library is one click away in the bar.">
+        <AppFrame active="chat" recents={recents} className="min-h-[420px]">
+          <AppHeader crumbs={["Chat", "New chat"]} />
+          <div className="mx-auto flex w-full max-w-[720px] flex-1 flex-col items-center justify-center gap-6 px-6 pb-6">
+            <div className="flex flex-col items-center gap-3 text-center">
+              <Illustration name="empty-thread" className="size-16" />
+              <p className="text-panels text-ink">What are we making this week?</p>
+              <p className="max-w-sm text-default text-ink-secondary">Attach a product and a brand guide, then ask for a strategy — or start from a saved prompt.</p>
+            </div>
+            <div className="w-full">
+              <ComposerBar sources={sources.map((s) => ({ ...s, selected: [] }))} setSources={() => {}} generating={false} onStop={() => {}} />
+            </div>
+          </div>
+        </AppFrame>
       </Section>
 
       <Section
-        id="artifacts"
-        title="Artifact cards"
-        rule="A thing the model made, sitting in the thread. A card and not a link because it must be recognisable when the user scrolls back: kind, title, one line, a few facts. The whole card opens it; the overflow menu does everything else. Six kinds share one card, which is what makes a seventh cheap. Briefs and carousels carry a strip of slides; generating cards carry the sweep."
+        title="How a conversation is stored"
+        rule="Complete SDK messages, appended in receipt order. Deltas are never written. The thread is a pure function of this table, which is what makes it survive reloads, reconnects and new SDK features."
       >
-        <div className="grid gap-2 sm:grid-cols-2">
-          {(["persona", "angle", "strategy", "research", "brief", "carousel"] as const).map((k) => {
-            const a = Object.values(artifacts).find((x) => x.kind === k && x.status !== "generating")!;
-            return <ArtifactCard key={k} artifact={a} onOpen={openArtifact} />;
-          })}
-          <ArtifactCard artifact={artifacts.generating} />
-          <ArtifactCardSkeleton />
-        </div>
-        <div className="grid gap-2 pt-2 sm:grid-cols-3">
+        <div className="grid gap-4 lg:grid-cols-3">
           {[
-            ["Click", "Opens the artifact in a drawer over the conversation. The thread stays visible behind the scrim."],
-            ["Open page ↗", "Leaves the chat for the object's own page — the persona editor, the brief in the board, the carousel in the editor."],
-            ["Add to board", "Briefs and carousels become cards in the Board's first column. Personas and strategies pin to the workspace."],
-          ].map(([t, b]) => (
-            <div key={t} className="flex flex-col gap-1 rounded-control bg-panel p-3.5">
-              <span className="text-default text-ink">{t}</span>
-              <span className="text-cap leading-4 text-ink-secondary">{b}</span>
+            {
+              title: "Write",
+              body: "Every non-delta SDKMessage the query yields is appended to conversation_events (conversation_id, seq, message jsonb). seq is the receipt order — the SDK warns that timestamps come from the producer's clock and must not be used to sort. Artifacts referenced in tool_use_result are upserted into their own table by id.",
+            },
+            {
+              title: "Read",
+              body: "reduceTranscript(events) folds the log into turns of typed blocks. Text blocks are keyed message.id:index, tool blocks by tool_use.id, so a tool_result flips its tool wherever it sits and a complete assistant message replaces the partial blocks its own deltas created — React reconciles in place, nothing jumps.",
+            },
+            {
+              title: "Resume",
+              body: "The session itself lives with the SDK (optionally mirrored through sessionStore). To continue we call query({ resume: session_id }); new messages append to the same log. Unknown block or event types render as a collapsed 'unrecognised event', never as a blank thread.",
+            },
+          ].map((c) => (
+            <div key={c.title} className="flex flex-col gap-2 rounded-nav bg-card p-4">
+              <h3 className="text-ui text-ink">{c.title}</h3>
+              <p className="text-cap leading-4 text-ink-secondary">{c.body}</p>
             </div>
           ))}
         </div>
+
+        <Table>
+          <TableHead>
+            <Th>SDK message</Th>
+            <Th>What the reducer does</Th>
+            <Th>What the thread shows</Th>
+          </TableHead>
+          <TableBody>
+            {[
+              ["system · init", "Records model and session id", "Nothing"],
+              ["user (text)", "Opens a user turn; keeps our own attachments field", "Filled block with @mentions"],
+              ["stream_event · content_block_start/delta", "Creates or appends a partial block under a stable key", "Streaming prose with caret; tool row spinning"],
+              ["assistant", "Replaces partial blocks with the complete message; tool_use becomes a tool or artifact block by registry", "Prose; activity row; artifact block (generating)"],
+              ["user (tool_result)", "Finds the block by tool_use_id; sets status; merges tool_use_result.artifact", "Row ticks; artifact block fills in"],
+              ["system · compact_boundary", "Appends a boundary block", "Hairline: 'Context compacted · 84k tokens'"],
+              ["result", "Closes the turn with duration and step count", "Footer: 'Done · 42s' and actions"],
+              ["anything else", "Appends an unknown block with the raw payload", "Collapsed 'Unrecognised event'"],
+            ].map(([a, b, c]) => (
+              <Tr key={a}>
+                <Td className="font-mono text-cap text-ink">{a}</Td>
+                <Td muted className="text-cap">
+                  {b}
+                </Td>
+                <Td muted className="text-cap">
+                  {c}
+                </Td>
+              </Tr>
+            ))}
+          </TableBody>
+        </Table>
       </Section>
 
-      <Section
-        id="drawer"
-        title="Artifact drawer"
-        rule="Where a card opens. A drawer rather than a dialog because the conversation is the document's context; a drawer rather than a page because most openings are a glance. Header and footer are identical for every kind — only the body knows what a persona is. The footer's spectrum button is the one generative action that makes sense for that kind."
-      >
-        <Row label="open">
-          <Button onClick={() => openArtifact(artifacts.burned)}>Persona</Button>
-          <Button onClick={() => openArtifact(artifacts.strategy)}>Strategy</Button>
-          <Button onClick={() => openArtifact(artifacts.brief)}>Brief</Button>
-        </Row>
-        <div className="flex flex-col gap-2 pt-2">
-          <span className="text-cap text-ink-disabled">Inside the strategy: the coverage matrix</span>
-          <div className="max-w-xl rounded-[var(--radius-overlay)] bg-panel p-5">
-            <CoverageMatrix personas={q4Strategy.personas} pains={q4Strategy.pains} cells={q4Strategy.cells} />
-          </div>
-          <p className="max-w-2xl text-cap text-ink-secondary">
-            Rows are pains, columns are personas, a number is how many angles exist for the
-            intersection, a ring is a gap. Clicking a cell will ask the model for an angle there.
-            This is the product&rsquo;s most important visual and it is built from Tooltip, a table
-            and two tokens.
-          </p>
+      <Section title="What the model can be given" rule="Context is attached per source, inside the composer, and echoed on the message it was sent with. Tools that produce documents are declared once, in the artifact registry.">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {sources.map((s) => {
+            const Icon = s.icon;
+            return (
+              <div key={s.kind} className="flex items-start gap-3 rounded-nav bg-card p-4">
+                <Icon className="mt-0.5 size-4 shrink-0 text-ink-secondary" />
+                <div className="flex min-w-0 flex-col gap-0.5">
+                  <span className="text-default text-ink">{s.label}</span>
+                  <span className="text-cap text-ink-secondary">{s.items.length} in library · {s.selected.length} attached</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        <div className={cn("flex items-center gap-2 rounded-nav bg-card p-4 text-cap text-ink-secondary")}>
+          <Sparkles className="size-3.5 text-ink" />
+          Artifact tools: create_persona · create_angle · create_strategy · run_research · create_brief · render_carousel — each maps to one ArtifactKind and one document view.
         </div>
       </Section>
-
-      <ArtifactDrawer
-        artifact={open}
-        open={open !== null}
-        onClose={() => setOpen(null)}
-        onGenerate={() => setOpen(null)}
-        generateLabel={
-          open?.kind === "strategy" ? "Fill the gaps" : open?.kind === "brief" ? "Generate carousel" : "Generate briefs"
-        }
-      >
-        {open?.kind === "persona" ? (
-          <PersonaDoc data={burnedPersona} />
-        ) : open?.kind === "strategy" ? (
-          <StrategyDoc data={q4Strategy} />
-        ) : open ? (
-          <Doc>
-            <DocSection label="Preview">
-              <p className="text-default leading-6 text-ink-secondary">
-                The {artifactKinds[open.kind].noun} document renders here. Its layout arrives with
-                the {open.kind === "carousel" ? "Editor" : open.kind === "brief" ? "Board" : "Library"}{" "}
-                pattern, which owns that object.
-              </p>
-            </DocSection>
-            {open.thumbnails ? (
-              <DocSection label="Slides">
-                <div className={cn("grid grid-cols-4 gap-2")}>
-                  {open.thumbnails.map((bg, i) => (
-                    <div key={i} className="aspect-[4/5] rounded-control" style={{ backgroundImage: bg }} />
-                  ))}
-                </div>
-              </DocSection>
-            ) : null}
-          </Doc>
-        ) : null}
-      </ArtifactDrawer>
     </Page>
   );
 }

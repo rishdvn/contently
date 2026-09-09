@@ -138,7 +138,7 @@ function SlideStrip({ left, right }: { left: number; right: number }) {
                 aria-current={active}
                 className={cn(
                   "relative overflow-hidden rounded-[8px] ring-2 ring-offset-2 ring-offset-panel transition-[box-shadow]",
-                  active ? "ring-ink" : "ring-transparent hover:ring-line-strong",
+                  active ? "ring-ink" : "ring-line-strong/60 hover:ring-line-strong",
                 )}
                 onClick={() => go(s.id)}
               >
@@ -365,7 +365,7 @@ function Tracks() {
               const major = Math.abs(t / (step * 2) - Math.round(t / (step * 2))) < 1e-6;
               return (
                 <div key={t} className="absolute top-0 flex flex-col items-start" style={{ left: x }}>
-                  <span className="mt-[9px] text-[10px] leading-none tracking-[0.4px] text-ink-disabled" style={{ transform: "translateX(-50%)" }}>
+                  <span className="mt-[9px] text-[10px] leading-none tracking-[0.4px] text-ink-secondary/80" style={{ transform: "translateX(-50%)" }}>
                     {step < 1 || major ? `${t}s` : ""}
                   </span>
                 </div>

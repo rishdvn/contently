@@ -7,6 +7,7 @@ import { useEditor } from "@/lib/editor/store";
 import type { Rect } from "@/lib/editor/types";
 
 import { Artboard } from "./Artboard";
+import { ContextMenu } from "./ContextMenu";
 import { Gizmo } from "./Gizmo";
 import { SelectionToolbar } from "./SelectionToolbar";
 
@@ -144,7 +145,6 @@ export function Viewport({ insets, children }: { insets: Insets; children?: Reac
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerUp}
       onDoubleClick={onDoubleClick}
-      onContextMenu={(e) => e.preventDefault()}
     >
       <div
         ref={worldRef}
@@ -173,6 +173,7 @@ export function Viewport({ insets, children }: { insets: Insets; children?: Reac
 
       <Gizmo container={container} worldRef={worldRef} />
       <SelectionToolbar container={container} />
+      <ContextMenu container={container} />
       {children}
     </div>
   );
@@ -198,8 +199,21 @@ function ArtboardWithLabel({
   const active = useEditor((s) => s.activeSlideId === slideId);
   const zoom = useEditor((s) => s.viewport.zoom);
   const name = useEditor((s) => s.project.slides[index]?.name ?? "");
+  const width = useEditor((s) => s.project.width);
+  const height = useEditor((s) => s.project.height);
   return (
     <>
+      {/* Lift the artboard off the canvas. Lives outside the exportable node. */}
+      <div
+        className="pointer-events-none absolute"
+        style={{
+          left: x,
+          top: y,
+          width,
+          height,
+          boxShadow: `0 0 0 ${1 / zoom}px rgb(255 255 255 / 0.07), 0 ${24 / zoom}px ${64 / zoom}px rgb(0 0 0 / 0.55)`,
+        }}
+      />
       {showLabel ? (
         <div
           className="absolute whitespace-nowrap text-ink-secondary"

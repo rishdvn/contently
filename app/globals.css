@@ -439,3 +439,97 @@
     background: transparent;
   }
 }
+
+/* ------------------------------------------------------------------------- */
+/* Editor: manipulation gizmo and canvas chrome                              */
+/* ------------------------------------------------------------------------- */
+
+@layer components {
+  /*
+    Moveable ships a blue theme. The reference's selection is monochrome:
+    a hairline box in ink and small white handles with a soft shadow, so
+    the chrome never competes with the artwork's own colour.
+  */
+  .gizmo.moveable-control-box {
+    --moveable-color: rgb(255 255 255 / 0.9);
+    z-index: 1150;
+  }
+  .gizmo .moveable-line {
+    background: rgb(255 255 255 / 0.85) !important;
+    height: 1px !important;
+    box-shadow: 0 0 0 0.5px rgb(0 0 0 / 0.35);
+  }
+  .gizmo .moveable-line.moveable-rotation-line {
+    height: 22px !important;
+    width: 1px !important;
+  }
+  .gizmo .moveable-control {
+    width: 10px !important;
+    height: 10px !important;
+    margin-top: -5px !important;
+    margin-left: -5px !important;
+    background: #ffffff !important;
+    border: 1px solid rgb(0 0 0 / 0.35) !important;
+    border-radius: 3px !important;
+    box-shadow: 0 1px 3px rgb(0 0 0 / 0.4);
+  }
+  .gizmo .moveable-direction.moveable-n,
+  .gizmo .moveable-direction.moveable-s {
+    width: 22px !important;
+    height: 7px !important;
+    margin-left: -11px !important;
+    margin-top: -3.5px !important;
+    border-radius: 4px !important;
+  }
+  .gizmo .moveable-direction.moveable-e,
+  .gizmo .moveable-direction.moveable-w {
+    width: 7px !important;
+    height: 22px !important;
+    margin-left: -3.5px !important;
+    margin-top: -11px !important;
+    border-radius: 4px !important;
+  }
+  .gizmo .moveable-rotation-control {
+    width: 14px !important;
+    height: 14px !important;
+    margin-top: -7px !important;
+    margin-left: -7px !important;
+    border-radius: 999px !important;
+    border-color: rgb(0 0 0 / 0.35) !important;
+    background: #ffffff !important;
+  }
+  .gizmo .moveable-guideline {
+    background: var(--color-spectrum-green) !important;
+    opacity: 0.9;
+  }
+  .gizmo .moveable-guideline.moveable-bold {
+    background: var(--color-spectrum-green) !important;
+  }
+
+  /* Selecto marquee */
+  .selecto-selection {
+    background: rgb(255 255 255 / 0.06) !important;
+    border: 1px solid rgb(255 255 255 / 0.5) !important;
+    border-radius: 2px;
+  }
+
+  /* Native range input used for timeline zoom. */
+  .timeline-zoom::-webkit-slider-thumb {
+    appearance: none;
+    width: 10px;
+    height: 10px;
+    border-radius: 999px;
+    background: var(--color-ink);
+  }
+  .timeline-zoom::-moz-range-thumb {
+    width: 10px;
+    height: 10px;
+    border: 0;
+    border-radius: 999px;
+    background: var(--color-ink);
+  }
+
+  .timeline-scroll::-webkit-scrollbar {
+    height: 8px;
+  }
+}

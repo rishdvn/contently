@@ -208,13 +208,13 @@ export function TextPanel() {
         </div>
         <div className="min-h-0 min-w-0 flex-1 overflow-y-auto">
           <div className="mb-1.5 text-cap text-ink-secondary">{q ? "Results" : cat}</div>
-          <div className="grid grid-cols-3 gap-1.5">
+          <div className="grid grid-cols-2 gap-1.5">
             {list.map((p) => (
               <button
                 key={p.id}
                 type="button"
                 title={p.label}
-                className="flex aspect-square items-center justify-center overflow-hidden rounded-[10px] bg-card p-1.5 transition-colors hover:bg-raised"
+                className="flex aspect-square items-center justify-center overflow-hidden rounded-[10px] bg-card p-2 transition-colors hover:bg-raised"
                 style={{ background: p.preview.bg }}
                 onClick={() => add(p)}
               >
@@ -232,7 +232,7 @@ export function TextPanel() {
 /* A preset rendered at thumbnail scale, using the same style pipeline as the canvas. */
 function PresetPreview({ preset }: { preset: TextPreset }) {
   const b = textBlock({ x: 0, y: 0, w: 100, ...preset.block, text: preset.preview.text });
-  const scale = Math.min(1, 26 / b.fontSize);
+  const scale = Math.min(1, 18 / b.fontSize);
   const base = textStyle({ ...b, fontSize: Math.max(9, b.fontSize * scale), letterSpacing: b.letterSpacing * scale });
   const hl = highlightStyle(b);
   const style: React.CSSProperties = {
@@ -242,6 +242,8 @@ function PresetPreview({ preset }: { preset: TextPreset }) {
     textAlign: "center",
     lineHeight: hl ? b.lineHeight + 0.35 : b.lineHeight,
     maxWidth: "100%",
+    wordBreak: "keep-all",
+    overflowWrap: "normal",
   };
   const hlSmall = hl ? { ...hl, padding: `${(b.highlight!.padding * scale * 0.45).toFixed(1)}px ${(b.highlight!.padding * scale).toFixed(1)}px`, borderRadius: b.highlight!.radius * scale } : undefined;
   return (

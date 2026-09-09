@@ -267,7 +267,8 @@ function Row({
       ) : null}
       <td className="px-3 py-2.5 align-middle text-cap text-ink-secondary whitespace-nowrap">{relativeTime(doc.updatedAt, now)}</td>
       <td className="px-2 py-2.5 align-middle" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-end gap-0.5 opacity-0 transition-opacity group-hover/row:opacity-100 focus-within:opacity-100 [&:has([aria-expanded=true])]:opacity-100">
+        {/* Quiet until the row is hovered, but never hidden: the affordance has to be findable. */}
+        <div className="flex items-center justify-end gap-0.5 text-ink-disabled transition-colors group-hover/row:text-ink-secondary focus-within:text-ink [&:has([aria-expanded=true])]:text-ink [&_button]:text-current">
           {actions.onPeek ? (
             <IconButton aria-label="Peek" size="sm" onClick={() => actions.onPeek!(doc.id)}>
               <Eye />

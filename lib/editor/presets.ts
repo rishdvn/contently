@@ -588,14 +588,27 @@ export const STOCK_PHOTOS: StockItem[] = [
   photo("minimal", "Minimal"),
 ];
 
-const gcs = "https://storage.googleapis.com/gtv-videos-bucket/sample";
+// Pexels CDN serves `Access-Control-Allow-Origin: *`, which the WebCodecs
+// exporter needs in order to paint <video> frames onto a canvas.
+const pexels = (id: number, fps: number, size: string, label: string, duration: number, thumb = `free-video-${id}.jpg`): StockItem => ({
+  id: `v-${id}`,
+  kind: "video",
+  src: `https://videos.pexels.com/video-files/${id}/${id}-sd_${size}_${fps}fps.mp4`,
+  thumb: `https://images.pexels.com/videos/${id}/${thumb}?auto=compress&cs=tinysrgb&w=400`,
+  label,
+  duration,
+});
+
 export const STOCK_VIDEOS: StockItem[] = [
-  { id: "v-blazes", kind: "video", src: `${gcs}/ForBiggerBlazes.mp4`, thumb: `${gcs}/images/ForBiggerBlazes.jpg`, label: "Blazes", duration: 15 },
-  { id: "v-escapes", kind: "video", src: `${gcs}/ForBiggerEscapes.mp4`, thumb: `${gcs}/images/ForBiggerEscapes.jpg`, label: "Escapes", duration: 15 },
-  { id: "v-fun", kind: "video", src: `${gcs}/ForBiggerFun.mp4`, thumb: `${gcs}/images/ForBiggerFun.jpg`, label: "Fun", duration: 60 },
-  { id: "v-joyrides", kind: "video", src: `${gcs}/ForBiggerJoyrides.mp4`, thumb: `${gcs}/images/ForBiggerJoyrides.jpg`, label: "Joyrides", duration: 15 },
-  { id: "v-meltdowns", kind: "video", src: `${gcs}/ForBiggerMeltdowns.mp4`, thumb: `${gcs}/images/ForBiggerMeltdowns.jpg`, label: "Meltdowns", duration: 15 },
-  { id: "v-bunny", kind: "video", src: `${gcs}/BigBuckBunny.mp4`, thumb: `${gcs}/images/BigBuckBunny.jpg`, label: "Big Buck Bunny", duration: 596 },
+  pexels(3571264, 30, "640_360", "Aerial surf", 33),
+  pexels(1409899, 25, "640_360", "Turquoise coast", 21),
+  pexels(3209828, 25, "640_360", "VR headset", 14),
+  pexels(857195, 25, "640_360", "Milky Way peak", 7),
+  pexels(1093662, 30, "640_360", "Golden rocks", 8),
+  pexels(2098989, 30, "640_360", "Waterfalls", 36),
+  pexels(3130284, 30, "640_360", "Matrix code", 20),
+  pexels(3015510, 24, "640_360", "Camper van", 19),
+  pexels(5532771, 25, "506_960", "Cold cans", 9, "pexels-photo-5532771.jpeg"),
 ];
 
 export const AUDIO_TRACKS = [

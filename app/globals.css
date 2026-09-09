@@ -1,26 +1,441 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+/*
+  Contently design tokens.
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+  Values are taken from the reference product's own published token set (its
+  `--butter-dark-*` custom properties, captured in docs/butter-tokens.txt),
+  not sampled from screenshots. Where a value here differs from the reference
+  it is a deliberate choice and is commented as such.
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+  The reference is a Material UI dark theme with a custom palette, which is why
+  its elevation is expressed as white-alpha overlays over two base surfaces
+  rather than as a ladder of solid greys. We keep that model.
+*/
+@theme {
+  /* The two real surfaces. Everything else is one of these plus an overlay. */
+  --color-canvas: #0a0909;
+  --color-panel: #151515;
+
+  /* Composited surfaces, kept as solid tokens for ergonomics. */
+  --color-card: #1d1d1d;
+  --color-raised: #252525;
+  --color-field: #1e1e1e;
+
+  --color-line: #252525;
+  --color-line-strong: #3a3a3a;
+
+  --color-ink: #f5f5f5;
+  --color-ink-secondary: #a1a1aa;
+  --color-ink-disabled: #52525b;
+
+  /*
+    The gradient stops. Three, not four: the chartreuse that shows up when you
+    sample a rendered edge is interpolation between green and amber, not a stop.
+  */
+  --color-spectrum-green: #6ee86e;
+  --color-spectrum-amber: #ffd84d;
+  --color-spectrum-orange: #ff9a3c;
+
+  --color-positive: #6ee86e;
+  --color-caution: #ffce47;
+  --color-critical: #f87171;
+  --color-info: #60a5fa;
+
+  --radius-control: 10px;
+  --radius-nav: 12px;
+  --radius-pill: 14px;
+  --radius-card: 32px;
+
+  /*
+    The reference's named type roles, kept under its own names because they
+    encode intent that "sm/md/lg" would lose.
+
+    Note the tracking: every UI role is +0.8px, i.e. deliberately loose. This is
+    the single most characteristic thing about the typography and it is the
+    opposite of the usual "tighten as it gets bigger" instinct.
+  */
+  --text-tiny: 11px;
+  --text-tiny--line-height: 14px;
+  --text-tiny--letter-spacing: 0.8px;
+  --text-cap: 12px;
+  --text-cap--line-height: 16px;
+  --text-cap--letter-spacing: 0.8px;
+  --text-ui: 13px;
+  --text-ui--line-height: 18px;
+  --text-ui--letter-spacing: 0.8px;
+  --text-default: 14px;
+  --text-default--line-height: 20px;
+  --text-default--letter-spacing: 0.8px;
+  /*
+    `body` is the inherited default and is the one role that is *not* tracked
+    +0.8px — it sits at 0.2px. Navigation and prose use it; the named roles
+    below it are for labelled UI.
+  */
+  --text-body: 16px;
+  --text-body--line-height: 24px;
+  --text-body--letter-spacing: 0.2px;
+  --text-panels: 16px;
+  --text-panels--line-height: 22px;
+  --text-panels--letter-spacing: 0.8px;
+  --text-titles: 18px;
+  --text-titles--line-height: 25px;
+  --text-titles--letter-spacing: 0.8px;
+  --text-sections: 24px;
+  --text-sections--line-height: 30px;
+  --text-sections--letter-spacing: 0.8px;
+  --text-hero: 36px;
+  --text-hero--line-height: 40px;
+
+  --shadow-overlay: 0 12px 32px rgb(0 0 0 / 0.45);
+
+  /*
+    Interpolated between the control radius and the card radius. Not measured
+    from the reference — its overlays were not reachable without an account.
+  */
+  --radius-overlay: 20px;
+
+  /*
+    Tinted near-black surfaces for inline banners, and the pale tints that stay
+    legible on them. Taken from the reference's Alert palette.
+  */
+  --color-critical-surface: #180e0e;
+  --color-critical-ink: #fcd1d1;
+  --color-caution-surface: #19150a;
+  --color-caution-ink: #ffefc3;
+  --color-positive-surface: #0d170d;
+  --color-positive-ink: #d0f7d0;
+  --color-info-surface: #0c1219;
+  --color-info-ink: #cbe2fd;
+
+  /* Toasts invert to light-on-dark, which is the reference's snackbar treatment. */
+  --color-inverse-surface: #fafafa;
+  --color-inverse-ink: #0a0909;
+
+  --color-tooltip: rgb(97 97 97 / 0.92);
+
+  /*
+    Die Grotesk A and Graebenbach are the reference's licensed faces. They are
+    named first so they take effect wherever a licence exists, with a
+    neo-grotesque fallback everywhere else.
+  */
+  --font-sans: "Die Grotesk A", var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "ABC Diatype Mono", var(--font-geist-mono), ui-monospace, monospace;
+
+  --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+
+  --animate-sweep: sweep 1.6s var(--ease-out-quart) infinite;
+  --animate-breathe: breathe 1.8s ease-in-out infinite;
+  --animate-pop: pop 120ms var(--ease-out-quart);
+
+  @keyframes pop {
+    from {
+      opacity: 0;
+      transform: translateY(-4px) scale(0.98);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @keyframes sweep {
+    from {
+      transform: translateX(-100%);
+    }
+    to {
+      transform: translateX(300%);
+    }
+  }
+
+  @keyframes breathe {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.45;
+    }
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+:root {
+  /* Interaction states are white at an alpha, so they work over any surface. */
+  --state-hover: rgb(255 255 255 / 0.08);
+  --state-selected: rgb(255 255 255 / 0.16);
+  --state-focus: rgb(255 255 255 / 0.12);
+  --state-disabled-bg: rgb(255 255 255 / 0.12);
+
+  --gradient-spectrum-fill: linear-gradient(
+    45deg,
+    var(--color-spectrum-green),
+    var(--color-spectrum-amber),
+    var(--color-spectrum-orange)
+  );
+
+  /*
+    Conic, not linear. The two white sectors are what make it read as a light
+    catching a metal edge rather than as a rainbow, and they are why sampling a
+    rendered button suggests a "vertical" gradient: green sits at the top
+    because the sweep starts there, and both sides warm as they descend.
+  */
+  --gradient-spectrum-outline: conic-gradient(
+    from 0deg,
+    #6ee86e 0deg,
+    #6ee86e 55deg,
+    #ffd84d 85deg,
+    #ff9a3c 91deg,
+    #ffffff 115deg,
+    #ffffff 250deg,
+    #ff9a3c 264deg,
+    #ffd84d 272deg,
+    #6ee86e 290deg,
+    #6ee86e 360deg
+  );
+  --gradient-spectrum-outline-width: 1.5px;
+
+  --gradient-scrim: linear-gradient(
+    180deg,
+    rgb(0 0 0 / 0) 0%,
+    rgb(0 0 0 / 0.42) 60%,
+    rgb(0 0 0 / 0.72) 100%
+  );
+
+  /*
+    The reference's layering scale. Dialogs and menus here render in the
+    browser's top layer and so ignore z-index entirely; these values exist for
+    everything that does not — sticky headers, floating bars, the toast region.
+  */
+  --z-sticky: 1100;
+  --z-floating-bar: 1200;
+  --z-modal: 1300;
+  --z-toast: 1400;
+  --z-tooltip: 1500;
+
+  /*
+    Overlay motion. Enter is slower than exit: appearing should feel considered,
+    dismissing should feel immediate. Ours, not the reference's.
+  */
+  --overlay-enter: 180ms;
+  --overlay-exit: 120ms;
+  --scrim-color: rgb(0 0 0 / 0.62);
+}
+
+/*
+  The gradient ring, drawn as a masked pseudo-element so the interior stays
+  transparent and the mark works on any surface.
+*/
+@utility spectrum-edge {
+  position: relative;
+
+  &::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    border-radius: inherit;
+    padding: var(--gradient-spectrum-outline-width);
+    background-image: var(--gradient-spectrum-outline);
+    -webkit-mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    mask-composite: exclude;
+    pointer-events: none;
+  }
+
+  & > * {
+    position: relative;
+    z-index: 1;
+  }
+}
+
+@utility spectrum-text {
+  background-image: var(--gradient-spectrum-fill);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Bottom-up scrim for text laid over artwork. */
+@utility scrim {
+  background-image: var(--gradient-scrim);
+}
+
+/*
+  Overlay motion.
+
+  Dialogs and drawers are native <dialog> elements opened with showModal(), so
+  the browser gives us the top layer, a focus trap, Escape-to-close and inert
+  background content for free. That is why there is no z-index here: top-layer
+  elements are painted above everything regardless.
+
+  Animating them out requires `allow-discrete`, because `display` and `overlay`
+  are discrete properties — without it the element would vanish on close and
+  the exit transition would never be seen. `@starting-style` supplies the
+  before-open state that the entry transition runs from.
+*/
+@layer components {
+  /*
+    Display is owned here rather than by a utility class. A `flex` utility on
+    the element would override the UA's `dialog:not([open]) { display: none }`,
+    leaving every closed dialog in the layout where it silently swallows clicks
+    meant for the page beneath.
+  */
+  .overlay {
+    display: none;
+    margin: 0;
+    max-width: none;
+    max-height: none;
+    padding: 0;
+    border: 0;
+    background: var(--color-panel);
+    color: var(--color-ink);
+    box-shadow: var(--shadow-overlay);
+    transition:
+      opacity var(--overlay-exit) var(--ease-out-quart),
+      translate var(--overlay-exit) var(--ease-out-quart),
+      scale var(--overlay-exit) var(--ease-out-quart),
+      overlay var(--overlay-exit) allow-discrete,
+      display var(--overlay-exit) allow-discrete;
+  }
+
+  .overlay[open] {
+    display: flex;
+    flex-direction: column;
+    transition-duration: var(--overlay-enter);
+    opacity: 1;
+    translate: 0 0;
+    scale: 1;
+  }
+
+  .overlay::backdrop {
+    background: rgb(0 0 0 / 0);
+    backdrop-filter: blur(0px);
+    transition:
+      background var(--overlay-exit) var(--ease-out-quart),
+      backdrop-filter var(--overlay-exit) var(--ease-out-quart),
+      overlay var(--overlay-exit) allow-discrete,
+      display var(--overlay-exit) allow-discrete;
+  }
+
+  .overlay[open]::backdrop {
+    transition-duration: var(--overlay-enter);
+    background: var(--scrim-color);
+    backdrop-filter: blur(2px);
+  }
+
+  @starting-style {
+    .overlay[open]::backdrop {
+      background: rgb(0 0 0 / 0);
+      backdrop-filter: blur(0px);
+    }
+  }
+
+  /* Centred dialog: rises slightly and settles. */
+  .overlay-dialog {
+    inset: 0;
+    opacity: 0;
+    translate: 0 8px;
+    scale: 0.98;
+    border-radius: var(--radius-overlay);
+  }
+
+  @starting-style {
+    .overlay-dialog[open] {
+      opacity: 0;
+      translate: 0 8px;
+      scale: 0.98;
+    }
+  }
+
+  /*
+    Drawers slide from an edge and keep square corners against it, so they read
+    as attached to the viewport rather than floating in it.
+  */
+  .overlay-drawer {
+    opacity: 1;
+    scale: 1;
+    height: 100dvh;
+    inset: 0 0 0 auto;
+  }
+
+  .overlay-drawer-right {
+    translate: 100% 0;
+    border-radius: var(--radius-overlay) 0 0 var(--radius-overlay);
+  }
+
+  .overlay-drawer-left {
+    inset: 0 auto 0 0;
+    translate: -100% 0;
+    border-radius: 0 var(--radius-overlay) var(--radius-overlay) 0;
+  }
+
+  .overlay-drawer-bottom {
+    inset: auto 0 0 0;
+    height: auto;
+    width: 100%;
+    translate: 0 100%;
+    border-radius: var(--radius-overlay) var(--radius-overlay) 0 0;
+  }
+
+  @starting-style {
+    .overlay-drawer-right[open] {
+      translate: 100% 0;
+    }
+    .overlay-drawer-left[open] {
+      translate: -100% 0;
+    }
+    .overlay-drawer-bottom[open] {
+      translate: 0 100%;
+    }
+  }
+}
+
+@layer base {
+  * {
+    border-color: var(--color-line);
+  }
+
+  html {
+    color-scheme: dark;
+  }
+
+  body {
+    background-color: var(--color-canvas);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-size: var(--text-default);
+    line-height: var(--text-default--line-height);
+    letter-spacing: var(--text-default--letter-spacing);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  ::selection {
+    background-color: var(--state-selected);
+    color: var(--color-ink);
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background-color: var(--color-raised);
+    border: 3px solid transparent;
+    background-clip: content-box;
+    border-radius: 999px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: var(--color-line-strong);
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
 }

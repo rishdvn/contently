@@ -65,7 +65,7 @@ export function Editor({ projectId, kind }: { projectId: string; kind?: string }
 
   return (
     <div className="fixed inset-0 overflow-hidden bg-canvas text-ink">
-      <link rel="stylesheet" href={googleFontsHref()} />
+      <link rel="stylesheet" href={googleFontsHref()} crossOrigin="anonymous" />
       <Viewport insets={insets}>
         <TopBar />
         <Rail />

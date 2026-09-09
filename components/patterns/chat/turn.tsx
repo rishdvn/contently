@@ -201,12 +201,15 @@ function Working() {
 export function ActivityGroup({ blocks, live }: { blocks: Extract<Block, { kind: "tool" | "thinking" }>[]; live: boolean }) {
   const [open, setOpen] = useState(false);
   const expanded = live || open;
-  const running = blocks.find((b) => b.kind === "tool" && b.status === "running");
+  const runningAll = blocks.filter((b): b is Extract<Block, { kind: "tool" }> => b.kind === "tool" && b.status === "running");
+  const running = runningAll[0];
   const errors = blocks.filter((b) => b.kind === "tool" && b.status === "error").length;
   const steps = blocks.filter((b) => b.kind === "tool").length;
 
   const summary = running
-    ? toolLabel(running as Extract<Block, { kind: "tool" }>)
+    ? runningAll.length > 1
+      ? `Running ${runningAll.length} steps`
+      : toolLabel(running)
     : steps === 0
       ? "Thought for a moment"
       : `${steps} step${steps === 1 ? "" : "s"}${errors ? ` · ${errors} failed` : ""}`;

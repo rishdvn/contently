@@ -20,15 +20,17 @@ import { sessionEvents } from "../chat/data";
   can be in.
 */
 
-const upTo = (uuid: string): StoredEvent[] => {
-  const i = sessionEvents.findIndex((e) => e.uuid === uuid);
-  return sessionEvents.slice(0, i + 1);
-};
 const between = (from: string, to: string): StoredEvent[] => {
   const a = sessionEvents.findIndex((e) => e.uuid === from);
   const b = sessionEvents.findIndex((e) => e.uuid === to);
   return sessionEvents.slice(a, b + 1);
 };
+
+/** Close a slice with a result so the turn reads as finished. */
+const done = (events: StoredEvent[], ms = 8200): StoredEvent[] => [
+  ...events,
+  { uuid: `res-${events[events.length - 1]?.uuid}`, session_id: "sess_7f3a", parent_tool_use_id: null, type: "result", subtype: "success", duration_ms: ms, num_turns: 1, is_error: false },
+];
 
 /** Cut a stream mid-sentence: everything up to the Nth text delta of the last message. */
 function midStream(events: StoredEvent[], deltas: number): TranscriptEvent[] {
@@ -84,14 +86,14 @@ export function MessagesDemo() {
         title="Activity"
         rule="Tool calls fold into a single row. While the turn runs, the row names the current step and stays open; once the result lands it collapses to a count and opens on click. Failed steps are counted, not shouted."
       >
-        <Example label="tool · running" events={expandToStream(upTo("a1")).slice(0, -1)} />
-        <Example label="tool · done, collapsed" events={between("a1", "r3")} />
-        <Example label="tool · one failed" events={between("a7", "r10")} />
+        <Example label="tool · running" events={expandToStream(between("a1", "a1")).slice(0, -1)} />
+        <Example label="tool · done, collapsed" events={done(between("a1", "r3"))} />
+        <Example label="tool · one failed" events={done(between("a7", "r10"), 3100)} />
       </Section>
 
       <Section title="Artifacts in the flow" rule="A document tool is an artifact block from its first delta: the same size it will be when done, with a shimmer where the preview goes. The tool_result fills it in without a reflow.">
         <Example label="create_persona · generating" events={between("a3", "a3")} />
-        <Example label="create_persona · done" events={between("a3", "r5")} />
+        <Example label="create_persona · done" events={done(between("a3", "r5"), 21000)} />
       </Section>
 
       <Section title="Errors, boundaries, unknowns" rule="A failed turn is a compact critical band, not a dialog. Compaction is a hairline. An event the reducer doesn't recognise renders collapsed with its payload — a newer SDK cannot blank the thread.">

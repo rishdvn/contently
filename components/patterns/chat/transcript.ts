@@ -379,6 +379,10 @@ export function reduceTranscript(events: TranscriptEvent[]): Transcript {
         const turn = lastAssistant(turns);
         turn.streaming = false;
         turn.result = { durationMs: ev.duration_ms, steps: ev.num_turns, isError: ev.is_error };
+        /* Nothing can still be running once the turn has a result. */
+        for (const b of turn.blocks) {
+          if ((b.kind === "tool" || b.kind === "artifact") && b.status === "running") b.status = ev.is_error ? "error" : "done";
+        }
         if (ev.is_error && ev.errors?.length) {
           turn.blocks.push({ kind: "error", id: `${ev.uuid}:error`, message: ev.errors.join("\n") });
         }

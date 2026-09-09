@@ -34,7 +34,7 @@ const layers: {
     path: "components/patterns/*",
     role: "Compositions that know what a persona or an artifact is. Built only from primitives. One folder per product surface.",
     mayImport: "tokens · primitives · other patterns",
-    examples: "Composer · ContextPill · ArtifactCard · CoverageMatrix · BriefCard",
+    examples: "Composer · Thread · ArtifactBlock · CoverageMatrix · Board · ScheduleMonth · AssetWall",
   },
   {
     name: "Surfaces",

@@ -103,7 +103,7 @@ export function ChatDemo() {
   const finished = last && !last.streaming && last.role === "assistant";
 
   return (
-    <Page>
+    <Page wide>
       <PageHeader
         eyebrow="Patterns"
         title="Chat"

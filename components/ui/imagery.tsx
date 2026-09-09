@@ -30,6 +30,7 @@ export function Thumbnail({
   selected,
   className,
   children,
+  style,
   ...props
 }: Omit<ComponentProps<"div">, "children"> & {
   src?: string | null;
@@ -48,12 +49,13 @@ export function Thumbnail({
         selected && "ring-2 ring-ink ring-offset-2 ring-offset-canvas",
         className,
       )}
+      style={style}
       {...props}
     >
       {src ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={src} alt={alt} className="size-full object-cover" />
-      ) : (
+      ) : style?.backgroundImage ? null : (
         <div className="flex size-full items-center justify-center text-ink-disabled">
           {children ?? <ImageOff className="size-5" />}
         </div>

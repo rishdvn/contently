@@ -140,7 +140,7 @@ export function ArtifactSummary({ artifact }: { artifact: Artifact }) {
       {artifact.thumbnails?.length ? (
         <div className="flex gap-1.5 pt-0.5">
           {artifact.thumbnails.slice(0, 8).map((t, i) => (
-            <span key={i} className="h-12 w-[38px] shrink-0 rounded-[5px]" style={{ backgroundImage: t }} />
+            <span key={i} className="h-12 w-[38px] shrink-0 rounded-[5px] ring-1 ring-inset ring-white/10" style={{ backgroundImage: t }} />
           ))}
         </div>
       ) : null}

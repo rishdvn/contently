@@ -6,6 +6,7 @@ import { Chip, ChipRow, TextTab } from "@/components/ui/chip";
 import { Field, Input, SearchInput, Textarea } from "@/components/ui/input";
 
 import { Page, PageHeader, Row, Section } from "../_doc";
+import { Pickers } from "./pickers";
 import { Toggles } from "./toggles";
 
 export const metadata = {
@@ -18,7 +19,7 @@ export default function ControlsPage() {
       <PageHeader
         title="Controls"
         lede="Things the user operates. Every control here is a single component with variants — there is no second button for dialogs, no special chip for the composer. A surface that needs a control imports it."
-        note="Mobbin's Control category also lists select, segmented control, slider, stepper and date/time pickers. Those arrive with the surfaces that need them: select and segmented with the board filters, date picker with the calendar."
+        note="Button · Input · Chip & tab · Switch & checkbox · Select · Segmented · Slider · Stepper · Radio · Date & time. The full Mobbin Control category."
       />
 
       <Section
@@ -142,6 +143,14 @@ export default function ControlsPage() {
         rule="A switch takes effect immediately; a checkbox is a choice that is submitted or that filters a list. Both invert to ink when on, so state never depends on hue."
       >
         <Toggles />
+      </Section>
+
+      <Section
+        id="pickers"
+        title="Pickers"
+        rule="Select for one of many (field in forms, inline in bars — the composer's mode and model pickers). Segmented for two to four views of the same data, all visible. Slider for a continuous value with the number always printed. Stepper for a small integer with a hard range. Radio when each option deserves a sentence. Date and time share the calendar's own month grid."
+      >
+        <Pickers />
       </Section>
     </Page>
   );

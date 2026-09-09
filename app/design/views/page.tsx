@@ -14,7 +14,6 @@ import {
   Wand2,
 } from "lucide-react";
 
-import { AgentMark, Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button, IconButton } from "@/components/ui/button";
 import { EmptyState, GeneratingBar, Skeleton } from "@/components/ui/feedback";
@@ -23,6 +22,7 @@ import { Surface, SurfaceBody, SurfaceHeader } from "@/components/ui/surface";
 import { Toolbar, ToolbarDivider } from "@/components/ui/toolbar";
 
 import { Page, PageHeader, Row, Section } from "../_doc";
+import { Lists } from "./lists";
 
 export const metadata = {
   title: "Views · Contently design",
@@ -34,7 +34,7 @@ export default function ViewsPage() {
       <PageHeader
         title="Views"
         lede="Things the user reads. Views arrange content and report state; they do not take input. When a view needs a control it composes one from the Controls page."
-        note="Mobbin's View category also lists table, stacked list, tab bar, carousel, gallery and progress. Table and stacked list arrive with the library; progress with the board's generation queue."
+        note="Badge · Card · Navigation · Toolbar · Feedback · Table · Stacked list · Tab bar · Progress. Avatars, marks and thumbnails moved to Imagery."
       />
 
       <Section
@@ -210,29 +210,11 @@ export default function ViewsPage() {
       </Section>
 
       <Section
-        id="imagery"
-        title="Avatar & mark"
-        rule="People are round and fall back to initials on a raised fill; workspaces and brands are square. The agent has no face — it is an empty spectrum ring, the one place the gradient may be persistent, because it names who is speaking. It breathes while a reply is streaming."
+        id="lists"
+        title="Table, list, tabs, progress"
+        rule="Table for rows of like objects — hairlines, caps-sized heads, rows lift on hover. Stacked list for rows that are not alike enough for columns: leading glyph, title, one line under, one fact at the end. Tab bar switches between different data on one object (Persona / Angles / Briefs); use Segmented for views of the same data. Progress is ink on raised, spectrum only when the model is the one working."
       >
-        <Row label="people">
-          <Avatar name="Hanna Moore" size="xs" />
-          <Avatar name="Hanna Moore" size="sm" />
-          <Avatar name="Hanna Moore" size="md" />
-          <Avatar name="Hanna Moore" size="lg" />
-        </Row>
-        <Row label="workspace">
-          <Avatar name="Glow Labs" shape="square" size="sm" />
-          <Avatar name="Glow Labs" shape="square" size="md" />
-          <Avatar name="Glow Labs" shape="square" size="lg" />
-        </Row>
-        <Row label="agent">
-          <AgentMark size="xs" />
-          <AgentMark size="sm" />
-          <AgentMark size="md" />
-          <AgentMark size="lg" />
-          <span className="pl-2 text-cap text-ink-disabled">streaming &rarr;</span>
-          <AgentMark size="md" active />
-        </Row>
+        <Lists />
       </Section>
     </Page>
   );

@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 
 import { SectionLabel } from "@/components/ui/surface";
+import { cn } from "@/lib/cn";
 
 /* Shared scaffolding for every design-system page, so the pages themselves are only content. */
 
@@ -59,6 +60,6 @@ export function Row({ label, children }: { label: string; children: ReactNode })
   );
 }
 
-export function Page({ children }: { children: ReactNode }) {
-  return <div className="mx-auto flex max-w-5xl flex-col gap-8 px-8 py-12">{children}</div>;
+export function Page({ children, wide = false }: { children: ReactNode; wide?: boolean }) {
+  return <div className={cn("mx-auto flex flex-col gap-8 px-8 py-12", wide ? "max-w-[1240px]" : "max-w-5xl")}>{children}</div>;
 }

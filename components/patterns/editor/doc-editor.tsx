@@ -36,7 +36,7 @@ import { cn } from "@/lib/cn";
 import { slugify } from "@/lib/documents/registry";
 import type { Body, BodyNode, Citation as CitationData, DocType } from "@/lib/documents/types";
 
-import { AnchorBlock, Callout, Citation, DocMention, HeadingWithId, Swatch } from "./extensions";
+import { AnchorBlock, Callout, Citation, DocMention, HeadingWithId, MentionContext, Swatch, type MentionResolver } from "./extensions";
 
 /*
   Stage 4. One component draws documents in both states — read and edit — so
@@ -232,23 +232,14 @@ export function DocEditor({
     if (editor && editor.isEditable !== editable) editor.setEditable(editable);
   }, [editor, editable]);
 
-  /*
-    Mention chips resolve their labels through editor storage so the extension
-    never captures a stale list. The first install re-renders the content once,
-    because the initial render happened before the resolver existed.
-  */
-  const resolverInstalled = useRef(false);
-  useEffect(() => {
-    if (!editor) return;
-    editor.commands.setMentionResolver((id) => {
+  /* Mention chips read their labels from this, so they follow the live document list. */
+  const resolveMention = useMemo<MentionResolver>(
+    () => (id) => {
       const m = mentionables.find((x) => x.id === id);
       return m ? { label: m.label, hue: m.hue } : null;
-    });
-    if (!resolverInstalled.current) {
-      resolverInstalled.current = true;
-      editor.commands.setContent(editor.getJSON(), { emitUpdate: false });
-    }
-  }, [editor, mentionables]);
+    },
+    [mentionables],
+  );
 
   /* Reload when someone other than this editor wrote the body. */
   const seen = useRef(revision);
@@ -343,7 +334,9 @@ export function DocEditor({
       onMouseLeave={() => setHover(null)}
       onClick={onClick}
     >
-      <EditorContent editor={editor} />
+      <MentionContext.Provider value={resolveMention}>
+        <EditorContent editor={editor} />
+      </MentionContext.Provider>
 
       {editor ? (
         <BubbleMenu
@@ -486,6 +479,13 @@ function buildMenuItems(trigger: Trigger | null, editor: Editor | null, mentiona
   const q = trigger.query.toLowerCase().trim();
   const finish = (fn: () => void) => () => {
     editor.chain().focus().deleteRange({ from: trigger.from, to: trigger.to }).run();
+    /* A block command inside an empty list item has nothing to act on; leave the list first. */
+    for (let guard = 0; guard < 4; guard++) {
+      const { $from } = editor.state.selection;
+      const item = $from.depth >= 2 ? $from.node(-1).type.name : null;
+      if ($from.parent.content.size !== 0 || (item !== "listItem" && item !== "taskItem")) break;
+      if (!editor.chain().focus().liftListItem(item).run()) break;
+    }
     fn();
     close();
   };

@@ -759,7 +759,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
       const lower = text.toLowerCase();
       /* A doc in scope plus an editing verb becomes a section patch. */
-      const editing = /\b(rewrite|tighten|shorten|add|append|update|change|fix|expand|cite|evidence|check)\b/.test(lower);
+      const editing = /\b(rewrite|rework|revise|redo|rephrase|tighten|shorten|condense|cut|add|append|update|change|fix|expand|improve|polish|sharpen|strengthen|punchier|sharper|stronger|shorter|cite|evidence|check)\b/.test(lower);
       const scoped =
         thread?.scopedDocId ??
         context.find((id) => !brandTypes.includes(state.docs.find((d) => d.id === id)?.type ?? "brand_core")) ??

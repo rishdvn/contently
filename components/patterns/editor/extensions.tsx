@@ -4,6 +4,7 @@ import { Heading } from "@tiptap/extension-heading";
 import { mergeAttributes, Node } from "@tiptap/core";
 import { NodeViewContent, NodeViewWrapper, ReactNodeViewRenderer, type NodeViewProps } from "@tiptap/react";
 import { AlertTriangle, CheckCircle2, Info, Link2, XCircle } from "lucide-react";
+import { createContext, useContext } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Menu, MenuItem } from "@/components/ui/menu";
@@ -21,10 +22,7 @@ declare module "@tiptap/core" {
   interface Commands<ReturnType> {
     callout: { setCallout: (tone?: string) => ReturnType };
     anchorBlock: { insertAnchorBlock: (kind: "angle" | "pillar" | "hypothesis") => ReturnType };
-    docMention: {
-      insertDocMention: (docId: string, anchor?: string | null) => ReturnType;
-      setMentionResolver: (resolve: MentionResolver) => ReturnType;
-    };
+    docMention: { insertDocMention: (docId: string, anchor?: string | null) => ReturnType };
   }
 }
 
@@ -108,8 +106,12 @@ export const Callout = Node.create({
     return {
       setCallout:
         (tone = "info") =>
-        ({ commands }) =>
-          commands.wrapIn(this.name, { tone }),
+        ({ commands, state }) => {
+          if (commands.wrapIn(this.name, { tone })) return true;
+          /* Somewhere a wrap is not allowed (a table cell, a nested block): insert one after instead. */
+          const end = state.selection.$from.after(1);
+          return commands.insertContentAt(end, { type: this.name, attrs: { tone }, content: [{ type: "paragraph" }] });
+        },
     };
   },
 });
@@ -257,19 +259,38 @@ export const Citation = Node.create({
 export type MentionResolver = (docId: string) => { label: string; hue: string } | null;
 
 /**
- * `@[doc_id#anchor]`. The node stores only the id; the label is looked up
- * through a resolver the editor installs in `editor.storage.docMention`, so
- * titles come from the live document list rather than being baked in.
+ * The editor provides this around `EditorContent`; the chip node views read it,
+ * so titles come from the live document list and re-render when it changes.
  */
-export const DocMention = Node.create<Record<string, never>, { resolve: MentionResolver }>({
+export const MentionContext = createContext<MentionResolver>(() => null);
+
+function DocMentionView({ node }: NodeViewProps) {
+  const resolve = useContext(MentionContext);
+  const docId = String(node.attrs.docId);
+  const r = resolve(docId);
+  const anchor = node.attrs.anchor ? `#${node.attrs.anchor}` : "";
+  return (
+    <NodeViewWrapper
+      as="span"
+      className="doc-chip"
+      data-kind="mention"
+      data-doc-id={docId}
+      data-anchor={node.attrs.anchor ?? undefined}
+      style={r ? ({ "--chip-hue": `var(--color-type-${r.hue})` } as React.CSSProperties) : undefined}
+    >
+      {r?.label ?? docId}
+      {anchor}
+    </NodeViewWrapper>
+  );
+}
+
+/** `@[doc_id#anchor]`. The node stores only the id; the label is resolved at render. */
+export const DocMention = Node.create({
   name: "docMention",
   group: "inline",
   inline: true,
   atom: true,
   selectable: true,
-  addStorage() {
-    return { resolve: () => null };
-  },
   addAttributes() {
     return { docId: { default: "" }, anchor: { default: null } };
   },
@@ -277,23 +298,17 @@ export const DocMention = Node.create<Record<string, never>, { resolve: MentionR
     return [{ tag: 'span[data-kind="mention"]', getAttrs: (el) => ({ docId: (el as HTMLElement).dataset.docId ?? "", anchor: (el as HTMLElement).dataset.anchor ?? null }) }];
   },
   renderHTML({ node }) {
-    const r = this.storage.resolve(String(node.attrs.docId));
-    const label = r?.label ?? String(node.attrs.docId);
-    const anchor = node.attrs.anchor ? `#${node.attrs.anchor}` : "";
     return [
       "span",
-      {
-        class: "doc-chip",
-        "data-kind": "mention",
-        "data-doc-id": node.attrs.docId,
-        "data-anchor": node.attrs.anchor ?? undefined,
-        style: r ? `--chip-hue: var(--color-type-${r.hue})` : undefined,
-      },
-      `${label}${anchor}`,
+      { class: "doc-chip", "data-kind": "mention", "data-doc-id": node.attrs.docId, "data-anchor": node.attrs.anchor ?? undefined },
+      `${node.attrs.docId}${node.attrs.anchor ? `#${node.attrs.anchor}` : ""}`,
     ];
   },
   renderText({ node }) {
     return `@[${node.attrs.docId}${node.attrs.anchor ? `#${node.attrs.anchor}` : ""}]`;
+  },
+  addNodeView() {
+    return ReactNodeViewRenderer(DocMentionView, { as: "span", className: "inline" });
   },
   addCommands() {
     return {
@@ -301,11 +316,6 @@ export const DocMention = Node.create<Record<string, never>, { resolve: MentionR
         (docId, anchor = null) =>
         ({ commands }) =>
           commands.insertContent([{ type: this.name, attrs: { docId, anchor } }, { type: "text", text: " " }]),
-      /* Installs the label lookup. Returns false so no transaction is dispatched. */
-      setMentionResolver: (resolve) => () => {
-        this.storage.resolve = resolve;
-        return false;
-      },
     };
   },
 });

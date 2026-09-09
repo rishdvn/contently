@@ -55,11 +55,11 @@ export function Composer({
     el.style.height = `${Math.min(el.scrollHeight, 8 * 24)}px`;
   }, [value]);
 
+  /* Enter sends; Shift+Enter breaks the line. ⌘/Ctrl+Enter also sends, for muscle memory. */
   const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-      e.preventDefault();
-      if (canSend) onSend();
-    }
+    if (e.key !== "Enter" || e.shiftKey || e.nativeEvent.isComposing) return;
+    e.preventDefault();
+    if (canSend) onSend();
   };
 
   return (
@@ -96,8 +96,7 @@ export function Composer({
           <div className="flex items-center gap-2.5">
             {canSend ? (
               <span className="hidden items-center gap-1 text-cap text-ink-disabled sm:flex">
-                <Kbd>⌘</Kbd>
-                <Kbd>⏎</Kbd>
+                <Kbd>⏎</Kbd> to send
               </span>
             ) : null}
             {generating ? (

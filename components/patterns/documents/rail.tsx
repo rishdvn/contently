@@ -306,17 +306,15 @@ export function Relations({ doc }: { doc: Document }) {
   }, [store.docs, doc.id, query]);
 
   const groups = useMemo(() => {
-    const g = new Map<string, { label: string; items: { id: string; anchor?: string | null; removable?: { type: RelationType } }[] }>();
-    for (const r of out) {
-      const key = `out:${r.type}`;
-      if (!g.has(key)) g.set(key, { label: relationLabels[r.type].forward, items: [] });
-      g.get(key)!.items.push({ id: r.to, anchor: r.anchor, removable: { type: r.type } });
-    }
-    for (const r of inc) {
-      const key = `in:${r.type}`;
-      if (!g.has(key)) g.set(key, { label: relationLabels[r.type].reverse, items: [] });
-      g.get(key)!.items.push({ id: r.from, anchor: r.anchor });
-    }
+    /* Grouped by label, because a forward label of one type can equal the reverse label of another. */
+    const g = new Map<string, { label: string; items: { key: string; id: string; anchor?: string | null; removable?: { type: RelationType } }[] }>();
+    const add = (label: string, item: { key: string; id: string; anchor?: string | null; removable?: { type: RelationType } }) => {
+      if (!g.has(label)) g.set(label, { label, items: [] });
+      const items = g.get(label)!.items;
+      if (!items.some((x) => x.key === item.key)) items.push(item);
+    };
+    for (const r of out) add(relationLabels[r.type].forward, { key: `out:${r.type}:${r.to}:${r.anchor ?? ""}`, id: r.to, anchor: r.anchor, removable: { type: r.type } });
+    for (const r of inc) add(relationLabels[r.type].reverse, { key: `in:${r.type}:${r.from}:${r.anchor ?? ""}`, id: r.from, anchor: r.anchor });
     return Array.from(g.values());
   }, [out, inc]);
 
@@ -330,7 +328,7 @@ export function Relations({ doc }: { doc: Document }) {
               const d = store.docs.find((x) => x.id === it.id);
               if (!d) return null;
               return (
-                <li key={`${g.label}:${it.id}:${it.anchor ?? ""}`} className="group/rel flex items-center gap-1.5">
+                <li key={it.key} className="group/rel flex items-center gap-1.5">
                   <Link
                     href={`/documents/${d.id}${it.anchor ? `#${it.anchor}` : ""}`}
                     className="flex min-w-0 flex-1 items-center gap-1.5 rounded-[6px] px-1.5 py-1 text-cap text-ink hover:bg-[var(--state-hover)]"

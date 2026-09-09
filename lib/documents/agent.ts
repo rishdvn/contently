@@ -289,8 +289,8 @@ export function targetSection(doc: Document, message: string) {
 
 function verbOf(message: string) {
   const m = message.toLowerCase();
-  if (/tighten|shorter|condense|cut/.test(m)) return "tightened";
-  if (/rewrite|redo|rephrase/.test(m)) return "rewrote";
+  if (/tighten|shorter|shorten|condense|cut/.test(m)) return "tightened";
+  if (/rewrite|rework|revise|redo|rephrase|punchier|sharper|sharpen|stronger|strengthen|improve|polish/.test(m)) return "rewrote";
   if (/add|append|include|more/.test(m)) return "added to";
   if (/evidence|cite|source/.test(m)) return "added evidence to";
   if (/brand core|on[- ]brand|voice/.test(m)) return "checked against Brand Core in";
@@ -326,8 +326,22 @@ export function patchFor(doc: Document, message: string): Patch | null {
     md = `${current}\n\n:::callout{tone=positive}\n**Checked against Brand Core.** No banned words. Perspective rules hold ("we" for the brand, "you" addressed directly). One joke, from the truth of the product.\n:::`;
   } else {
     /* Rewrite: keep the facts, change the register. */
+    const hooks = doc.type === "brief" && /hook/i.test(target.text);
     const rewritten = bullets.length
-      ? bullets.map((b) => b.replace(/\*\*(.+?)\*\*/g, "**$1**").replace(/\.\s*$/, "")).map((b) => (b.includes("→") ? b : `${b} — said in her words, not ours.`)).join("\n")
+      ? bullets
+          .map((b) => b.replace(/\.\s*$/, ""))
+          .map((b) => {
+            if (b.includes("→")) return b;
+            if (hooks) {
+              /* Cut each hook at its first qualifier so the number and the enemy lead. */
+              const m = /^(\d+\.|[-*])\s*(\*\*)?"?([^"]*?)"?(\*\*)?(\s+—.*)?$/.exec(b);
+              const text = m ? m[3] : b;
+              const clause = text.split(/,| that | which | — /)[0].trim().replace(/[.!?]$/, "");
+              return `${m ? m[1] : "-"} "${clause.toLowerCase()}." — was "${text}"${m?.[5] ?? ""}`;
+            }
+            return `${b} — said in her words, not ours.`;
+          })
+          .join("\n")
       : `${current}\n\nRewritten for the persona's register: shorter sentences, the enemy named, the number said out loud.`;
     md = rewritten;
   }
@@ -426,7 +440,7 @@ export function answer(doc: Document, question: string, docs: Document[], relati
       createBrief: true,
     };
   }
-  if (/tighten|rewrite|add|evidence|cite/.test(q)) {
+  if (/tighten|shorten|rewrite|rework|revise|punchier|sharper|improve|polish|add|evidence|cite/.test(q)) {
     const patch = patchFor(doc, question);
     return {
       text: [patch ? `${patch.summary.replace(/^Updated /, "Updating ")}.` : "I could not find that section."],

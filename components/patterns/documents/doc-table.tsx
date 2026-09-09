@@ -9,6 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { GeneratingBar } from "@/components/ui/feedback";
 import { Menu, MenuDivider, MenuItem } from "@/components/ui/menu";
 import { cn } from "@/lib/cn";
+import { useMediaQuery } from "@/lib/use-media-query";
 import { brandTypes, docTypeOrder, docTypes, statusLabels, typeSuffix } from "@/lib/documents/registry";
 import { incoming, outgoing, relativeTime } from "@/lib/documents/selectors";
 import type { DocStatus, Document, Relation } from "@/lib/documents/types";
@@ -44,7 +45,7 @@ export function DocTable({
   selected,
   onSelectedChange,
   actions,
-  dense = false,
+  dense: denseProp = false,
   className,
 }: {
   docs: Document[];
@@ -56,11 +57,16 @@ export function DocTable({
   selected?: Set<string>;
   onSelectedChange?: (next: Set<string>) => void;
   actions: DocTableActions;
+  /** Drops the Freshness and Owner columns. Also applied automatically below the lg breakpoint. */
   dense?: boolean;
   className?: string;
 }) {
+  const wide = useMediaQuery("(min-width: 1024px)");
+  const dense = denseProp || !wide;
   const all = allDocs ?? docs;
   const selectable = Boolean(selected && onSelectedChange);
+  /* Exact, because a colSpan wider than the row makes fixed layout invent empty columns. */
+  const columnCount = (selectable ? 1 : 0) + 4 + (dense ? 0 : 2);
 
   const groups = useMemo(() => {
     if (groupBy === "none") return [{ key: "all", label: null as string | null, docs }];
@@ -100,8 +106,8 @@ export function DocTable({
   };
 
   return (
-    <div className={cn("overflow-hidden rounded-nav bg-panel", className)}>
-      <table className="w-full table-fixed border-collapse text-default">
+    <div className={cn("overflow-x-auto rounded-nav bg-panel", className)}>
+      <table className="w-full min-w-[560px] table-fixed border-collapse text-default">
         <thead>
           <tr className="text-left text-cap text-ink-disabled">
             {selectable ? (
@@ -115,11 +121,11 @@ export function DocTable({
               </th>
             ) : null}
             <th className="px-3 py-2.5 font-normal">Document</th>
-            <th className="w-[132px] px-3 py-2.5 font-normal">Status</th>
-            {!dense ? <th className="w-[200px] px-3 py-2.5 font-normal">Freshness · Related</th> : null}
-            <th className="w-[72px] px-3 py-2.5 font-normal">Owner</th>
-            <th className="w-[96px] px-3 py-2.5 font-normal">Updated</th>
-            <th className="w-[88px] px-3 py-2.5" />
+            <th className="w-[112px] px-3 py-2.5 font-normal">Status</th>
+            {!dense ? <th className="w-[176px] px-3 py-2.5 font-normal">Freshness · Related</th> : null}
+            {!dense ? <th className="w-[60px] px-3 py-2.5 font-normal">Owner</th> : null}
+            <th className="w-[84px] px-3 py-2.5 font-normal">Updated</th>
+            <th className="w-[72px] px-3 py-2.5" />
           </tr>
         </thead>
         <tbody>
@@ -127,7 +133,7 @@ export function DocTable({
             <Fragment key={g.key}>
               {g.label ? (
                 <tr>
-                  <td colSpan={selectable ? 7 : 6} className="border-t border-line bg-canvas/40 px-3 pt-3 pb-1.5 text-cap text-ink-secondary">
+                  <td colSpan={columnCount} className="border-t border-line bg-canvas/40 px-3 pt-3 pb-1.5 text-cap text-ink-secondary">
                     <span className="text-ink">{g.label}</span> <span className="text-ink-disabled">· {g.docs.length}</span>
                   </td>
                 </tr>
@@ -150,7 +156,7 @@ export function DocTable({
           ))}
           {docs.length === 0 ? (
             <tr>
-              <td colSpan={selectable ? 7 : 6} className="px-3 py-14 text-center text-default text-ink-disabled">
+              <td colSpan={columnCount} className="px-3 py-14 text-center text-default text-ink-disabled">
                 Nothing matches these filters.
               </td>
             </tr>
@@ -254,9 +260,11 @@ function Row({
           )}
         </td>
       ) : null}
-      <td className="px-3 py-2.5 align-middle">
-        <OwnerMark doc={doc} />
-      </td>
+      {!dense ? (
+        <td className="px-3 py-2.5 align-middle">
+          <OwnerMark doc={doc} />
+        </td>
+      ) : null}
       <td className="px-3 py-2.5 align-middle text-cap text-ink-secondary whitespace-nowrap">{relativeTime(doc.updatedAt, now)}</td>
       <td className="px-2 py-2.5 align-middle" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-end gap-0.5 opacity-0 transition-opacity group-hover/row:opacity-100 focus-within:opacity-100 [&:has([aria-expanded=true])]:opacity-100">

@@ -28,6 +28,7 @@ import { Menu, MenuDivider, MenuItem } from "@/components/ui/menu";
 import { useToast } from "@/components/ui/toast";
 import { Tooltip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/cn";
+import { useMediaQuery } from "@/lib/use-media-query";
 import { frontmatter } from "@/lib/documents/markdown";
 import { brandTypes, docTypes, typeSuffix } from "@/lib/documents/registry";
 import { outgoing, relativeTime } from "@/lib/documents/selectors";
@@ -77,7 +78,10 @@ export function DocView({
   const mentionables = useMentionables();
 
   const [editing, setEditing] = useState(false);
-  const [railOpen, setRailOpen] = useState(!compact);
+  /* The rail starts folded where two columns would not fit; the toggle still opens it. */
+  const wide = useMediaQuery("(min-width: 1024px)");
+  const [railPref, setRailPref] = useState<boolean | null>(null);
+  const railOpen = railPref ?? (!compact && wide);
   const [ask, setAsk] = useState<{ open: boolean; question: string | null }>({ open: false, question: null });
   const [agentView, setAgentView] = useState(false);
   /* The title field follows the store unless the user is mid-edit of it. */
@@ -270,7 +274,7 @@ export function DocView({
             ) : null}
           </Menu>
           {!compact ? (
-            <IconButton aria-label={railOpen ? "Hide rail" : "Show rail"} size="sm" onClick={() => setRailOpen((o) => !o)}>
+            <IconButton aria-label={railOpen ? "Hide rail" : "Show rail"} size="sm" onClick={() => setRailPref(!railOpen)}>
               {railOpen ? <PanelRightClose /> : <PanelRightOpen />}
             </IconButton>
           ) : (

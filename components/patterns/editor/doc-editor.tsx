@@ -2,7 +2,7 @@
 
 import { TableKit } from "@tiptap/extension-table";
 import { TaskItem, TaskList } from "@tiptap/extension-list";
-import { Placeholder, TrailingNode } from "@tiptap/extensions";
+import { Placeholder } from "@tiptap/extensions";
 import { EditorContent, useEditor, type Editor, type JSONContent } from "@tiptap/react";
 import { BubbleMenu } from "@tiptap/react/menus";
 import StarterKit from "@tiptap/starter-kit";
@@ -147,8 +147,6 @@ export function DocEditor({
       Citation,
       DocMention,
       Swatch,
-      /* There is always a paragraph after the last table or block, so the caret has somewhere to go. */
-      TrailingNode,
       Placeholder.configure({
         placeholder: ({ node, editor }) => {
           if (node.type.name === "heading") return "Section heading";

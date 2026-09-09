@@ -9,6 +9,7 @@ import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { NavLink, Sidebar, SidebarGroup } from "@/components/ui/nav";
 import { ToastProvider } from "@/components/ui/toast";
+import { cn } from "@/lib/cn";
 import { brandTypes } from "@/lib/documents/registry";
 import { isNeedsReview, isStale, relativeTime } from "@/lib/documents/selectors";
 import { StoreProvider, useStore } from "@/lib/documents/store";
@@ -54,38 +55,45 @@ function AppNav() {
   };
 
   return (
-    <Sidebar className="h-dvh w-[248px] gap-5 overflow-y-auto border-r border-line px-3 py-4">
-      <div className="flex items-center justify-between px-2.5">
-        <Link href="/documents" className="text-titles text-ink italic">
+    <Sidebar
+      className={cn(
+        "h-dvh gap-5 overflow-y-auto border-r border-line py-4",
+        /* Below lg the sidebar is an icon rail: labels, counts and recent chats fold away. */
+        "w-16 px-2 lg:w-[248px] lg:px-3",
+        "max-lg:[&_a>span:not(:first-child)]:hidden max-lg:[&_a]:justify-center max-lg:[&_a]:px-0",
+      )}
+    >
+      <div className="flex items-center justify-between px-2.5 max-lg:justify-center max-lg:px-0">
+        <Link href="/documents" className="text-titles text-ink italic max-lg:hidden">
           Contently
         </Link>
         <Avatar name="Terra Clays" shape="square" size="sm" />
       </div>
 
-      <Button variant="spectrum" onClick={newChat} className="mx-1 justify-start">
-        <Plus /> New chat
+      <Button variant="spectrum" onClick={newChat} className="mx-1 justify-start max-lg:mx-0 max-lg:justify-center max-lg:px-0" title="New chat">
+        <Plus /> <span className="max-lg:hidden">New chat</span>
       </Button>
 
       <SidebarGroup>
-        <NavLink href="/chat" icon={<MessageSquare />} active={is("/chat")}>
+        <NavLink href="/chat" icon={<MessageSquare />} active={is("/chat")} title="Chat">
           Chat
         </NavLink>
-        <NavLink href="/documents" icon={<Files />} active={is("/documents")} trailing={needsReview ? String(needsReview) : undefined}>
+        <NavLink href="/documents" icon={<Files />} active={is("/documents")} title="Documents" trailing={needsReview ? String(needsReview) : undefined}>
           Documents
         </NavLink>
-        <NavLink href="/brand" icon={<Fingerprint />} active={is("/brand")} trailing={brandAttention ? String(brandAttention) : undefined}>
+        <NavLink href="/brand" icon={<Fingerprint />} active={is("/brand")} title="Brand" trailing={brandAttention ? String(brandAttention) : undefined}>
           Brand
         </NavLink>
-        <NavLink href="/updates" icon={<Bell />} active={is("/updates")} trailing={updates ? String(updates) : undefined}>
+        <NavLink href="/updates" icon={<Bell />} active={is("/updates")} title="Updates" trailing={updates ? String(updates) : undefined}>
           Updates
         </NavLink>
-        <NavLink href="/archive" icon={<Archive />} active={is("/archive")} trailing={archived ? String(archived) : undefined}>
+        <NavLink href="/archive" icon={<Archive />} active={is("/archive")} title="Archive" trailing={archived ? String(archived) : undefined}>
           Archive
         </NavLink>
       </SidebarGroup>
 
       {threads.length ? (
-        <SidebarGroup label="Recent chats">
+        <SidebarGroup label="Recent chats" className="max-lg:hidden">
           {threads.map((t) => {
             const streaming = t.messages.some((m) => m.role === "assistant" && m.streaming);
             return (
@@ -97,7 +105,7 @@ function AppNav() {
         </SidebarGroup>
       ) : null}
 
-      <div className="mt-auto flex flex-col gap-2 px-2.5">
+      <div className="mt-auto flex flex-col gap-2 px-2.5 max-lg:hidden">
         <Link href="/design" className="text-tiny text-ink-disabled hover:text-ink-secondary">
           Design system →
         </Link>

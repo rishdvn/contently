@@ -158,7 +158,8 @@ export function ChatView({ threadId }: { threadId?: string }) {
 
   return (
     <div className="flex min-h-0 flex-1">
-      <section className={cn("flex min-h-0 min-w-0 flex-col", pane ? "flex-[0_0_46%] border-r border-line" : "flex-1")} aria-label="Conversation">
+      {/* Below xl the two columns do not both fit, so an open document takes the stage and its X returns to the thread. */}
+      <section className={cn("flex min-h-0 min-w-0 flex-col", pane ? "hidden flex-[0_0_46%] border-r border-line xl:flex" : "flex-1")} aria-label="Conversation">
         <header className="flex items-center gap-3 border-b border-line px-6 py-3">
           <h1 className="min-w-0 flex-1 truncate text-titles text-ink">{thread.title}</h1>
           <div className="flex items-center gap-1">

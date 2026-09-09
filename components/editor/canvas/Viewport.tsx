@@ -86,6 +86,9 @@ export function Viewport({ insets, children }: { insets: Insets; children?: Reac
     const el = ref.current;
     if (!el) return;
     const onWheel = (e: WheelEvent) => {
+      /* Chrome floats inside the viewport; wheel over a panel scrolls the panel, not the canvas. */
+      const target = e.target as Element;
+      if (target !== el && !target.closest(".world, .moveable-control-box")) return;
       e.preventDefault();
       const rect = el.getBoundingClientRect();
       if (e.ctrlKey || e.metaKey) {

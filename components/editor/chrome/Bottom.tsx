@@ -596,10 +596,7 @@ function SceneBar({
       }}
     >
       <div className="absolute inset-0 opacity-70" style={backgroundCss(slide.background)} />
-      <div className="absolute inset-0 bg-[repeating-linear-gradient(90deg,transparent_0_23px,rgb(0_0_0/0.28)_23px_24px)]" />
-      <div className="absolute top-1 left-1 overflow-hidden rounded-[3px] ring-1 ring-black/40">
-        <SlidePreview slide={slide} scale={thumbScale} />
-      </div>
+      <Filmstrip slide={slide} scale={thumbScale} />
       <span className="absolute bottom-1 left-1 max-w-[calc(100%-8px)] truncate rounded-[4px] bg-black/70 px-1.5 py-0.5 text-[10px] leading-[12px] font-medium tracking-[0.3px] text-white">
         {slide.name || `Scene ${index + 1}`}
       </span>
@@ -610,6 +607,67 @@ function SceneBar({
         <div className="absolute top-1/2 right-[3px] h-3 w-[2px] -translate-y-1/2 rounded-full bg-white/80" />
       </div>
     </div>
+  );
+}
+
+/*
+  Scene bars tile a miniature of the scene edge to edge, like a filmstrip. The
+  miniature is rasterised once per change (idle only) so the bar costs one
+  image, not a DOM copy of the scene per tile. The live preview stays in the
+  DOM as the source for the raster and as the fallback before it lands.
+*/
+function Filmstrip({ slide, scale }: { slide: Slide; scale: number }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [url, setUrl] = useState<string | null>(null);
+  const busy = useEditor((s) => s.interacting || s.playing || s.editingTextId !== null);
+  const width = useEditor((s) => s.project.width);
+  const height = useEditor((s) => s.project.height);
+
+  useEffect(() => {
+    if (busy) return;
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      const node = ref.current;
+      if (!node) return;
+      /* Give media a moment to decode a frame; an empty <video> rasterises black. */
+      const videos = Array.from(node.querySelectorAll("video"));
+      const deadline = performance.now() + 3000;
+      while (!cancelled && performance.now() < deadline && videos.some((v) => v.readyState < 2)) {
+        await new Promise((r) => setTimeout(r, 100));
+      }
+      if (cancelled) return;
+      try {
+        const { toPng } = await import("html-to-image");
+        const png = await toPng(node, {
+          pixelRatio: 2,
+          cacheBust: false,
+          style: { left: "0px", top: "0px", opacity: "1" },
+        });
+        if (!cancelled) setUrl(png);
+      } catch {
+        /* Cross-origin media without CORS falls back to the live preview. */
+      }
+    }, 450);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [slide, width, height, busy]);
+
+  const tileW = width * scale;
+  return (
+    <>
+      {url ? (
+        <div
+          className="absolute inset-0"
+          style={{ backgroundImage: `url(${url})`, backgroundSize: `${tileW}px 100%`, backgroundRepeat: "repeat-x" }}
+        />
+      ) : null}
+      <div ref={ref} className="absolute top-0 left-0 overflow-hidden" style={{ opacity: url ? 0 : 1 }}>
+        <SlidePreview slide={slide} scale={scale} />
+      </div>
+      <div className="pointer-events-none absolute inset-0 bg-[repeating-linear-gradient(90deg,transparent_0,transparent_calc(var(--tile)-1px),rgb(0_0_0/0.45)_calc(var(--tile)-1px),rgb(0_0_0/0.45)_var(--tile))]" style={{ "--tile": `${tileW}px` } as CSSProperties} />
+    </>
   );
 }
 

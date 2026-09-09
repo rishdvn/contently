@@ -84,10 +84,16 @@ export const canEncodeVideo = () => typeof window !== "undefined" && "VideoEncod
 
 const nextFrame = () => new Promise<void>((r) => requestAnimationFrame(() => r()));
 
-/* Media inside the artboard is seeked by the store's clock; wait for it to land. */
-async function settleMedia(node: HTMLElement) {
+/*
+  Media inside the artboard is seeked by the store's clock; wait for it to land.
+  A scene that has just been mounted needs a longer grace period: its <video>
+  elements are still fetching, and painting before they have a frame would bake
+  black into the file. Per-frame waits stay short so a stalled stream cannot
+  hang the export.
+*/
+async function settleMedia(node: HTMLElement, budgetMs: number) {
   const videos = Array.from(node.querySelectorAll("video"));
-  const deadline = performance.now() + 400;
+  const deadline = performance.now() + budgetMs;
   while (performance.now() < deadline && videos.some((v) => v.seeking || v.readyState < 2)) {
     await new Promise((r) => setTimeout(r, 16));
   }
@@ -157,7 +163,7 @@ export async function renderVideo(
         await nextFrame();
         const node = artboardNode(scene.id);
         if (!node) throw new Error("Scene left the canvas during export");
-        await settleMedia(node);
+        await settleMedia(node, i === 0 ? 10_000 : 600);
         await paintFrame(project, scene.id, ctx, fontEmbedCSS);
         const vf = new VideoFrame(stage, { timestamp: Math.round((elapsed + i / opts.fps) * 1_000_000), duration: Math.round(1_000_000 / opts.fps) });
         encoder.encode(vf, { keyFrame: frame % (opts.fps * 2) === 0 });

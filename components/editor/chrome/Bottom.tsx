@@ -619,6 +619,8 @@ function SceneBar({
 function Filmstrip({ slide, scale }: { slide: Slide; scale: number }) {
   const ref = useRef<HTMLDivElement>(null);
   const [url, setUrl] = useState<string | null>(null);
+  /* Bumped when a still-loading video gets its first frame, so the raster retries. */
+  const [mediaTick, setMediaTick] = useState(0);
   const busy = useEditor((s) => s.interacting || s.playing || s.editingTextId !== null);
   const width = useEditor((s) => s.project.width);
   const height = useEditor((s) => s.project.height);
@@ -626,16 +628,26 @@ function Filmstrip({ slide, scale }: { slide: Slide; scale: number }) {
   useEffect(() => {
     if (busy) return;
     let cancelled = false;
+    const listeners: (() => void)[] = [];
     const timer = setTimeout(async () => {
       const node = ref.current;
       if (!node) return;
-      /* Give media a moment to decode a frame; an empty <video> rasterises black. */
+      /* An empty <video> rasterises as a broken image; wait for a frame or retry when one lands. */
       const videos = Array.from(node.querySelectorAll("video"));
-      const deadline = performance.now() + 3000;
+      const deadline = performance.now() + 4000;
       while (!cancelled && performance.now() < deadline && videos.some((v) => v.readyState < 2)) {
         await new Promise((r) => setTimeout(r, 100));
       }
       if (cancelled) return;
+      const pending = videos.filter((v) => v.readyState < 2);
+      if (pending.length) {
+        pending.forEach((v) => {
+          const on = () => setMediaTick((t) => t + 1);
+          v.addEventListener("loadeddata", on, { once: true });
+          listeners.push(() => v.removeEventListener("loadeddata", on));
+        });
+        return;
+      }
       try {
         const { toPng } = await import("html-to-image");
         const png = await toPng(node, {
@@ -651,8 +663,9 @@ function Filmstrip({ slide, scale }: { slide: Slide; scale: number }) {
     return () => {
       cancelled = true;
       clearTimeout(timer);
+      listeners.forEach((off) => off());
     };
-  }, [slide, width, height, busy]);
+  }, [slide, width, height, busy, mediaTick]);
 
   const tileW = width * scale;
   return (

@@ -113,3 +113,17 @@ export function deleteProject(id: string) {
   window.localStorage.removeItem(key(id));
   writeIndex(readIndex().filter((x) => x.id !== id));
 }
+
+export function renameProject(id: string, name: string) {
+  const p = loadProject(id);
+  if (!p) return;
+  saveProject({ ...p, name, updatedAt: Date.now() });
+}
+
+export function duplicateProject(id: string, newId: string): Project | null {
+  const p = loadProject(id);
+  if (!p) return null;
+  const copy = { ...p, id: newId, name: `${p.name} copy`, updatedAt: Date.now() };
+  saveProject(copy);
+  return copy;
+}

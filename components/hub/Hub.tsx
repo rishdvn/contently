@@ -23,7 +23,7 @@ import { Menu, MenuItem } from "@/components/ui/menu";
 import { NavItem, Sidebar, SidebarGroup } from "@/components/ui/nav";
 import { cn } from "@/lib/cn";
 import { uid } from "@/lib/editor/factory";
-import { deleteProject, useProjectIndex, type ProjectSummary } from "@/lib/editor/persistence";
+import { deleteProject, duplicateProject, renameProject, useProjectIndex, type ProjectSummary } from "@/lib/editor/persistence";
 import type { ProjectKind } from "@/lib/editor/types";
 
 /*
@@ -99,6 +99,8 @@ export function Hub() {
                   p={p}
                   onOpen={() => router.push(`/editor/${p.id}`)}
                   onDelete={() => deleteProject(p.id)}
+                  onDuplicate={() => duplicateProject(p.id, uid())}
+                  onRename={(name) => renameProject(p.id, name)}
                 />
               ))}
             </div>
@@ -149,7 +151,27 @@ function StartCard({ kind, icon, title, body, onClick, compact }: { kind: Projec
 
 const KIND_LABEL: Record<ProjectKind, string> = { image: "Image", carousel: "Carousel", video: "Video" };
 
-function ProjectCard({ p, onOpen, onDelete }: { p: ProjectSummary; onOpen: () => void; onDelete: () => void }) {
+function ProjectCard({
+  p,
+  onOpen,
+  onDelete,
+  onDuplicate,
+  onRename,
+}: {
+  p: ProjectSummary;
+  onOpen: () => void;
+  onDelete: () => void;
+  onDuplicate: () => void;
+  onRename: (name: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(p.name);
+  const commit = () => {
+    setEditing(false);
+    const name = draft.trim();
+    if (name && name !== p.name) onRename(name);
+    else setDraft(p.name);
+  };
   return (
     <div className="group relative flex flex-col gap-2.5">
       <button type="button" onClick={onOpen} className="relative aspect-[4/5] overflow-hidden rounded-card outline-none focus-visible:ring-2 focus-visible:ring-ink/25" style={{ backgroundImage: KIND_ART[p.kind] }} aria-label={`Open ${p.name}`}>
@@ -161,7 +183,27 @@ function ProjectCard({ p, onOpen, onDelete }: { p: ProjectSummary; onOpen: () =>
       </button>
       <div className="flex items-center gap-2 px-1">
         <div className="min-w-0 flex-1">
-          <div className="truncate text-default text-ink">{p.name}</div>
+          {editing ? (
+            <input
+              autoFocus
+              aria-label="Project name"
+              className="-mx-1.5 h-6 w-[calc(100%+12px)] rounded-[6px] bg-card px-1.5 text-default text-ink outline-none"
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onBlur={commit}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") commit();
+                if (e.key === "Escape") {
+                  setDraft(p.name);
+                  setEditing(false);
+                }
+              }}
+            />
+          ) : (
+            <div className="truncate text-default text-ink" onDoubleClick={() => setEditing(true)}>
+              {p.name}
+            </div>
+          )}
           <div className="truncate text-cap text-ink-secondary">{relative(p.updatedAt)}</div>
         </div>
         <Menu
@@ -173,6 +215,15 @@ function ProjectCard({ p, onOpen, onDelete }: { p: ProjectSummary; onOpen: () =>
           )}
         >
           <MenuItem onClick={onOpen}>Open</MenuItem>
+          <MenuItem
+            onClick={() => {
+              setDraft(p.name);
+              setEditing(true);
+            }}
+          >
+            Rename
+          </MenuItem>
+          <MenuItem onClick={onDuplicate}>Duplicate</MenuItem>
           <MenuItem destructive onClick={onDelete}>
             Delete
           </MenuItem>

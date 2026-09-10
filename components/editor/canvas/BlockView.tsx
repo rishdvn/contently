@@ -6,6 +6,8 @@ import { useEditor } from "@/lib/editor/store";
 import { effectOverlays, filterCss, flipStyle, frameStyle, gradientCss, highlightStyle, shadowCss, textStyle } from "@/lib/editor/style";
 import type { Block, ImageBlock, ShapeBlock, TextBlock, VideoBlock } from "@/lib/editor/types";
 
+import { usePlaybackOverride } from "./playback";
+
 /*
   Renders one block inside an artboard. The wrapper carries the geometry and
   is what Moveable / Selecto target; the inner element paints the content.
@@ -19,9 +21,10 @@ export const BlockView = memo(function BlockView({
   block: Block;
   interactive?: boolean;
 }) {
-  const isVideoProject = useEditor((s) => s.project.kind === "video");
-  const time = useEditor((s) => (isVideoProject ? s.time : 0));
-  const editing = useEditor((s) => interactive && s.editingTextId === block.id);
+  const pb = usePlaybackOverride();
+  const isVideoProject = useEditor((s) => (pb ? pb.kind : s.project.kind) === "video");
+  const time = useEditor((s) => (isVideoProject ? (pb ? pb.time : s.time) : 0));
+  const editing = useEditor((s) => interactive && !pb && s.editingTextId === block.id);
 
   if (block.hidden) return null;
 
@@ -241,16 +244,29 @@ function ImageContent({ block }: { block: ImageBlock }) {
 
 function VideoContent({ block }: { block: VideoBlock }) {
   const ref = useRef<HTMLVideoElement>(null);
-  const playing = useEditor((s) => s.playing);
-  const isVideoProject = useEditor((s) => s.project.kind === "video");
-  const time = useEditor((s) => (isVideoProject ? s.time : 0));
-  const globalMuted = useEditor((s) => s.muted);
+  const pb = usePlaybackOverride();
+  const playing = useEditor((s) => (pb ? pb.playing : s.playing));
+  const isVideoProject = useEditor((s) => (pb ? pb.kind : s.project.kind) === "video");
+  const time = useEditor((s) => (isVideoProject ? (pb ? pb.time : s.time) : 0));
+  const globalMuted = useEditor((s) => (pb ? pb.muted : s.muted));
   const updateBlock = useEditor((s) => s.updateBlock);
+  const gated = pb !== null;
 
   /* Keep the element in step with the timeline rather than letting it free-run. */
   useEffect(() => {
     const v = ref.current;
-    if (!v || !isVideoProject) return;
+    if (!v) return;
+    if (!isVideoProject) {
+      /* Free-running clip in a still or carousel: the studio lets it loop, a preview gates it on hover. */
+      if (!gated) return;
+      if (playing) {
+        if (v.paused) v.play().catch(() => {});
+      } else {
+        if (!v.paused) v.pause();
+        if (Math.abs(v.currentTime - block.trimStart) > 0.05) v.currentTime = block.trimStart;
+      }
+      return;
+    }
     const local = block.trimStart + Math.max(0, time - block.start);
     if (playing && time >= block.start && time <= block.end) {
       if (Math.abs(v.currentTime - local) > 0.3) v.currentTime = local;
@@ -259,7 +275,7 @@ function VideoContent({ block }: { block: VideoBlock }) {
       if (!v.paused) v.pause();
       if (Math.abs(v.currentTime - local) > 0.05) v.currentTime = local;
     }
-  }, [playing, time, block.start, block.end, block.trimStart, isVideoProject]);
+  }, [playing, time, block.start, block.end, block.trimStart, isVideoProject, gated]);
 
   useEffect(() => {
     const v = ref.current;
@@ -277,10 +293,11 @@ function VideoContent({ block }: { block: VideoBlock }) {
           playsInline
           preload="auto"
           crossOrigin="anonymous"
-          autoPlay={!isVideoProject}
+          autoPlay={!isVideoProject && !pb}
           className="size-full"
           style={{ objectFit: block.fit, objectPosition: `${block.focalX}% ${block.focalY}%` }}
           onLoadedMetadata={(e) => {
+            if (pb) return;
             const d = e.currentTarget.duration;
             if (Number.isFinite(d) && d !== block.sourceDuration) updateBlock(block.id, { sourceDuration: d });
           }}

@@ -127,6 +127,16 @@
   --animate-sweep: sweep 1.6s var(--ease-out-quart) infinite;
   --animate-breathe: breathe 1.8s ease-in-out infinite;
   --animate-pop: pop 120ms var(--ease-out-quart);
+  --animate-scrim-in: scrim-in 180ms var(--ease-out-quart);
+
+  @keyframes scrim-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
 
   @keyframes pop {
     from {

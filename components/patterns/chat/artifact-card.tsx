@@ -2,17 +2,13 @@
 
 import {
   ArrowUpRight,
+  AtSign,
+  Bookmark,
+  BookmarkCheck,
   Copy,
-  FileText,
-  Images,
-  KanbanSquare,
-  type LucideIcon,
-  Map,
   MoreHorizontal,
-  Search,
-  Target,
+  Sparkles,
   Trash2,
-  User,
 } from "lucide-react";
 import type { ReactNode } from "react";
 
@@ -22,43 +18,50 @@ import { GeneratingBar, Skeleton } from "@/components/ui/feedback";
 import { Menu, MenuDivider, MenuItem } from "@/components/ui/menu";
 import { cn } from "@/lib/cn";
 
-import type { Artifact, ArtifactKind } from "./types";
+import { excerpt } from "@/components/patterns/docs/rich-text";
 
-export const artifactKinds: Record<ArtifactKind, { label: string; icon: LucideIcon; noun: string }> = {
-  persona: { label: "Persona", icon: User, noun: "persona" },
-  angle: { label: "Angle", icon: Target, noun: "angle" },
-  strategy: { label: "Strategy", icon: Map, noun: "strategy" },
-  research: { label: "Research", icon: Search, noun: "research" },
-  brief: { label: "Brief", icon: FileText, noun: "brief" },
-  carousel: { label: "Carousel", icon: Images, noun: "carousel" },
+import { artifactKinds } from "./kinds";
+import type { Artifact, ArtifactProperty } from "./types";
+
+export type ArtifactActions = {
+  onOpen?: (artifact: Artifact) => void;
+  /** Attach this document as context for the next message. */
+  onAttach?: (artifact: Artifact) => void;
+  /** Briefs only: keep it in Ideas without producing it yet. */
+  onSave?: (artifact: Artifact) => void;
+  /** Briefs only: produce the content now. */
+  onProduce?: (artifact: Artifact) => void;
 };
 
 /**
- * A thing the model made, sitting in the thread.
+ * A document the model made, sitting in the thread.
  *
  * It is a card and not a link because it needs to be findable when the user
- * scrolls back: a title, a one-line summary and a few facts are enough to
- * recognise it without opening it. The whole card opens the artifact in the
- * drawer; the overflow menu is for everything else, and stops the click from
- * reaching the card.
+ * scrolls back: kind, title, the opening line of the body and the few
+ * properties that matter are enough to recognise it without opening it. It
+ * shows no field grid because a document has no fields — it has a body, and
+ * the card shows how that body begins.
  *
- * Status is spoken by the badge and, while generating, by the sweep at the
- * foot — the one time the spectrum appears on a card.
+ * The whole card opens the document; the overflow menu is for everything
+ * else. Only a brief has anywhere to go: Ideas (save) or Content (make).
+ * Every other kind is context the agent will read from later.
  */
 export function ArtifactCard({
   artifact,
   onOpen,
-  onAddToBoard,
+  onAttach,
+  onSave,
+  onProduce,
   className,
-}: {
+}: ArtifactActions & {
   artifact: Artifact;
-  onOpen?: (artifact: Artifact) => void;
-  onAddToBoard?: (artifact: Artifact) => void;
   className?: string;
 }) {
   const kind = artifactKinds[artifact.kind];
   const Icon = kind.icon;
   const generating = artifact.status === "generating";
+  const isBrief = artifact.kind === "brief";
+  const summary = excerpt(artifact.body);
 
   return (
     <div
@@ -86,25 +89,21 @@ export function ArtifactCard({
         <div className="flex min-w-0 flex-1 flex-col gap-1">
           <div className="flex items-center gap-2">
             <span className="truncate text-default text-ink">{artifact.title}</span>
-            {artifact.status === "draft" ? <Badge dot={false}>Draft</Badge> : null}
+            {artifact.status === "draft" ? <Badge dot={false} className="shrink-0">Draft</Badge> : null}
             {generating ? (
               <Badge tone="spectrum" dot={false}>
                 Generating
               </Badge>
             ) : null}
+            {isBrief && artifact.saved ? (
+              <Badge dot={false} className="shrink-0 gap-1 whitespace-nowrap [&>svg]:size-3">
+                <BookmarkCheck /> In ideas
+              </Badge>
+            ) : null}
           </div>
-          <p className="line-clamp-2 text-cap leading-4 text-ink-secondary">{artifact.summary}</p>
-          {artifact.meta?.length ? (
-            <p className="truncate pt-0.5 text-tiny text-ink-disabled">
-              <span className="text-ink-secondary">{kind.label}</span>
-              {artifact.meta.map((m) => (
-                <span key={m}>
-                  <span className="mx-1.5">&middot;</span>
-                  {m}
-                </span>
-              ))}
-            </p>
-          ) : null}
+          <p className="text-tiny text-ink-disabled">{kind.label}</p>
+          {summary ? <p className="line-clamp-2 pt-0.5 text-cap leading-4 text-ink-secondary">{summary}</p> : null}
+          {artifact.properties?.length ? <PropertyRow properties={artifact.properties} className="pt-1.5" /> : null}
         </div>
 
         {/* Clicks inside the menu must not also open the card. */}
@@ -126,8 +125,26 @@ export function ArtifactCard({
               </IconButton>
             )}
           >
-            <MenuItem icon={<KanbanSquare />} onClick={() => onAddToBoard?.(artifact)}>
-              Add to board
+            {isBrief ? (
+              <>
+                <MenuItem icon={<Sparkles />} onClick={() => onProduce?.(artifact)}>
+                  Make this
+                </MenuItem>
+                <MenuItem
+                  icon={artifact.saved ? <BookmarkCheck /> : <Bookmark />}
+                  onClick={() => onSave?.(artifact)}
+                  disabled={artifact.saved}
+                >
+                  {artifact.saved ? "Saved to ideas" : "Save to ideas"}
+                </MenuItem>
+                <MenuDivider />
+              </>
+            ) : null}
+            <MenuItem icon={<AtSign />} onClick={() => onAttach?.(artifact)}>
+              Attach to chat
+            </MenuItem>
+            <MenuItem icon={<ArrowUpRight />} onClick={() => onOpen?.(artifact)}>
+              Open page
             </MenuItem>
             <MenuItem icon={<Copy />}>Duplicate</MenuItem>
             <MenuDivider />
@@ -146,8 +163,8 @@ export function ArtifactCard({
           {artifact.thumbnails.slice(0, 6).map((bg, i) => (
             <span
               key={i}
-              className="aspect-[4/5] w-12 shrink-0 rounded-[6px]"
-              style={{ backgroundImage: bg, backgroundColor: "#2a2a2a" }}
+              className="aspect-[4/5] w-12 shrink-0 rounded-[6px] bg-raised"
+              style={{ backgroundImage: bg }}
             />
           ))}
           {artifact.thumbnails.length > 6 ? (
@@ -159,6 +176,31 @@ export function ArtifactCard({
       ) : null}
 
       {generating ? <GeneratingBar className="rounded-none" /> : null}
+    </div>
+  );
+}
+
+/**
+ * The properties a document is filtered or related on — subtype, channel,
+ * the persona a brief targets. Small, quiet, and the only structured thing on
+ * a card. A relation gets the kind's icon so it reads as a pointer.
+ */
+export function PropertyRow({ properties, className }: { properties: ArtifactProperty[]; className?: string }) {
+  return (
+    <div className={cn("flex flex-wrap items-center gap-1", className)}>
+      {properties.map((p) => {
+        const Icon = p.relation ? artifactKinds[p.relation.kind].icon : null;
+        return (
+          <span
+            key={`${p.label}:${p.value}`}
+            title={p.label}
+            className="inline-flex h-5 items-center gap-1 rounded-[6px] bg-raised px-1.5 text-tiny text-ink-secondary [&>svg]:size-3"
+          >
+            {Icon ? <Icon /> : null}
+            {p.value}
+          </span>
+        );
+      })}
     </div>
   );
 }

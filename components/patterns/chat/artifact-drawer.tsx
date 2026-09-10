@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowUpRight, KanbanSquare, Pencil, Sparkles, X } from "lucide-react";
+import { ArrowUpRight, AtSign, Bookmark, BookmarkCheck, Pencil, Sparkles, X } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { Badge } from "@/components/ui/badge";
@@ -8,7 +8,10 @@ import { Button, IconButton } from "@/components/ui/button";
 import { DialogBody, DialogFooter, Drawer } from "@/components/ui/dialog";
 import { Tooltip } from "@/components/ui/tooltip";
 
-import { artifactKinds } from "./artifact-card";
+import { RichText } from "@/components/patterns/docs/rich-text";
+
+import { PropertyRow, type ArtifactActions } from "./artifact-card";
+import { artifactKinds } from "./kinds";
 import type { Artifact } from "./types";
 
 /**
@@ -19,42 +22,55 @@ import type { Artifact } from "./types";
  * is still visible behind the scrim. A drawer rather than a page because most
  * openings are a glance, not an edit. "Open page" is there for the edit.
  *
- * The header and footer are the same for every kind; only the body changes.
- * That is what makes a new artifact type cheap to add.
+ * Header, body and footer are the same for every kind. The header is the
+ * properties; the body is the rich text; the footer is the one generative
+ * next step. Nothing in here knows what a persona is — that is what makes an
+ * eighth document type free.
  */
 export function ArtifactDrawer({
   artifact,
   open,
   onClose,
-  onGenerate,
-  generateLabel = "Generate briefs",
+  onNext,
+  onAttach,
+  onSave,
+  onProduce,
   children,
-}: {
+}: Pick<ArtifactActions, "onAttach" | "onSave" | "onProduce"> & {
   artifact: Artifact | null;
   open: boolean;
   onClose: () => void;
-  onGenerate?: (artifact: Artifact) => void;
-  generateLabel?: string;
-  children: ReactNode;
+  /** The kind's spectrum action for non-brief documents ("Fill the gaps", "Brief this persona"). */
+  onNext?: (artifact: Artifact) => void;
+  /** Override the body — for the editor once it exists. */
+  children?: ReactNode;
 }) {
   const kind = artifact ? artifactKinds[artifact.kind] : null;
+  const isBrief = artifact?.kind === "brief";
 
   return (
-    <Drawer open={open} onClose={onClose} className="w-[560px]">
+    <Drawer open={open} onClose={onClose} className="w-[600px]">
       <header className="flex items-start gap-3 px-6 pt-5 pb-4">
-        <div className="flex min-w-0 flex-1 flex-col gap-2">
+        <div className="flex min-w-0 flex-1 flex-col gap-2.5">
           <div className="flex items-center gap-2">
-            {kind ? <Badge dot={false}>{kind.label}</Badge> : null}
+            {kind ? (
+              <Badge dot={false} className="gap-1.5 [&>svg]:size-3">
+                <kind.icon /> {kind.label}
+              </Badge>
+            ) : null}
             {artifact?.status === "draft" ? (
               <Badge tone="spectrum" dot={false}>
                 AI draft
               </Badge>
             ) : null}
+            {isBrief && artifact?.saved ? (
+              <Badge dot={false} className="shrink-0 gap-1 whitespace-nowrap [&>svg]:size-3">
+                <BookmarkCheck /> In ideas
+              </Badge>
+            ) : null}
           </div>
           <h2 className="text-sections leading-tight text-ink">{artifact?.title}</h2>
-          {artifact?.summary ? (
-            <p className="text-default text-ink-secondary">{artifact.summary}</p>
-          ) : null}
+          {artifact?.properties?.length ? <PropertyRow properties={artifact.properties} /> : null}
         </div>
         <div className="-mt-1 -mr-2 flex items-center gap-0.5">
           <Tooltip label="Edit">
@@ -73,22 +89,36 @@ export function ArtifactDrawer({
         </div>
       </header>
 
-      <DialogBody className="px-6">{children}</DialogBody>
+      <DialogBody className="px-6 pt-1">
+        {children ?? (artifact ? <RichText doc={artifact.body} /> : null)}
+      </DialogBody>
 
       <DialogFooter
         className="px-6"
         secondary={
-          <Button variant="ghost" size="sm">
-            <KanbanSquare /> Add to board
-          </Button>
+          artifact ? (
+            isBrief ? (
+              <Button variant="ghost" size="sm" disabled={artifact.saved} onClick={() => onSave?.(artifact)}>
+                {artifact.saved ? <BookmarkCheck /> : <Bookmark />}
+                {artifact.saved ? "Saved to ideas" : "Save to ideas"}
+              </Button>
+            ) : (
+              <Button variant="ghost" size="sm" onClick={() => onAttach?.(artifact)}>
+                <AtSign /> Attach to chat
+              </Button>
+            )
+          ) : null
         }
       >
         <Button variant="secondary" onClick={onClose}>
           Close
         </Button>
-        {artifact && onGenerate ? (
-          <Button variant="spectrum" onClick={() => onGenerate(artifact)}>
-            <Sparkles /> {generateLabel}
+        {artifact && kind?.next ? (
+          <Button
+            variant="spectrum"
+            onClick={() => (isBrief ? onProduce?.(artifact) : onNext?.(artifact))}
+          >
+            <Sparkles /> {kind.next}
           </Button>
         ) : null}
       </DialogFooter>

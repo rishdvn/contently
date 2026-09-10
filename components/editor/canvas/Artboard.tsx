@@ -44,9 +44,11 @@ export const Artboard = memo(function Artboard({
 });
 
 /* Static miniature of a slide for the slide strip, timeline, and export previews. */
-export function SlidePreview({ slide, scale, className }: { slide: Slide; scale: number; className?: string }) {
-  const width = useEditor((s) => s.project.width);
-  const height = useEditor((s) => s.project.height);
+export function SlidePreview({ slide, scale, className, size }: { slide: Slide; scale: number; className?: string; size?: { width: number; height: number } }) {
+  const storeWidth = useEditor((s) => s.project.width);
+  const storeHeight = useEditor((s) => s.project.height);
+  const width = size?.width ?? storeWidth;
+  const height = size?.height ?? storeHeight;
   return (
     <div className={className} style={{ width: width * scale, height: height * scale, position: "relative", overflow: "hidden" }}>
       <div style={{ transform: `scale(${scale})`, transformOrigin: "top left", width, height, position: "absolute" }}>

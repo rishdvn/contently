@@ -78,7 +78,7 @@ export function PreviewModal({
 
   return (
     <div
-      className="fixed inset-0 animate-scrim-in bg-black/70 text-ink backdrop-blur-[6px]"
+      className="fixed inset-0 animate-scrim-in bg-black/80 text-ink backdrop-blur-[6px]"
       style={{ zIndex: "var(--z-modal)" }}
       role="dialog"
       aria-modal="true"
@@ -267,18 +267,23 @@ const Stage = forwardRef<HTMLDivElement, StageProps>(function Stage({ project, c
   const isVideo = project.kind === "video";
   const isCarousel = project.kind === "carousel";
   const dots = useMemo(() => project.slides.map((s) => s.id), [project.slides]);
+  /* Tracked in JS rather than :hover so the controls also show for pointers that report no hover capability. */
+  const [hover, setHover] = useState(false);
+  const reveal = hover ? "opacity-100" : "opacity-0";
 
   return (
     <div
       ref={ref}
-      className="group/stage relative shrink-0 overflow-hidden rounded-[12px] bg-black shadow-overlay"
+      className="relative shrink-0 overflow-hidden rounded-[12px] bg-black shadow-overlay"
       style={{ width }}
       onClick={(e) => e.stopPropagation()}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
     >
       <ProjectStage project={project} clock={clock} muted={muted} className="w-full" />
 
       {isVideo ? (
-        <div className="absolute inset-x-0 bottom-0 flex flex-col opacity-0 transition-opacity duration-150 group-hover/stage:opacity-100">
+        <div className={cn("absolute inset-x-0 bottom-0 flex flex-col transition-opacity duration-150", reveal)}>
           <div className="flex items-center gap-1 bg-gradient-to-t from-black/70 to-transparent px-2 pt-6 pb-2 text-white">
             <button type="button" aria-label={playing ? "Pause" : "Play"} onClick={onTogglePlay} className="flex size-7 items-center justify-center rounded-[6px] hover:bg-white/15">
               {playing ? <Pause className="size-3.5 fill-current" /> : <Play className="size-3.5 translate-x-px fill-current" />}
@@ -322,7 +327,7 @@ const Stage = forwardRef<HTMLDivElement, StageProps>(function Stage({ project, c
             type="button"
             aria-label="Previous slide"
             onClick={() => clock.goTo(clock.index - 1)}
-            className="absolute top-1/2 left-2 flex size-8 -translate-y-1/2 items-center justify-center rounded-full bg-black/55 text-white opacity-0 transition-opacity group-hover/stage:opacity-100 hover:bg-black/75"
+            className={cn("absolute top-1/2 left-2 flex size-8 -translate-y-1/2 items-center justify-center rounded-full bg-black/55 text-white transition-opacity hover:bg-black/75", reveal)}
           >
             <ChevronLeft className="size-4" />
           </button>
@@ -330,7 +335,7 @@ const Stage = forwardRef<HTMLDivElement, StageProps>(function Stage({ project, c
             type="button"
             aria-label="Next slide"
             onClick={() => clock.goTo(clock.index + 1)}
-            className="absolute top-1/2 right-2 flex size-8 -translate-y-1/2 items-center justify-center rounded-full bg-black/55 text-white opacity-0 transition-opacity group-hover/stage:opacity-100 hover:bg-black/75"
+            className={cn("absolute top-1/2 right-2 flex size-8 -translate-y-1/2 items-center justify-center rounded-full bg-black/55 text-white transition-opacity hover:bg-black/75", reveal)}
           >
             <ChevronRight className="size-4" />
           </button>

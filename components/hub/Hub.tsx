@@ -302,10 +302,10 @@ function ProjectCard({
         ) : (
           <span className="truncate text-ui font-medium text-white [text-shadow:0_1px_2px_rgb(0_0_0/0.6)]">{p.name}</span>
         )}
-        <span className="hidden shrink-0 rounded-[6px] bg-black/60 px-1.5 py-0.5 text-tiny whitespace-nowrap text-white group-hover:inline-block">{doc ? projectMeta(doc) : p.aspect}</span>
+        {hover ? <span className="shrink-0 rounded-[6px] bg-black/60 px-1.5 py-0.5 text-tiny whitespace-nowrap text-white">{doc ? projectMeta(doc) : p.aspect}</span> : null}
       </div>
 
-      <div className="absolute top-2 right-2 opacity-0 transition-opacity duration-150 group-hover:opacity-100 has-[[aria-expanded=true]]:opacity-100 focus-within:opacity-100">
+      <div className={cn("absolute top-2 right-2 transition-opacity duration-150 has-[[aria-expanded=true]]:opacity-100 focus-within:opacity-100", hover ? "opacity-100" : "opacity-0")}>
         <Menu
           align="end"
           trigger={(props) => (

@@ -32,6 +32,7 @@ import { ToastProvider, useToast } from "@/components/ui/toast";
 import { Tooltip } from "@/components/ui/tooltip";
 
 import { Page, PageHeader, Row, Section } from "../_doc";
+import { PaletteAndCoach } from "./palette";
 
 export function Overlays() {
   return (
@@ -543,6 +544,7 @@ function Inner() {
           </Button>
         </DialogFooter>
       </Drawer>
+      <PaletteAndCoach />
     </Page>
   );
 }

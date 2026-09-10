@@ -127,6 +127,13 @@
   --animate-sweep: sweep 1.6s var(--ease-out-quart) infinite;
   --animate-breathe: breathe 1.8s ease-in-out infinite;
   --animate-pop: pop 120ms var(--ease-out-quart);
+  --animate-caret: caret 1s steps(2, end) infinite;
+
+  @keyframes caret {
+    50% {
+      opacity: 0;
+    }
+  }
 
   @keyframes pop {
     from {
@@ -251,6 +258,10 @@
     position: relative;
     z-index: 1;
   }
+}
+
+@utility spectrum-fill {
+  background-image: var(--gradient-spectrum-fill);
 }
 
 @utility spectrum-text {

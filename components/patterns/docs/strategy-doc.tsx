@@ -27,12 +27,15 @@ export function CoverageMatrix({
   pains,
   cells,
   onCell,
+  compact = false,
   className,
 }: {
   personas: string[];
   pains: string[];
   cells: CoverageCell[][];
   onCell?: (pain: number, persona: number) => void;
+  /** Shorter cells for a preview inside an artifact block. */
+  compact?: boolean;
   className?: string;
 }) {
   return (
@@ -69,7 +72,7 @@ export function CoverageMatrix({
                         type="button"
                         onClick={() => onCell?.(pi, ci)}
                         className={cn(
-                          "flex h-11 w-full items-center justify-center rounded-control text-default outline-none",
+                          compact ? "flex h-7 w-full items-center justify-center rounded-[6px] text-cap outline-none" : "flex h-11 w-full items-center justify-center rounded-control text-default outline-none",
                           "transition-colors duration-100 focus-visible:ring-2 focus-visible:ring-ink/25",
                           empty
                             ? "text-ink-disabled ring-1 ring-inset ring-line hover:ring-line-strong"

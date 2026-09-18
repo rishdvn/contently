@@ -497,7 +497,12 @@ function TimelineMenu({ ctx, onClose }: { ctx: Ctx; onClose: () => void }) {
     el.style.top = `${ctx.y + r.height + 8 > window.innerHeight ? Math.max(8, ctx.y - r.height) : ctx.y}px`;
   }, [ctx]);
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    /* Escape dismisses the menu only; it must not reach the hotkeys and clear the selection too. */
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.stopPropagation();
+      onClose();
+    };
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
   }, [onClose]);

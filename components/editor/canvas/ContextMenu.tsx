@@ -48,12 +48,17 @@ export function ContextMenu({ container }: { container: HTMLDivElement | null })
       if ((e.target as HTMLElement).closest(".context-menu")) return;
       setTarget(null);
     };
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setTarget(null);
+    /* Escape closes the menu only; stop it before the hotkeys would also clear the selection. */
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.stopPropagation();
+      setTarget(null);
+    };
     document.addEventListener("pointerdown", close, true);
-    document.addEventListener("keydown", onKey);
+    window.addEventListener("keydown", onKey, true);
     return () => {
       document.removeEventListener("pointerdown", close, true);
-      document.removeEventListener("keydown", onKey);
+      window.removeEventListener("keydown", onKey, true);
     };
   }, [target]);
 

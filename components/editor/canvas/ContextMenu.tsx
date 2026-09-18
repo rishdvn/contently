@@ -1,11 +1,32 @@
 "use client";
 
-import { ArrowDown, ArrowUp, ChevronsDown, ChevronsUp, ClipboardPaste, Copy, CopyPlus, Group, Lock, LockOpen, Trash2, Type, Ungroup } from "lucide-react";
+import {
+  AlignCenterHorizontal,
+  AlignCenterVertical,
+  AlignEndHorizontal,
+  AlignEndVertical,
+  AlignStartHorizontal,
+  AlignStartVertical,
+  ArrowDown,
+  ArrowUp,
+  ChevronsDown,
+  ChevronsUp,
+  ClipboardPaste,
+  Copy,
+  CopyPlus,
+  Group,
+  Lock,
+  LockOpen,
+  Trash2,
+  Type,
+  Ungroup,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { MenuDivider, MenuItem } from "@/components/ui/menu";
 import { textFromPreset, TEXT_PRESETS } from "@/lib/editor/presets";
 import { findBlock, useEditor } from "@/lib/editor/store";
+import type { Block } from "@/lib/editor/types";
 
 type Target = { x: number; y: number; blockId: string | null; slideId: string | null };
 
@@ -103,6 +124,32 @@ export function ContextMenu({ container }: { container: HTMLDivElement | null })
           <MenuItem icon={<ChevronsDown />} shortcut="⌘[" onClick={() => ids.forEach((id) => s.reorder(id, "back"))}>
             Send to back
           </MenuItem>
+          <MenuDivider />
+          {(
+            [
+              ["Align left", <AlignStartVertical key="l" />, () => ({ x: 0 })],
+              ["Align center", <AlignCenterVertical key="c" />, (b: Block) => ({ x: (s.project.width - b.w) / 2 })],
+              ["Align right", <AlignEndVertical key="r" />, (b: Block) => ({ x: s.project.width - b.w })],
+              ["Align top", <AlignStartHorizontal key="t" />, () => ({ y: 0 })],
+              ["Align middle", <AlignCenterHorizontal key="m" />, (b: Block) => ({ y: (s.project.height - b.h) / 2 })],
+              ["Align bottom", <AlignEndHorizontal key="b" />, (b: Block) => ({ y: s.project.height - b.h })],
+            ] as const
+          ).map(([label, icon, fn]) => (
+            <MenuItem
+              key={label}
+              icon={icon}
+              onClick={() => {
+                const patches: Record<string, Partial<Block>> = {};
+                ids.forEach((id) => {
+                  const b = findBlock(s.project, id)?.block;
+                  if (b && !b.locked) patches[id] = fn(b);
+                });
+                s.updateBlocks(patches);
+              }}
+            >
+              {label}
+            </MenuItem>
+          ))}
           <MenuDivider />
           {ids.length > 1 && !grouped ? (
             <MenuItem icon={<Group />} shortcut="⌘G" onClick={() => s.groupBlocks(ids)}>

@@ -8,10 +8,13 @@ import {
   ChevronRight,
   ChevronUp,
   Copy,
+  Eye,
+  EyeOff,
   Group,
   Lock,
   LockOpen,
   Maximize2,
+  MoreHorizontal,
   Music,
   Pause,
   Play,
@@ -347,7 +350,8 @@ function Tracks() {
   }, []);
 
   const total = totalDuration(project);
-  const fitPx = Math.max(20, (viewW - PAD_X * 2 - 80) / Math.max(total, 0.5));
+  /* Fit shows the whole project plus a quarter of headroom, as the reference does, so the end is never against the edge. */
+  const fitPx = Math.max(20, (viewW - PAD_X * 2) / (Math.max(total, 0.5) * 1.25));
   const pxPerSec = pxPerSecPref ?? fitPx;
   const setFitPx = useBottomUi((s) => s.setFitPx);
   useEffect(() => setFitPx(fitPx), [fitPx, setFitPx]);
@@ -355,7 +359,7 @@ function Tracks() {
   const activeIndex = Math.max(0, project.slides.findIndex((s) => s.id === activeSlideId));
   const globalTime = offsets[activeIndex] + time;
   const playheadX = PAD_X + globalTime * pxPerSec;
-  const contentW = Math.max(viewW, PAD_X * 2 + total * pxPerSec + 120);
+  const contentW = Math.max(viewW, PAD_X * 2 + total * pxPerSec + Math.max(160, total * pxPerSec * 0.25));
 
   /* Keep the playhead in view while playing. */
   useEffect(() => {
@@ -452,6 +456,7 @@ function Tracks() {
               offset={offsets[project.slides.indexOf(slide)]}
               pxPerSec={pxPerSec}
               selected={selection.includes(block.id)}
+              scrollRef={scrollRef}
               onContext={(x, y, items) => setCtx({ x, y, items })}
             />
           ))}
@@ -459,7 +464,7 @@ function Tracks() {
           <div className="relative flex items-center" style={{ height: ROW_H, paddingLeft: PAD_X + LABEL_W }}>
             {project.audio.length ? (
               project.audio.map((a) => (
-                <AudioBar key={a.id} track={a} pxPerSec={pxPerSec} total={total} onContext={(x, y, items) => setCtx({ x, y, items })} />
+                <AudioBar key={a.id} track={a} pxPerSec={pxPerSec} total={total} scrollRef={scrollRef} onContext={(x, y, items) => setCtx({ x, y, items })} />
               ))
             ) : (
               <button type="button" className={laneBtn} onClick={() => setLeftTab("audio")}>
@@ -569,25 +574,66 @@ function ZoomControls() {
   );
 }
 
+const pillIcon = "flex size-4 items-center justify-center rounded-[4px] text-white/80 hover:bg-white/20 hover:text-white [&>svg]:size-3";
+
 const zoomIcon = "flex size-6 items-center justify-center rounded-[6px] text-ink-secondary hover:bg-[var(--state-hover)] hover:text-ink [&>svg]:size-3.5";
 
-/* Pointer-drag helper shared by every bar: reports dx in seconds. */
-function useDragSeconds(pxPerSec: number) {
+/*
+  Pointer-drag helper shared by every bar. Reports the pointer's travel in
+  seconds, including any distance the view scrolled. While the pointer sits
+  past either edge of the track area the view creeps along — faster the
+  further past — and keeps reporting, so a long edit is one held drag. The
+  scale is frozen for the gesture (fit mode would otherwise re-scale under
+  the pointer) and stays frozen afterwards, as in the reference.
+*/
+function useTimelineDrag(scrollRef: RefObject<HTMLDivElement | null>, pxPerSec: number) {
   return (e: React.PointerEvent, onMove: (dt: number) => void, onEnd?: () => void) => {
     if (e.button !== 0) return;
     e.preventDefault();
     e.stopPropagation();
+    const scroller = scrollRef.current;
+    const ui = useBottomUi.getState();
+    if (ui.pxPerSec === null) ui.setPxPerSec(pxPerSec);
     const x0 = e.clientX;
-    const move = (ev: PointerEvent) => onMove((ev.clientX - x0) / pxPerSec);
+    const scroll0 = scroller?.scrollLeft ?? 0;
+    let pointerX = x0;
+    let raf = 0;
+    const dt = () => (pointerX - x0 + ((scroller?.scrollLeft ?? 0) - scroll0)) / pxPerSec;
+    const edge = () => {
+      if (scroller) {
+        const r = scroller.getBoundingClientRect();
+        const over = pointerX > r.right - 24 ? pointerX - (r.right - 24) : pointerX < r.left + 24 ? pointerX - (r.left + 24) : 0;
+        if (over) {
+          scroller.scrollLeft += Math.sign(over) * Math.min(28, 3 + Math.abs(over) / 6);
+          onMove(dt());
+        }
+      }
+      raf = requestAnimationFrame(edge);
+    };
+    const move = (ev: PointerEvent) => {
+      pointerX = ev.clientX;
+      onMove(dt());
+    };
     const up = () => {
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
+      cancelAnimationFrame(raf);
+      /* The handle tracked a pointer that was past the edge; bring it back into view. */
+      if (scroller) {
+        const r = scroller.getBoundingClientRect();
+        if (pointerX > r.right - 24) scroller.scrollLeft += pointerX - (r.right - 24) + 8;
+        else if (pointerX < r.left + 24) scroller.scrollLeft -= r.left + 24 - pointerX + 8;
+      }
       onEnd?.();
     };
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
+    raf = requestAnimationFrame(edge);
   };
 }
+
+/* mm:ss.t, the reference's label while a pill end is being dragged. */
+const clockLabel = (t: number) => `${String(Math.floor(t / 60)).padStart(2, "0")}:${(t % 60).toFixed(1).padStart(4, "0")}`;
 
 const snap = (v: number) => Math.round(v * 10) / 10;
 
@@ -625,72 +671,34 @@ function SceneBar({
   const thumbScale = (SCENE_H - 8) / height;
 
   /*
-    Dragging the scene's end. The scale is frozen for the whole gesture so the
-    handle stays under the pointer instead of the timeline re-fitting around
-    it, and pushing past the panel's edge auto-scrolls — the further past, the
-    faster — so a long scene is one held drag, not a chain of tiny ones.
-    Layers that ran to the end of the scene follow it live.
+    Dragging the scene's end. Layers that ran to the end of the scene follow
+    it live; the helper handles the frozen scale and edge auto-scroll.
   */
+  const drag = useTimelineDrag(scrollRef, pxPerSec);
   const resize = (e: React.PointerEvent) => {
-    if (e.button !== 0) return;
-    e.preventDefault();
-    e.stopPropagation();
-    const scroller = scrollRef.current;
-    const ui = useBottomUi.getState();
-    const wasFit = ui.pxPerSec === null;
-    if (wasFit) ui.setPxPerSec(pxPerSec);
     const original = slide.duration;
     const pinned = new Set(slide.blocks.filter((b) => Math.abs(b.end - original) < 0.05).map((b) => b.id));
-    const x0 = e.clientX;
-    const scroll0 = scroller?.scrollLeft ?? 0;
-    let pointerX = x0;
-    let raf = 0;
     useEditor.getState().setInteracting(true);
-
-    const apply = () => {
-      const scrolled = (scroller?.scrollLeft ?? 0) - scroll0;
-      const duration = Math.max(0.5, snap(original + (pointerX - x0 + scrolled) / pxPerSec));
-      const state = useEditor.getState();
-      const now = state.project.slides.find((s) => s.id === slide.id);
-      if (!now || now.duration === duration) return;
-      updateSlide(slide.id, { duration });
-      const patches: Record<string, Partial<Block>> = {};
-      now.blocks.forEach((b) => {
-        if (pinned.has(b.id) || b.end > duration) patches[b.id] = { end: duration, start: Math.min(b.start, duration - 0.1) };
-      });
-      if (Object.keys(patches).length) updateBlocks(patches);
-      setDragging(duration);
-    };
-
-    /* Past either edge of the viewport the view creeps along and the duration keeps changing. */
-    const edge = () => {
-      if (!scroller) return;
-      const r = scroller.getBoundingClientRect();
-      const over = pointerX > r.right - 24 ? pointerX - (r.right - 24) : pointerX < r.left + 24 ? pointerX - (r.left + 24) : 0;
-      if (over) {
-        scroller.scrollLeft += Math.sign(over) * Math.min(28, 3 + Math.abs(over) / 6);
-        apply();
-      }
-      raf = requestAnimationFrame(edge);
-    };
-
-    const move = (ev: PointerEvent) => {
-      pointerX = ev.clientX;
-      apply();
-    };
-    const up = () => {
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerup", up);
-      cancelAnimationFrame(raf);
-      useEditor.getState().setInteracting(false);
-      setDragging(null);
-      /* Fit mode resumes so the finished scene fills the view again. */
-      if (wasFit) useBottomUi.getState().setPxPerSec(null);
-    };
-    window.addEventListener("pointermove", move);
-    window.addEventListener("pointerup", up);
-    raf = requestAnimationFrame(edge);
     setDragging(original);
+    drag(
+      e,
+      (dt) => {
+        const duration = Math.max(0.5, snap(original + dt));
+        const now = useEditor.getState().project.slides.find((s) => s.id === slide.id);
+        if (!now || now.duration === duration) return;
+        updateSlide(slide.id, { duration });
+        const patches: Record<string, Partial<Block>> = {};
+        now.blocks.forEach((b) => {
+          if (pinned.has(b.id) || b.end > duration) patches[b.id] = { end: duration, start: Math.min(b.start, duration - 0.1) };
+        });
+        if (Object.keys(patches).length) updateBlocks(patches);
+        setDragging(duration);
+      },
+      () => {
+        useEditor.getState().setInteracting(false);
+        setDragging(null);
+      },
+    );
   };
 
   return (
@@ -755,7 +763,7 @@ function SceneBar({
       </div>
       {dragging !== null ? (
         <span className="pointer-events-none absolute top-1/2 right-4 -translate-y-1/2 rounded-[4px] bg-black/80 px-1.5 py-0.5 text-[10px] leading-[12px] font-medium tabular-nums text-white">
-          {dragging.toFixed(1)}s
+          {clockLabel(dragging)}
         </span>
       ) : null}
     </div>
@@ -864,6 +872,7 @@ function LayerBar({
   offset,
   pxPerSec,
   selected,
+  scrollRef,
   onContext,
 }: {
   slide: Slide;
@@ -873,10 +882,12 @@ function LayerBar({
   offset: number;
   pxPerSec: number;
   selected: boolean;
+  scrollRef: RefObject<HTMLDivElement | null>;
   onContext: (x: number, y: number, items: ReactNode) => void;
 }) {
   const updateBlock = useEditor((s) => s.updateBlock);
   const updateBlocks = useEditor((s) => s.updateBlocks);
+  const updateSlide = useEditor((s) => s.updateSlide);
   const moveBlockTo = useEditor((s) => s.moveBlockTo);
   const select = useEditor((s) => s.select);
   const setActiveSlide = useEditor((s) => s.setActiveSlide);
@@ -885,11 +896,12 @@ function LayerBar({
   const reorder = useEditor((s) => s.reorder);
   const groupBlocks = useEditor((s) => s.groupBlocks);
   const ungroupBlocks = useEditor((s) => s.ungroupBlocks);
-  const drag = useDragSeconds(pxPerSec);
+  const drag = useTimelineDrag(scrollRef, pxPerSec);
   const [lifting, setLifting] = useState(false);
+  /* Time shown beside the handle while an end is being dragged. */
+  const [label, setLabel] = useState<{ side: "start" | "end"; t: number } | null>(null);
 
   const clampStart = (v: number) => Math.min(Math.max(0, v), block.end - 0.1);
-  const clampEnd = (v: number) => Math.max(Math.min(slide.duration, v), block.start + 0.1);
 
   /* The ids an action applies to: the selection when this layer is part of it, else just this layer. */
   const targets = () => {
@@ -918,9 +930,14 @@ function LayerBar({
     const maxDt = Math.min(...movers.map((b) => slide.duration - b.end));
     const x0 = e.clientX;
     const y0 = e.clientY;
+    const scroller = scrollRef.current;
+    const scroll0 = scroller?.scrollLeft ?? 0;
+    let pointer = { x: x0, y: y0 };
     let mode: "time" | "stack" | null = null;
-    const onMove = (ev: PointerEvent) => {
-      const dx = ev.clientX - x0;
+    let raf = 0;
+    const onMove = (ev: PointerEvent | { clientX: number; clientY: number }) => {
+      pointer = { x: ev.clientX, y: ev.clientY };
+      const dx = ev.clientX - x0 + ((scroller?.scrollLeft ?? 0) - scroll0);
       const dy = ev.clientY - y0;
       if (!mode) {
         if (Math.abs(dx) < 4 && Math.abs(dy) < 4) return;
@@ -939,22 +956,105 @@ function LayerBar({
       origin.forEach((o, id) => (patches[id] = { start: snap(o.start + dt), end: snap(o.end + dt) }));
       updateBlocks(patches);
     };
+    /* Past the track's edge the view creeps along so a pill can be carried further than the panel is wide. */
+    const edge = () => {
+      if (scroller && mode === "time") {
+        const r = scroller.getBoundingClientRect();
+        const over = pointer.x > r.right - 24 ? pointer.x - (r.right - 24) : pointer.x < r.left + 24 ? pointer.x - (r.left + 24) : 0;
+        if (over) {
+          scroller.scrollLeft += Math.sign(over) * Math.min(28, 3 + Math.abs(over) / 6);
+          onMove({ clientX: pointer.x, clientY: pointer.y });
+        }
+      }
+      raf = requestAnimationFrame(edge);
+    };
     const onUp = () => {
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
+      cancelAnimationFrame(raf);
       state.setInteracting(false);
       setLifting(false);
     };
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
+    raf = requestAnimationFrame(edge);
   };
   const trimStart = (e: React.PointerEvent) => {
     const { start } = block;
-    drag(e, (dt) => updateBlock(block.id, { start: clampStart(snap(start + dt)) }));
+    useEditor.getState().setInteracting(true);
+    drag(
+      e,
+      (dt) => {
+        const v = clampStart(snap(start + dt));
+        updateBlock(block.id, { start: v });
+        setLabel({ side: "start", t: v });
+      },
+      () => {
+        useEditor.getState().setInteracting(false);
+        setLabel(null);
+      },
+    );
   };
+  /*
+    Dragging an end past the scene's end lengthens the scene with it — the
+    project is as long as its longest layer, as in the reference. Other
+    layers keep their own length.
+  */
   const trimEnd = (e: React.PointerEvent) => {
     const { end } = block;
-    drag(e, (dt) => updateBlock(block.id, { end: clampEnd(snap(end + dt)) }));
+    useEditor.getState().setInteracting(true);
+    drag(
+      e,
+      (dt) => {
+        const v = Math.max(block.start + 0.1, snap(end + dt));
+        const now = useEditor.getState().project.slides.find((s) => s.id === slide.id);
+        if (now && v > now.duration) updateSlide(slide.id, { duration: v });
+        updateBlock(block.id, { end: v });
+        setLabel({ side: "end", t: v });
+      },
+      () => {
+        useEditor.getState().setInteracting(false);
+        setLabel(null);
+      },
+    );
+  };
+
+  const openMenu = (x: number, y: number) => {
+    const ids = targets();
+    const grouped = slide.blocks.some((b) => ids.includes(b.id) && b.groupId);
+    onContext(
+      x,
+      y,
+      <>
+        <MenuItem onClick={() => duplicateBlocks(ids)} icon={<Copy />} shortcut="⌘D">
+          Duplicate
+        </MenuItem>
+        <MenuDivider />
+        <MenuItem onClick={() => ids.forEach((id) => reorder(id, "forward"))} icon={<ArrowUp />} shortcut="]">
+          Move up
+        </MenuItem>
+        <MenuItem onClick={() => ids.forEach((id) => reorder(id, "backward"))} icon={<ArrowDown />} shortcut="[">
+          Move down
+        </MenuItem>
+        <MenuDivider />
+        {ids.length > 1 && !grouped ? (
+          <MenuItem onClick={() => groupBlocks(ids)} icon={<Group />} shortcut="⌘G">
+            Group
+          </MenuItem>
+        ) : null}
+        {grouped ? (
+          <MenuItem onClick={() => ungroupBlocks(ids)} icon={<Ungroup />} shortcut="⌘⇧G">
+            Ungroup
+          </MenuItem>
+        ) : null}
+        <MenuItem onClick={() => ids.forEach((id) => updateBlock(id, { locked: !block.locked }))} icon={block.locked ? <LockOpen /> : <Lock />}>
+          {block.locked ? "Unlock" : "Lock"}
+        </MenuItem>
+        <MenuItem onClick={() => removeBlocks(ids)} icon={<Trash2 />} shortcut="⌫" destructive>
+          Delete{ids.length > 1 ? ` ${ids.length} layers` : ""}
+        </MenuItem>
+      </>,
+    );
   };
 
   const style: CSSProperties = {
@@ -977,45 +1077,33 @@ function LayerBar({
           e.preventDefault();
           e.stopPropagation();
           pick();
-          const ids = targets();
-          const grouped = slide.blocks.some((b) => ids.includes(b.id) && b.groupId);
-          onContext(
-            e.clientX,
-            e.clientY,
-            <>
-              <MenuItem onClick={() => duplicateBlocks(ids)} icon={<Copy />} shortcut="⌘D">
-                Duplicate
-              </MenuItem>
-              <MenuDivider />
-              <MenuItem onClick={() => ids.forEach((id) => reorder(id, "forward"))} icon={<ArrowUp />} shortcut="]">
-                Move up
-              </MenuItem>
-              <MenuItem onClick={() => ids.forEach((id) => reorder(id, "backward"))} icon={<ArrowDown />} shortcut="[">
-                Move down
-              </MenuItem>
-              <MenuDivider />
-              {ids.length > 1 && !grouped ? (
-                <MenuItem onClick={() => groupBlocks(ids)} icon={<Group />} shortcut="⌘G">
-                  Group
-                </MenuItem>
-              ) : null}
-              {grouped ? (
-                <MenuItem onClick={() => ungroupBlocks(ids)} icon={<Ungroup />} shortcut="⌘⇧G">
-                  Ungroup
-                </MenuItem>
-              ) : null}
-              <MenuItem onClick={() => ids.forEach((id) => updateBlock(id, { locked: !block.locked }))} icon={block.locked ? <LockOpen /> : <Lock />}>
-                {block.locked ? "Unlock" : "Lock"}
-              </MenuItem>
-              <MenuItem onClick={() => removeBlocks(ids)} icon={<Trash2 />} shortcut="⌫" destructive>
-                Delete{ids.length > 1 ? ` ${ids.length} layers` : ""}
-              </MenuItem>
-            </>,
-          );
+          openMenu(e.clientX, e.clientY);
         }}
       >
         {block.groupId ? <Group className="ml-1.5 size-3 shrink-0 text-white/70" aria-label="In a group" /> : null}
-        <span className="pointer-events-none truncate px-2 text-[10px] leading-none font-medium tracking-[0.3px] text-white/90">{layerLabel(block)}</span>
+        <span className={cn("pointer-events-none truncate px-2 text-[10px] leading-none font-medium tracking-[0.3px] text-white/90", block.hidden && "line-through opacity-60")}>{layerLabel(block)}</span>
+        <span className="flex-1" />
+        {/* The reference's pill affordances: menu, lock and visibility, shown on hover at the right end. */}
+        <div className="mr-3 hidden shrink-0 items-center gap-0.5 group-hover:flex" onPointerDown={(e) => e.stopPropagation()}>
+          <button
+            type="button"
+            aria-label="Layer options"
+            className={pillIcon}
+            onClick={(e) => {
+              pick();
+              const r = e.currentTarget.getBoundingClientRect();
+              openMenu(r.left, r.bottom + 4);
+            }}
+          >
+            <MoreHorizontal />
+          </button>
+          <button type="button" aria-label={block.locked ? "Unlock" : "Lock"} aria-pressed={block.locked} className={pillIcon} onClick={() => updateBlock(block.id, { locked: !block.locked })}>
+            {block.locked ? <Lock /> : <LockOpen />}
+          </button>
+          <button type="button" aria-label={block.hidden ? "Show layer" : "Hide layer"} aria-pressed={block.hidden} className={pillIcon} onClick={() => updateBlock(block.id, { hidden: !block.hidden })}>
+            {block.hidden ? <EyeOff /> : <Eye />}
+          </button>
+        </div>
         <div className="absolute top-0 bottom-0 left-0 w-2 cursor-ew-resize" onPointerDown={trimStart}>
           <div className="absolute top-1/2 left-[3px] h-2.5 w-[2px] -translate-y-1/2 rounded-full bg-white/70 opacity-0 group-hover:opacity-100" />
         </div>
@@ -1023,6 +1111,14 @@ function LayerBar({
           <div className="absolute top-1/2 right-[3px] h-2.5 w-[2px] -translate-y-1/2 rounded-full bg-white/70 opacity-0 group-hover:opacity-100" />
         </div>
       </div>
+      {label ? (
+        <span
+          className="pointer-events-none absolute -top-3 z-20 rounded-[4px] bg-black/85 px-1.5 py-0.5 text-[10px] leading-[12px] font-medium tabular-nums text-white"
+          style={label.side === "end" ? { left: (offset + label.t) * pxPerSec + 6 } : { left: (offset + label.t) * pxPerSec - 44 }}
+        >
+          {clockLabel(label.t)}
+        </span>
+      ) : null}
     </div>
   );
 }
@@ -1031,16 +1127,18 @@ function AudioBar({
   track,
   pxPerSec,
   total,
+  scrollRef,
   onContext,
 }: {
   track: { id: string; title: string; start: number; duration: number };
   pxPerSec: number;
   total: number;
+  scrollRef: RefObject<HTMLDivElement | null>;
   onContext: (x: number, y: number, items: ReactNode) => void;
 }) {
   const updateAudio = useEditor((s) => s.updateAudio);
   const removeAudio = useEditor((s) => s.removeAudio);
-  const drag = useDragSeconds(pxPerSec);
+  const drag = useTimelineDrag(scrollRef, pxPerSec);
   const move = (e: React.PointerEvent) => {
     const { start } = track;
     drag(e, (dt) => updateAudio(track.id, { start: Math.min(Math.max(0, snap(start + dt)), Math.max(0, total - track.duration)) }));

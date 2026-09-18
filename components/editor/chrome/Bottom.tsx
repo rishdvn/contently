@@ -1078,8 +1078,9 @@ function LayerBar({
         )}
         style={style}
         onPointerDown={move}
-        onMouseEnter={() => setHover(true)}
-        onMouseLeave={() => setHover(false)}
+        onPointerEnter={() => setHover(true)}
+        onPointerLeave={() => setHover(false)}
+        onPointerMove={() => !hover && setHover(true)}
         onContextMenu={(e) => {
           e.preventDefault();
           e.stopPropagation();
@@ -1091,7 +1092,7 @@ function LayerBar({
         <span className={cn("pointer-events-none truncate px-2 text-[10px] leading-none font-medium tracking-[0.3px] text-white/90", block.hidden && "line-through opacity-60")}>{layerLabel(block)}</span>
         <span className="flex-1" />
         {/* The reference's pill affordances: menu, lock and visibility, shown on hover at the right end. */}
-        <div className={cn("mr-3 shrink-0 items-center gap-0.5", hover ? "flex" : "hidden")} onPointerDown={(e) => e.stopPropagation()}>
+        <div className={cn("mr-3 shrink-0 items-center gap-0.5", hover ? "flex" : "hidden group-hover:flex")} onPointerDown={(e) => e.stopPropagation()}>
           <button
             type="button"
             aria-label="Layer options"
@@ -1112,10 +1113,10 @@ function LayerBar({
           </button>
         </div>
         <div className="absolute top-0 bottom-0 left-0 w-2 cursor-ew-resize" onPointerDown={trimStart}>
-          <div className={cn("absolute top-1/2 left-[3px] h-2.5 w-[2px] -translate-y-1/2 rounded-full bg-white/70", hover ? "opacity-100" : "opacity-0")} />
+          <div className={cn("absolute top-1/2 left-[3px] h-2.5 w-[2px] -translate-y-1/2 rounded-full bg-white/70", hover ? "opacity-100" : "opacity-0 group-hover:opacity-100")} />
         </div>
         <div className="absolute top-0 right-0 bottom-0 w-2 cursor-ew-resize" onPointerDown={trimEnd}>
-          <div className={cn("absolute top-1/2 right-[3px] h-2.5 w-[2px] -translate-y-1/2 rounded-full bg-white/70", hover ? "opacity-100" : "opacity-0")} />
+          <div className={cn("absolute top-1/2 right-[3px] h-2.5 w-[2px] -translate-y-1/2 rounded-full bg-white/70", hover ? "opacity-100" : "opacity-0 group-hover:opacity-100")} />
         </div>
       </div>
       {label ? (

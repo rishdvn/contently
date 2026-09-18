@@ -59,8 +59,9 @@ export function Editor({ projectId, kind }: { projectId: string; kind?: string }
     from the top edge, the timeline spans the full width beneath everything,
     and the top bar centres in whatever canvas is left between the two.
   */
+  const panelRight = LEFT_PANEL_X + LEFT_PANEL_WIDTH + 12;
   const insets = {
-    left: leftTab ? LEFT_PANEL_X + LEFT_PANEL_WIDTH + 12 : LEFT_PANEL_X,
+    left: leftTab ? panelRight : LEFT_PANEL_X,
     right: INSPECTOR_WIDTH + 24,
     top: 60,
     bottom,
@@ -73,10 +74,10 @@ export function Editor({ projectId, kind }: { projectId: string; kind?: string }
       <link rel="stylesheet" href={googleFontsHref()} crossOrigin="anonymous" />
       <Viewport insets={insets}>
         <TopBar left={insets.left} right={insets.right} />
-        <Rail bottom={bottom} />
+        <Rail top={insets.top} bottom={bottom} />
         <LeftPanel bottom={bottom} />
         <Inspector bottom={bottom} />
-        <Bottom left={12} right={12} />
+        <Bottom left={leftTab ? panelRight : 12} right={12} />
       </Viewport>
       <ExportDialog />
       <ShareDialog />

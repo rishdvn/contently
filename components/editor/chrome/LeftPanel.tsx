@@ -7,6 +7,7 @@ import { cn } from "@/lib/cn";
 import { useEditor } from "@/lib/editor/store";
 
 import { Panel } from "../controls";
+import { usePeek } from "./Rail";
 import { AudioPanel, BrandkitPanel, BuildPanel, CaptionsPanel, StockPanel, UploadsPanel } from "./panels/misc";
 import { BlocksPanel, TemplatesPanel, TextPanel } from "./panels/library";
 
@@ -14,17 +15,25 @@ export const LEFT_PANEL_WIDTH = 400;
 export const LEFT_PANEL_X = 84;
 
 /*
-  The flyout beside the rail. One shell, nine bodies. It is a floating surface
-  like everything else: the canvas continues underneath it.
+  The flyout beside the rail. One shell, nine bodies. Hovering a rail tab
+  peeks it as an overlay from the top edge down to the timeline, leaving the
+  canvas where it is; clicking pins it, and the pinned panel runs from below
+  the top bar to the window's bottom while the timeline and canvas make room.
 */
 export function LeftPanel({ bottom }: { bottom: number }) {
-  const tab = useEditor((s) => s.leftTab);
+  const pinned = useEditor((s) => s.leftTab);
+  const peek = usePeek((s) => s.tab);
+  const hold = usePeek((s) => s.hold);
+  const release = usePeek((s) => s.release);
+  const tab = pinned ?? peek;
   if (!tab) return null;
   return (
     <Panel
-      className="absolute top-16 flex flex-col overflow-hidden"
-      style={{ left: LEFT_PANEL_X, width: LEFT_PANEL_WIDTH, bottom }}
+      className="absolute flex flex-col overflow-hidden"
+      style={pinned ? { left: LEFT_PANEL_X, width: LEFT_PANEL_WIDTH, top: 64, bottom: 8 } : { left: LEFT_PANEL_X, width: LEFT_PANEL_WIDTH, top: 8, bottom: bottom + 8, zIndex: "var(--z-sticky)" }}
       onPointerDown={(e) => e.stopPropagation()}
+      onPointerEnter={pinned ? undefined : hold}
+      onPointerLeave={pinned ? undefined : release}
     >
       {tab === "build" ? <BuildPanel /> : null}
       {tab === "templates" ? <TemplatesPanel /> : null}

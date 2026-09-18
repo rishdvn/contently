@@ -80,7 +80,7 @@ export function Inspector({ bottom }: { bottom: number }) {
       surface ladder shifts down a step so cards sit on the canvas directly.
     */
     <div
-      className="inspector pointer-events-auto absolute top-2 right-3 flex flex-col gap-1.5 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      className="inspector pointer-events-auto absolute top-2 right-3 flex flex-col gap-1.5 overflow-x-hidden overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       style={{ width: INSPECTOR_WIDTH, maxHeight: `calc(100% - ${bottom + 8}px)` }}
       onPointerDown={(e) => e.stopPropagation()}
     >

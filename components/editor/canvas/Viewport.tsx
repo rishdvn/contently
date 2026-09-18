@@ -45,6 +45,7 @@ export function Viewport({ insets, children }: { insets: Insets; children?: Reac
     if (dx) useEditor.getState().setViewport((v) => ({ ...v, x: v.x + dx }));
   }, [insets.left, insets.right]);
 
+
   const visibleArea = useCallback((): Rect => {
     const el = ref.current;
     const i = insetsRef.current;
@@ -65,6 +66,20 @@ export function Viewport({ insets, children }: { insets: Insets; children?: Reac
     },
     [visibleArea],
   );
+
+  /*
+    When the timeline grows or collapses the free height changes; the active
+    artboard is refitted to it so it never ends up behind the panel.
+  */
+  const lastBottom = useRef(insets.bottom);
+  useLayoutEffect(() => {
+    if (insets.bottom === lastBottom.current) return;
+    lastBottom.current = insets.bottom;
+    const p = useEditor.getState().project;
+    const index = Math.max(0, p.slides.findIndex((s) => s.id === useEditor.getState().activeSlideId));
+    const rect = p.kind === "carousel" ? worldBounds(p) : slideRect(p, index);
+    useEditor.getState().setViewport(fitViewport(rect, visibleArea()));
+  }, [insets.bottom, visibleArea]);
 
   /* Fit once per project; after that the user owns the camera. */
   const fittedFor = useRef<string | null>(null);

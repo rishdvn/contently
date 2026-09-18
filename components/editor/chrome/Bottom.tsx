@@ -25,7 +25,7 @@ import {
   ZoomIn,
   ZoomOut,
 } from "lucide-react";
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
 import { create } from "zustand";
 
 import { Menu, MenuDivider, MenuItem } from "@/components/ui/menu";
@@ -435,6 +435,7 @@ function Tracks() {
                 left={offsets[i] * pxPerSec}
                 pxPerSec={pxPerSec}
                 active={sl.id === activeSlideId}
+                scrollRef={scrollRef}
                 onContext={(x, y, items) => setCtx({ x, y, items })}
               />
             ))}
@@ -596,6 +597,7 @@ function SceneBar({
   left,
   pxPerSec,
   active,
+  scrollRef,
   onContext,
 }: {
   slide: Slide;
@@ -603,6 +605,7 @@ function SceneBar({
   left: number;
   pxPerSec: number;
   active: boolean;
+  scrollRef: RefObject<HTMLDivElement | null>;
   onContext: (x: number, y: number, items: ReactNode) => void;
 }) {
   const setActiveSlide = useEditor((s) => s.setActiveSlide);
@@ -616,29 +619,78 @@ function SceneBar({
   const height = useEditor((s) => s.project.height);
   const isApart = useBottomUi((s) => s.brokenApart.includes(slide.id));
   const breakApart = useBottomUi((s) => s.breakApart);
-  const drag = useDragSeconds(pxPerSec);
-  const startDuration = useRef(slide.duration);
+  const [dragging, setDragging] = useState<number | null>(null);
 
   const width = slide.duration * pxPerSec;
   const thumbScale = (SCENE_H - 8) / height;
 
+  /*
+    Dragging the scene's end. The scale is frozen for the whole gesture so the
+    handle stays under the pointer instead of the timeline re-fitting around
+    it, and pushing past the panel's edge auto-scrolls — the further past, the
+    faster — so a long scene is one held drag, not a chain of tiny ones.
+    Layers that ran to the end of the scene follow it live.
+  */
   const resize = (e: React.PointerEvent) => {
-    startDuration.current = slide.duration;
-    const original = startDuration.current;
-    drag(
-      e,
-      (dt) => updateSlide(slide.id, { duration: Math.max(0.5, snap(original + dt)) }),
-      () => {
-        /* Blocks that ran to the end of the scene keep doing so. */
-        const now = useEditor.getState().project.slides.find((s) => s.id === slide.id);
-        if (!now) return;
-        const patches: Record<string, Partial<Block>> = {};
-        now.blocks.forEach((b) => {
-          if (Math.abs(b.end - original) < 0.05 || b.end > now.duration) patches[b.id] = { end: now.duration, start: Math.min(b.start, now.duration - 0.1) };
-        });
-        if (Object.keys(patches).length) updateBlocks(patches);
-      },
-    );
+    if (e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const scroller = scrollRef.current;
+    const ui = useBottomUi.getState();
+    const wasFit = ui.pxPerSec === null;
+    if (wasFit) ui.setPxPerSec(pxPerSec);
+    const original = slide.duration;
+    const pinned = new Set(slide.blocks.filter((b) => Math.abs(b.end - original) < 0.05).map((b) => b.id));
+    const x0 = e.clientX;
+    const scroll0 = scroller?.scrollLeft ?? 0;
+    let pointerX = x0;
+    let raf = 0;
+    useEditor.getState().setInteracting(true);
+
+    const apply = () => {
+      const scrolled = (scroller?.scrollLeft ?? 0) - scroll0;
+      const duration = Math.max(0.5, snap(original + (pointerX - x0 + scrolled) / pxPerSec));
+      const state = useEditor.getState();
+      const now = state.project.slides.find((s) => s.id === slide.id);
+      if (!now || now.duration === duration) return;
+      updateSlide(slide.id, { duration });
+      const patches: Record<string, Partial<Block>> = {};
+      now.blocks.forEach((b) => {
+        if (pinned.has(b.id) || b.end > duration) patches[b.id] = { end: duration, start: Math.min(b.start, duration - 0.1) };
+      });
+      if (Object.keys(patches).length) updateBlocks(patches);
+      setDragging(duration);
+    };
+
+    /* Past either edge of the viewport the view creeps along and the duration keeps changing. */
+    const edge = () => {
+      if (!scroller) return;
+      const r = scroller.getBoundingClientRect();
+      const over = pointerX > r.right - 24 ? pointerX - (r.right - 24) : pointerX < r.left + 24 ? pointerX - (r.left + 24) : 0;
+      if (over) {
+        scroller.scrollLeft += Math.sign(over) * Math.min(28, 3 + Math.abs(over) / 6);
+        apply();
+      }
+      raf = requestAnimationFrame(edge);
+    };
+
+    const move = (ev: PointerEvent) => {
+      pointerX = ev.clientX;
+      apply();
+    };
+    const up = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      cancelAnimationFrame(raf);
+      useEditor.getState().setInteracting(false);
+      setDragging(null);
+      /* Fit mode resumes so the finished scene fills the view again. */
+      if (wasFit) useBottomUi.getState().setPxPerSec(null);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    raf = requestAnimationFrame(edge);
+    setDragging(original);
   };
 
   return (
@@ -692,11 +744,20 @@ function SceneBar({
         {slide.name || `Scene ${index + 1}`}
       </span>
       <div
-        className="absolute top-0 right-0 bottom-0 w-2 cursor-ew-resize opacity-0 transition-opacity group-hover:opacity-100"
+        className={cn(
+          "absolute top-0 right-0 bottom-0 w-3 cursor-ew-resize transition-opacity",
+          dragging !== null ? "opacity-100" : active ? "opacity-70 group-hover:opacity-100" : "opacity-0 group-hover:opacity-100",
+        )}
         onPointerDown={resize}
+        aria-label="Scene length"
       >
-        <div className="absolute top-1/2 right-[3px] h-3 w-[2px] -translate-y-1/2 rounded-full bg-white/80" />
+        <div className={cn("absolute top-1/2 right-[4px] h-4 w-[3px] -translate-y-1/2 rounded-full", dragging !== null ? "bg-spectrum-amber" : "bg-white/80")} />
       </div>
+      {dragging !== null ? (
+        <span className="pointer-events-none absolute top-1/2 right-4 -translate-y-1/2 rounded-[4px] bg-black/80 px-1.5 py-0.5 text-[10px] leading-[12px] font-medium tabular-nums text-white">
+          {dragging.toFixed(1)}s
+        </span>
+      ) : null}
     </div>
   );
 }

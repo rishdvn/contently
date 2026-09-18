@@ -32,15 +32,12 @@ export function Tooltip({
     const r = ref.current?.getBoundingClientRect();
     if (!r) return;
     const gap = 6;
-    setPos(
-      side === "top"
-        ? { x: r.left + r.width / 2, y: r.top - gap }
-        : side === "bottom"
-          ? { x: r.left + r.width / 2, y: r.bottom + gap }
-          : side === "left"
-            ? { x: r.left - gap, y: r.top + r.height / 2 }
-            : { x: r.right + gap, y: r.top + r.height / 2 },
-    );
+    if (side === "left") return setPos({ x: r.left - gap, y: r.top + r.height / 2 });
+    if (side === "right") return setPos({ x: r.right + gap, y: r.top + r.height / 2 });
+    /* Centred on the trigger, then nudged so the label stays inside the window when the trigger sits at an edge. */
+    const half = measure(label) / 2;
+    const x = Math.min(Math.max(r.left + r.width / 2, 8 + half), window.innerWidth - 8 - half);
+    setPos({ x, y: side === "top" ? r.top - gap : r.bottom + gap });
   };
   const hide = () => setPos(null);
 
@@ -54,14 +51,6 @@ export function Tooltip({
       window.removeEventListener("pointerdown", hide, true);
     };
   }, [pos]);
-
-  /* Keep the label on screen when its trigger sits against a window edge. */
-  const clamp = (el: HTMLSpanElement | null) => {
-    if (!el) return;
-    const r = el.getBoundingClientRect();
-    const dx = r.left < 8 ? 8 - r.left : r.right > window.innerWidth - 8 ? window.innerWidth - 8 - r.right : 0;
-    if (dx) el.style.marginLeft = `${dx}px`;
-  };
 
   const transform = {
     top: "translate(-50%, -100%)",
@@ -84,18 +73,31 @@ export function Tooltip({
       {pos
         ? createPortal(
             <span
-              ref={clamp}
               id={id}
               role="tooltip"
               className="pointer-events-none fixed"
               style={{ left: pos.x, top: pos.y, transform, zIndex: "var(--z-tooltip)" }}
             >
               {/* The entrance animates transform, so it lives on an inner element and leaves the positioning alone. */}
-              <span className="block whitespace-nowrap rounded-[8px] bg-tooltip px-2 py-1 text-cap text-ink animate-pop">{label}</span>
+              <span className={cn("block bg-tooltip text-ink animate-pop", LABEL_CLASS)}>{label}</span>
             </span>,
             document.body,
           )
         : null}
     </span>
   );
+}
+
+const LABEL_CLASS = "whitespace-nowrap rounded-[8px] px-2 py-1 text-cap";
+
+/* Width the label will take, measured off-screen with the same styling. */
+function measure(label: string) {
+  const probe = document.createElement("span");
+  probe.className = LABEL_CLASS;
+  probe.style.cssText = "position:fixed;left:-9999px;top:0;visibility:hidden";
+  probe.textContent = label;
+  document.body.appendChild(probe);
+  const w = probe.offsetWidth;
+  probe.remove();
+  return w;
 }

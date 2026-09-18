@@ -481,17 +481,36 @@ function Tracks() {
         </div>
       </div>
 
-      {ctx ? (
-        <div
-          role="menu"
-          className="fixed z-[var(--z-floating-bar)] min-w-[160px] rounded-control bg-panel p-1.5 shadow-overlay animate-pop"
-          style={{ left: ctx.x, top: ctx.y }}
-          onClick={() => setCtx(null)}
-          onPointerDown={(e) => e.stopPropagation()}
-        >
-          {ctx.items}
-        </div>
-      ) : null}
+      {ctx ? <TimelineMenu ctx={ctx} onClose={() => setCtx(null)} /> : null}
+    </div>
+  );
+}
+
+/* Timeline context menu: opens at the pointer, flips to stay on screen, closes on Escape. */
+function TimelineMenu({ ctx, onClose }: { ctx: Ctx; onClose: () => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    el.style.left = `${Math.min(ctx.x, window.innerWidth - r.width - 8)}px`;
+    el.style.top = `${ctx.y + r.height + 8 > window.innerHeight ? Math.max(8, ctx.y - r.height) : ctx.y}px`;
+  }, [ctx]);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [onClose]);
+  return (
+    <div
+      ref={ref}
+      role="menu"
+      className="fixed z-[var(--z-floating-bar)] min-w-[180px] rounded-control bg-panel p-1.5 shadow-overlay animate-pop"
+      style={{ left: ctx.x, top: ctx.y }}
+      onClick={onClose}
+      onPointerDown={(e) => e.stopPropagation()}
+    >
+      {ctx.items}
     </div>
   );
 }

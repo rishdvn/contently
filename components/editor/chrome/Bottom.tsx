@@ -324,7 +324,8 @@ function Timeline({ left, right }: { left: number; right: number }) {
 const headerIcon =
   "flex size-7 items-center justify-center rounded-[8px] text-ink-secondary transition-colors hover:bg-[var(--state-hover)] hover:text-ink [&>svg]:size-4";
 
-type Ctx = { x: number; y: number; items: ReactNode };
+/* `above` is where the menu's bottom edge goes if it has to flip upward — never under the pointer. */
+type Ctx = { x: number; y: number; items: ReactNode; above?: number };
 
 function Tracks() {
   const project = useEditor((s) => s.project);
@@ -440,7 +441,7 @@ function Tracks() {
                 pxPerSec={pxPerSec}
                 active={sl.id === activeSlideId}
                 scrollRef={scrollRef}
-                onContext={(x, y, items) => setCtx({ x, y, items })}
+                onContext={(x, y, items, above) => setCtx({ x, y, items, above })}
               />
             ))}
           </div>
@@ -457,14 +458,14 @@ function Tracks() {
               pxPerSec={pxPerSec}
               selected={selection.includes(block.id)}
               scrollRef={scrollRef}
-              onContext={(x, y, items) => setCtx({ x, y, items })}
+              onContext={(x, y, items, above) => setCtx({ x, y, items, above })}
             />
           ))}
 
           <div className="relative flex items-center" style={{ height: ROW_H, paddingLeft: PAD_X + LABEL_W }}>
             {project.audio.length ? (
               project.audio.map((a) => (
-                <AudioBar key={a.id} track={a} pxPerSec={pxPerSec} total={total} scrollRef={scrollRef} onContext={(x, y, items) => setCtx({ x, y, items })} />
+                <AudioBar key={a.id} track={a} pxPerSec={pxPerSec} total={total} scrollRef={scrollRef} onContext={(x, y, items, above) => setCtx({ x, y, items, above })} />
               ))
             ) : (
               <button type="button" className={laneBtn} onClick={() => setLeftTab("audio")}>
@@ -500,7 +501,8 @@ function TimelineMenu({ ctx, onClose }: { ctx: Ctx; onClose: () => void }) {
     if (!el) return;
     const r = el.getBoundingClientRect();
     el.style.left = `${Math.min(ctx.x, window.innerWidth - r.width - 8)}px`;
-    el.style.top = `${ctx.y + r.height + 8 > window.innerHeight ? Math.max(8, ctx.y - r.height) : ctx.y}px`;
+    const flipped = ctx.y + r.height + 8 > window.innerHeight;
+    el.style.top = `${flipped ? Math.max(8, (ctx.above ?? ctx.y - 8) - r.height) : ctx.y}px`;
   }, [ctx]);
   useEffect(() => {
     /* Escape dismisses the menu only; it must not reach the hotkeys and clear the selection too. */
@@ -652,7 +654,7 @@ function SceneBar({
   pxPerSec: number;
   active: boolean;
   scrollRef: RefObject<HTMLDivElement | null>;
-  onContext: (x: number, y: number, items: ReactNode) => void;
+  onContext: (x: number, y: number, items: ReactNode, above?: number) => void;
 }) {
   const setActiveSlide = useEditor((s) => s.setActiveSlide);
   const updateSlide = useEditor((s) => s.updateSlide);
@@ -883,7 +885,7 @@ function LayerBar({
   pxPerSec: number;
   selected: boolean;
   scrollRef: RefObject<HTMLDivElement | null>;
-  onContext: (x: number, y: number, items: ReactNode) => void;
+  onContext: (x: number, y: number, items: ReactNode, above?: number) => void;
 }) {
   const updateBlock = useEditor((s) => s.updateBlock);
   const updateBlocks = useEditor((s) => s.updateBlocks);
@@ -898,6 +900,8 @@ function LayerBar({
   const ungroupBlocks = useEditor((s) => s.ungroupBlocks);
   const drag = useTimelineDrag(scrollRef, pxPerSec);
   const [lifting, setLifting] = useState(false);
+  /* Tracked in JS rather than :hover so the affordances show for pointers that report no hover capability. */
+  const [hover, setHover] = useState(false);
   /* Time shown beside the handle while an end is being dragged. */
   const [label, setLabel] = useState<{ side: "start" | "end"; t: number } | null>(null);
 
@@ -1019,7 +1023,7 @@ function LayerBar({
     );
   };
 
-  const openMenu = (x: number, y: number) => {
+  const openMenu = (x: number, y: number, above?: number) => {
     const ids = targets();
     const grouped = slide.blocks.some((b) => ids.includes(b.id) && b.groupId);
     onContext(
@@ -1054,6 +1058,7 @@ function LayerBar({
           Delete{ids.length > 1 ? ` ${ids.length} layers` : ""}
         </MenuItem>
       </>,
+      above,
     );
   };
 
@@ -1073,6 +1078,8 @@ function LayerBar({
         )}
         style={style}
         onPointerDown={move}
+        onMouseEnter={() => setHover(true)}
+        onMouseLeave={() => setHover(false)}
         onContextMenu={(e) => {
           e.preventDefault();
           e.stopPropagation();
@@ -1084,7 +1091,7 @@ function LayerBar({
         <span className={cn("pointer-events-none truncate px-2 text-[10px] leading-none font-medium tracking-[0.3px] text-white/90", block.hidden && "line-through opacity-60")}>{layerLabel(block)}</span>
         <span className="flex-1" />
         {/* The reference's pill affordances: menu, lock and visibility, shown on hover at the right end. */}
-        <div className="mr-3 hidden shrink-0 items-center gap-0.5 group-hover:flex" onPointerDown={(e) => e.stopPropagation()}>
+        <div className={cn("mr-3 shrink-0 items-center gap-0.5", hover ? "flex" : "hidden")} onPointerDown={(e) => e.stopPropagation()}>
           <button
             type="button"
             aria-label="Layer options"
@@ -1092,7 +1099,7 @@ function LayerBar({
             onClick={(e) => {
               pick();
               const r = e.currentTarget.getBoundingClientRect();
-              openMenu(r.left, r.bottom + 4);
+              openMenu(r.left, r.bottom + 4, r.top - 4);
             }}
           >
             <MoreHorizontal />
@@ -1105,10 +1112,10 @@ function LayerBar({
           </button>
         </div>
         <div className="absolute top-0 bottom-0 left-0 w-2 cursor-ew-resize" onPointerDown={trimStart}>
-          <div className="absolute top-1/2 left-[3px] h-2.5 w-[2px] -translate-y-1/2 rounded-full bg-white/70 opacity-0 group-hover:opacity-100" />
+          <div className={cn("absolute top-1/2 left-[3px] h-2.5 w-[2px] -translate-y-1/2 rounded-full bg-white/70", hover ? "opacity-100" : "opacity-0")} />
         </div>
         <div className="absolute top-0 right-0 bottom-0 w-2 cursor-ew-resize" onPointerDown={trimEnd}>
-          <div className="absolute top-1/2 right-[3px] h-2.5 w-[2px] -translate-y-1/2 rounded-full bg-white/70 opacity-0 group-hover:opacity-100" />
+          <div className={cn("absolute top-1/2 right-[3px] h-2.5 w-[2px] -translate-y-1/2 rounded-full bg-white/70", hover ? "opacity-100" : "opacity-0")} />
         </div>
       </div>
       {label ? (
@@ -1134,7 +1141,7 @@ function AudioBar({
   pxPerSec: number;
   total: number;
   scrollRef: RefObject<HTMLDivElement | null>;
-  onContext: (x: number, y: number, items: ReactNode) => void;
+  onContext: (x: number, y: number, items: ReactNode, above?: number) => void;
 }) {
   const updateAudio = useEditor((s) => s.updateAudio);
   const removeAudio = useEditor((s) => s.removeAudio);

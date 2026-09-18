@@ -109,13 +109,20 @@ export function Gizmo({ container, worldRef }: { container: HTMLDivElement | nul
   const applyResize = (e: OnResize) => {
     const el = e.target as HTMLElement;
     const text = el.dataset.type === "text";
+    const corner = e.direction[0] !== 0 && e.direction[1] !== 0;
     el.style.width = `${e.width}px`;
-    if (!text) el.style.height = `${e.height}px`;
+    /*
+      Text height is owned by the auto-sizer, but during the gesture the frame
+      must still follow the size Moveable is tracking: it watches the element
+      and re-derives the aspect ratio from the DOM, so a frame whose height
+      never changes makes a ratio-locked corner drag drift instead of scaling.
+    */
+    if (!text || corner) el.style.height = `${e.height}px`;
     el.style.left = `${e.drag.left}px`;
     el.style.top = `${e.drag.top}px`;
-    /* Corner-dragging a text box scales the type, as in Canva. */
+    /* Corner-dragging a text box scales the type, as in the reference. */
     const start = startFont.current.get(el);
-    if (text && start && e.direction[0] !== 0 && e.direction[1] !== 0) {
+    if (text && start && corner) {
       const inner = el.querySelector<HTMLElement>("[data-text]");
       if (inner) inner.style.fontSize = `${(start.size * e.width) / start.w}px`;
     }
@@ -166,6 +173,22 @@ export function Gizmo({ container, worldRef }: { container: HTMLDivElement | nul
 
   const begin = () => setInteracting(true);
   const end = () => setInteracting(false);
+
+  /* "616×168" over the centre of the box while resizing, as the reference shows. Written straight to the node; no re-render per move. */
+  const sizeLabel = useRef<HTMLDivElement>(null);
+  const showSize = (w: number, h: number, target: HTMLElement) => {
+    const el = sizeLabel.current;
+    if (!el || !container) return;
+    const r = container.getBoundingClientRect();
+    const t = target.getBoundingClientRect();
+    el.textContent = `${Math.round(w)}×${Math.round(h)}`;
+    el.style.left = `${t.left + t.width / 2 - r.left}px`;
+    el.style.top = `${t.top + t.height / 2 - r.top}px`;
+    el.style.opacity = "1";
+  };
+  const hideSize = () => {
+    if (sizeLabel.current) sizeLabel.current.style.opacity = "0";
+  };
 
   if (!container) return null;
 
@@ -223,9 +246,14 @@ export function Gizmo({ container, worldRef }: { container: HTMLDivElement | nul
             startFont.current.set(el, { size: parseFloat(inner?.style.fontSize || "64"), w: el.offsetWidth });
           }
         }}
-        onResize={applyResize}
+        onResize={(e) => {
+          applyResize(e);
+          const el = e.target as HTMLElement;
+          showSize(e.width, el.dataset.type === "text" ? (el.querySelector<HTMLElement>("[data-text]")?.offsetHeight ?? e.height) : e.height, el);
+        }}
         onResizeEnd={(e) => {
           end();
+          hideSize();
           if (e.isDrag) commitResize([e.target as HTMLElement]);
         }}
         onResizeGroupStart={(e) => {
@@ -233,9 +261,14 @@ export function Gizmo({ container, worldRef }: { container: HTMLDivElement | nul
           const corner = e.direction[0] !== 0 && e.direction[1] !== 0;
           flushSync(() => setKeepRatio(corner));
         }}
-        onResizeGroup={(e) => e.events.forEach(applyResize)}
+        onResizeGroup={(e) => {
+          e.events.forEach(applyResize);
+          const first = e.events[0];
+          if (first) showSize(first.width, first.height, first.target as HTMLElement);
+        }}
         onResizeGroupEnd={(e) => {
           end();
+          hideSize();
           if (e.isDrag) commitResize(e.targets as HTMLElement[]);
         }}
         onRotateStart={begin}
@@ -306,6 +339,12 @@ export function Gizmo({ container, worldRef }: { container: HTMLDivElement | nul
             });
           }
         }}
+      />
+      <div
+        ref={sizeLabel}
+        aria-hidden
+        className="pointer-events-none absolute -translate-x-1/2 -translate-y-1/2 rounded-[5px] bg-[#d946ef] px-1.5 py-0.5 text-[11px] leading-[14px] font-medium tabular-nums text-white opacity-0 transition-opacity duration-75"
+        style={{ zIndex: 1160 }}
       />
     </>
   );

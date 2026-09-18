@@ -10,20 +10,20 @@ import { Panel } from "../controls";
 import { AudioPanel, BrandkitPanel, BuildPanel, CaptionsPanel, StockPanel, UploadsPanel } from "./panels/misc";
 import { BlocksPanel, TemplatesPanel, TextPanel } from "./panels/library";
 
-export const LEFT_PANEL_WIDTH = 320;
-export const LEFT_PANEL_X = 62;
+export const LEFT_PANEL_WIDTH = 400;
+export const LEFT_PANEL_X = 84;
 
 /*
   The flyout beside the rail. One shell, nine bodies. It is a floating surface
   like everything else: the canvas continues underneath it.
 */
-export function LeftPanel() {
+export function LeftPanel({ bottom }: { bottom: number }) {
   const tab = useEditor((s) => s.leftTab);
   if (!tab) return null;
   return (
     <Panel
-      className="absolute top-16 bottom-2 flex flex-col overflow-hidden"
-      style={{ left: LEFT_PANEL_X, width: LEFT_PANEL_WIDTH }}
+      className="absolute top-16 flex flex-col overflow-hidden"
+      style={{ left: LEFT_PANEL_X, width: LEFT_PANEL_WIDTH, bottom }}
       onPointerDown={(e) => e.stopPropagation()}
     >
       {tab === "build" ? <BuildPanel /> : null}

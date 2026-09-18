@@ -54,7 +54,7 @@ import {
   TextField,
 } from "../controls";
 
-export const INSPECTOR_WIDTH = 300;
+export const INSPECTOR_WIDTH = 348;
 
 const TYPE_LABEL: Record<Block["type"], string> = { text: "Text", image: "Image", video: "Video", shape: "Shape" };
 
@@ -74,13 +74,22 @@ export function Inspector({ bottom }: { bottom: number }) {
   const title = one ? TYPE_LABEL[one.type] : blocks.length > 1 ? `${blocks.length} elements` : slide.name;
 
   return (
-    <Panel className="absolute top-16 right-2 flex flex-col overflow-hidden" style={{ width: INSPECTOR_WIDTH, bottom }} onPointerDown={(e) => e.stopPropagation()}>
-      <div className="flex flex-col gap-1.5 px-2.5 pt-2.5 pb-2">
+    /*
+      A column of separate cards from the top edge, as in the reference: the
+      title card, then one card per property group. Inside the column the
+      surface ladder shifts down a step so cards sit on the canvas directly.
+    */
+    <div
+      className="inspector pointer-events-auto absolute top-2 right-3 flex flex-col gap-1.5 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      style={{ width: INSPECTOR_WIDTH, maxHeight: `calc(100% - ${bottom + 8}px)` }}
+      onPointerDown={(e) => e.stopPropagation()}
+    >
+      <Panel className="flex shrink-0 flex-col gap-1.5 px-2.5 pt-2.5 pb-2.5 shadow-none">
         <div className="flex items-center gap-2">
           <button type="button" aria-label="Close" className="flex size-7 items-center justify-center rounded-[6px] text-ink-secondary hover:bg-[var(--state-hover)] hover:text-ink" onClick={clearSelection}>
             <X className="size-4" />
           </button>
-          <div className="min-w-0 flex-1 truncate text-default text-ink">{title}</div>
+          <div className="min-w-0 flex-1 truncate text-panels text-ink">{title}</div>
           {one ? (
             <Tooltip label="Layer" side="bottom">
               <span className="flex size-7 items-center justify-center text-ink-disabled">
@@ -92,36 +101,34 @@ export function Inspector({ bottom }: { bottom: number }) {
         {blocks.length ? (
           <div className="flex items-center gap-1 pl-1">
             {(["design", "effects"] as const).map((t) => (
-              <button key={t} type="button" className={cn("h-6 rounded-[6px] px-2 text-cap transition-colors", tab === t ? "bg-raised text-ink" : "text-ink-secondary hover:text-ink")} onClick={() => setTab(t)}>
+              <button key={t} type="button" className={cn("h-7 rounded-[8px] px-2.5 text-ui transition-colors", tab === t ? "bg-raised text-ink" : "text-ink-secondary hover:text-ink")} onClick={() => setTab(t)}>
                 {t === "design" ? "Design" : "Effects"}
               </button>
             ))}
           </div>
         ) : null}
-      </div>
-      <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto px-2 pb-2">
-        {!blocks.length ? (
-          <SlideProperties />
-        ) : tab === "effects" ? (
-          <EffectsTab blocks={blocks} />
-        ) : one ? (
-          <>
-            {one.type === "text" ? <TextProperties b={one} /> : null}
-            {one.type === "image" || one.type === "video" ? <MediaProperties b={one} /> : null}
-            {one.type === "shape" ? <ShapeProperties b={one} /> : null}
-            <CommonProperties blocks={[one]} />
-          </>
-        ) : (
-          <>
-            <Card className="px-3 py-3 text-cap text-ink-secondary">
-              <MousePointerClick className="mb-1.5 size-4" />
-              Properties apply to every selected element. Double-click one to edit it alone.
-            </Card>
-            <CommonProperties blocks={blocks} />
-          </>
-        )}
-      </div>
-    </Panel>
+      </Panel>
+      {!blocks.length ? (
+        <SlideProperties />
+      ) : tab === "effects" ? (
+        <EffectsTab blocks={blocks} />
+      ) : one ? (
+        <>
+          {one.type === "text" ? <TextProperties b={one} /> : null}
+          {one.type === "image" || one.type === "video" ? <MediaProperties b={one} /> : null}
+          {one.type === "shape" ? <ShapeProperties b={one} /> : null}
+          <CommonProperties blocks={[one]} />
+        </>
+      ) : (
+        <>
+          <Card className="px-3 py-3 text-cap text-ink-secondary">
+            <MousePointerClick className="mb-1.5 size-4" />
+            Properties apply to every selected element. Double-click one to edit it alone.
+          </Card>
+          <CommonProperties blocks={blocks} />
+        </>
+      )}
+    </div>
   );
 }
 

@@ -37,6 +37,14 @@ export function Viewport({ insets, children }: { insets: Insets; children?: Reac
     insetsRef.current = insets;
   });
 
+  /* When a side panel opens or closes the free area shifts; the artwork slides with it, as in the reference. */
+  const sides = useRef({ left: insets.left, right: insets.right });
+  useLayoutEffect(() => {
+    const dx = (insets.left - sides.current.left - (insets.right - sides.current.right)) / 2;
+    sides.current = { left: insets.left, right: insets.right };
+    if (dx) useEditor.getState().setViewport((v) => ({ ...v, x: v.x + dx }));
+  }, [insets.left, insets.right]);
+
   const visibleArea = useCallback((): Rect => {
     const el = ref.current;
     const i = insetsRef.current;

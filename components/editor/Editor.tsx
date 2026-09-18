@@ -54,9 +54,14 @@ export function Editor({ projectId, kind }: { projectId: string; kind?: string }
 
   const leftTab = useEditor((s) => s.leftTab);
   const bottom = useBottomInset();
+  /*
+    The chrome is laid out as the reference does it: rail and inspector run
+    from the top edge, the timeline spans the full width beneath everything,
+    and the top bar centres in whatever canvas is left between the two.
+  */
   const insets = {
-    left: leftTab ? LEFT_PANEL_X + LEFT_PANEL_WIDTH + 8 : LEFT_PANEL_X,
-    right: INSPECTOR_WIDTH + 16,
+    left: leftTab ? LEFT_PANEL_X + LEFT_PANEL_WIDTH + 12 : LEFT_PANEL_X,
+    right: INSPECTOR_WIDTH + 24,
     top: 60,
     bottom,
   };
@@ -67,11 +72,11 @@ export function Editor({ projectId, kind }: { projectId: string; kind?: string }
     <div className="fixed inset-0 overflow-hidden bg-canvas text-ink">
       <link rel="stylesheet" href={googleFontsHref()} crossOrigin="anonymous" />
       <Viewport insets={insets}>
-        <TopBar />
-        <Rail />
-        <LeftPanel />
+        <TopBar left={insets.left} right={insets.right} />
+        <Rail bottom={bottom} />
+        <LeftPanel bottom={bottom} />
         <Inspector bottom={bottom} />
-        <Bottom left={insets.left} right={8} />
+        <Bottom left={12} right={12} />
       </Viewport>
       <ExportDialog />
       <ShareDialog />

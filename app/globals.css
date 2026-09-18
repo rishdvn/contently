@@ -460,17 +460,25 @@
     a hairline box in ink and small white handles with a soft shadow, so
     the chrome never competes with the artwork's own colour.
   */
+  /*
+    Moveable ships z-index 3000, which would put the selection box over our
+    context menus and floating bars; it belongs just under them.
+  */
   .gizmo.moveable-control-box {
     --moveable-color: rgb(255 255 255 / 0.9);
-    z-index: 1150;
+    z-index: 1150 !important;
   }
   .gizmo .moveable-line {
     background: rgb(255 255 255 / 0.85) !important;
     height: 1px !important;
     box-shadow: 0 0 0 0.5px rgb(0 0 0 / 0.35);
   }
+  /* The stem runs the full distance from the box edge to the rotation handle. */
+  .gizmo .moveable-rotation {
+    height: 26px !important;
+  }
   .gizmo .moveable-line.moveable-rotation-line {
-    height: 22px !important;
+    height: 100% !important;
     width: 1px !important;
   }
   .gizmo .moveable-control {
@@ -514,6 +522,17 @@
   }
   .gizmo .moveable-guideline.moveable-bold {
     background: var(--color-spectrum-green) !important;
+  }
+
+  /*
+    The inspector is a column of cards sitting directly on the canvas, so its
+    surface ladder shifts down one step: cards take the panel tone and the
+    fields inside them take the card tone. Same three values, re-anchored.
+  */
+  .inspector {
+    --color-card: #151515;
+    --color-raised: #1d1d1d;
+    --color-line-strong: #2c2c2c;
   }
 
   /* Selecto marquee */

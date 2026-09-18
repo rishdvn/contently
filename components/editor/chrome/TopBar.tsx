@@ -27,7 +27,7 @@ import { Panel } from "../controls";
   · Share · Export — with the export split button carrying the only filled
   treatment on the bar.
 */
-export function TopBar() {
+export function TopBar({ left, right }: { left: number; right: number }) {
   return (
     <>
       <div className="pointer-events-auto absolute top-3.5 left-4 flex items-center gap-2.5">
@@ -36,7 +36,7 @@ export function TopBar() {
         </Link>
         <ProjectName />
       </div>
-      <Panel className="absolute top-2 left-1/2 flex h-11 -translate-x-1/2 items-center gap-0.5 px-1.5">
+      <Panel className="absolute top-2 flex h-11 -translate-x-1/2 items-center gap-0.5 px-1.5" style={{ left: `calc(${left}px + (100% - ${left + right}px) / 2)` }}>
         <HistoryButtons />
         <Divider />
         <AspectPicker />

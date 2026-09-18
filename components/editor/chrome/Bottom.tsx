@@ -279,7 +279,10 @@ function Timeline({ left, right }: { left: number; right: number }) {
           <button
             type="button"
             aria-label={playing ? "Pause" : "Play"}
-            className="flex size-7 items-center justify-center rounded-full bg-raised text-ink transition-colors hover:bg-[var(--state-selected)]"
+            className={cn(
+              "flex size-7 items-center justify-center rounded-full text-ink transition-colors",
+              collapsed ? "hover:bg-[var(--state-hover)]" : "bg-raised hover:bg-[var(--state-selected)]",
+            )}
             onClick={() => {
               if (!playing && globalTime >= total - 0.01) {
                 useEditor.setState({ activeSlideId: project.slides[0].id, time: 0 });
@@ -290,26 +293,33 @@ function Timeline({ left, right }: { left: number; right: number }) {
             {playing ? <Pause className="size-3.5 fill-current" /> : <Play className="size-3.5 translate-x-px fill-current" />}
           </button>
         </Tooltip>
-        <span className="tabular-nums text-cap text-ink">
+        <span className={cn("tabular-nums text-ink", collapsed ? "text-ui" : "text-cap")}>
           {formatTime(globalTime)} <span className="text-ink-disabled">/</span> {formatTime(total)}
         </span>
-        <div className="mx-1 h-4 w-px bg-line-strong" />
-        <button
-          type="button"
-          className="flex h-7 items-center gap-1.5 rounded-[8px] px-2 text-cap text-ink-secondary transition-colors hover:bg-[var(--state-hover)] hover:text-ink"
-          onClick={() => breakApart(activeSlideId, !isApart)}
-        >
-          <Rows3 className="size-3.5" />
-          {isApart ? "Hide layers" : "Show layers"}
-        </button>
-        <div className="flex-1" />
-        {collapsed ? null : <ZoomControls />}
-        <div className="mx-1 h-4 w-px bg-line-strong" />
-        <Tooltip label={muted ? "Unmute" : "Mute"}>
-          <button type="button" aria-label={muted ? "Unmute" : "Mute"} aria-pressed={muted} className={headerIcon} onClick={() => setMuted(!muted)}>
-            {muted ? <VolumeX /> : <Volume2 />}
-          </button>
-        </Tooltip>
+        {collapsed ? (
+          /* Collapsed, the whole project is one scrubbable line, as in the reference. */
+          <ProgressLine total={total} value={globalTime} />
+        ) : (
+          <>
+            <div className="mx-1 h-4 w-px bg-line-strong" />
+            <button
+              type="button"
+              className="flex h-7 items-center gap-1.5 rounded-[8px] px-2 text-cap text-ink-secondary transition-colors hover:bg-[var(--state-hover)] hover:text-ink"
+              onClick={() => breakApart(activeSlideId, !isApart)}
+            >
+              <Rows3 className="size-3.5" />
+              {isApart ? "Hide layers" : "Show layers"}
+            </button>
+            <div className="flex-1" />
+            <ZoomControls />
+            <div className="mx-1 h-4 w-px bg-line-strong" />
+            <Tooltip label={muted ? "Unmute" : "Mute"}>
+              <button type="button" aria-label={muted ? "Unmute" : "Mute"} aria-pressed={muted} className={headerIcon} onClick={() => setMuted(!muted)}>
+                {muted ? <VolumeX /> : <Volume2 />}
+              </button>
+            </Tooltip>
+          </>
+        )}
         <Tooltip label={collapsed ? "Expand timeline" : "Collapse timeline"}>
           <button type="button" aria-label={collapsed ? "Expand timeline" : "Collapse timeline"} className={headerIcon} onClick={toggleCollapsed}>
             {collapsed ? <ChevronUp /> : <ChevronDown />}
@@ -323,6 +333,48 @@ function Timeline({ left, right }: { left: number; right: number }) {
 
 const headerIcon =
   "flex size-7 items-center justify-center rounded-[8px] text-ink-secondary transition-colors hover:bg-[var(--state-hover)] hover:text-ink [&>svg]:size-4";
+
+/* Hairline progress track for the collapsed timeline; click or drag to seek. */
+function ProgressLine({ total, value }: { total: number; value: number }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const seek = (clientX: number) => {
+    const r = ref.current?.getBoundingClientRect();
+    if (!r || total <= 0) return;
+    const t = Math.min(total, Math.max(0, ((clientX - r.left) / r.width) * total));
+    const p = useEditor.getState().project;
+    const { index, local } = sceneAt(p, t);
+    useEditor.setState({ activeSlideId: p.slides[index]?.id, time: Math.min(local, p.slides[index].duration) });
+  };
+  return (
+    <div
+      ref={ref}
+      role="slider"
+      aria-label="Seek"
+      aria-valuemin={0}
+      aria-valuemax={Math.round(total * 10)}
+      aria-valuenow={Math.round(value * 10)}
+      tabIndex={0}
+      className="group/seek relative mx-2 flex h-7 flex-1 cursor-pointer items-center"
+      onPointerDown={(e) => {
+        if (e.button !== 0) return;
+        e.preventDefault();
+        useEditor.getState().setPlaying(false);
+        seek(e.clientX);
+        const move = (ev: PointerEvent) => seek(ev.clientX);
+        const up = () => {
+          window.removeEventListener("pointermove", move);
+          window.removeEventListener("pointerup", up);
+        };
+        window.addEventListener("pointermove", move);
+        window.addEventListener("pointerup", up);
+      }}
+    >
+      <div className="h-[2px] w-full rounded-full bg-white/20 transition-[height] group-hover/seek:h-[3px]">
+        <div className="h-full rounded-full bg-ink" style={{ width: `${total > 0 ? Math.min(100, (value / total) * 100) : 0}%` }} />
+      </div>
+    </div>
+  );
+}
 
 /* `above` is where the menu's bottom edge goes if it has to flip upward — never under the pointer. */
 type Ctx = { x: number; y: number; items: ReactNode; above?: number };

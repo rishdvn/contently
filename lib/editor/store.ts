@@ -76,10 +76,18 @@ type EditorState = Tracked & {
   removeBlocks: (ids: string[]) => void;
   duplicateBlocks: (ids: string[]) => void;
   reorder: (id: string, action: "front" | "back" | "forward" | "backward") => void;
+  /* Place a block at an exact z-index within its slide (0 = back). */
+  moveBlockTo: (id: string, index: number) => void;
+  groupBlocks: (ids: string[]) => void;
+  ungroupBlocks: (ids: string[]) => void;
   copy: () => void;
   paste: () => void;
 
-  select: (ids: string[], additive?: boolean) => void;
+  /*
+    Selecting any member of a group selects the whole group unless `exact`
+    is set — that is how a double-click drills into one child.
+  */
+  select: (ids: string[], additive?: boolean, exact?: boolean) => void;
   clearSelection: () => void;
   setEditingText: (id: string | null) => void;
   setLeftTab: (tab: LeftTab | null) => void;
@@ -114,6 +122,30 @@ export function findBlock(p: Project, id: string): { block: Block; slide: Slide 
     if (b) return { block: b, slide: s };
   }
   return null;
+}
+
+/* Every id plus the rest of any group it belongs to, in document order. */
+export function expandGroups(p: Project, ids: string[]): string[] {
+  const want = new Set(ids);
+  const groups = new Set<string>();
+  for (const s of p.slides) for (const b of s.blocks) if (want.has(b.id) && b.groupId) groups.add(b.groupId);
+  if (!groups.size) return ids;
+  const out: string[] = [];
+  for (const s of p.slides) for (const b of s.blocks) if (want.has(b.id) || (b.groupId && groups.has(b.groupId))) out.push(b.id);
+  return out;
+}
+
+/*
+  Copies keep their grouping but under fresh ids, so a duplicated group is a
+  new group rather than extra members of the old one.
+*/
+function regroup(blocks: Block[]): Block[] {
+  const map = new Map<string, string>();
+  return blocks.map((b) => {
+    if (!b.groupId) return b;
+    if (!map.has(b.groupId)) map.set(b.groupId, uid());
+    return { ...b, groupId: map.get(b.groupId) };
+  });
 }
 
 const initial = makeProject("carousel");
@@ -270,7 +302,7 @@ export const useEditor = create<EditorState>()(
           const p = touch({
             ...s.project,
             slides: s.project.slides.map((sl) => {
-              const copies = sl.blocks.filter((b) => ids.includes(b.id)).map((b) => cloneBlock(b));
+              const copies = regroup(sl.blocks.filter((b) => ids.includes(b.id)).map((b) => cloneBlock(b)));
               created.push(...copies.map((c) => c.id));
               return copies.length ? { ...sl, blocks: [...sl.blocks, ...copies] } : sl;
             }),
@@ -295,6 +327,44 @@ export const useEditor = create<EditorState>()(
           blocks.splice(to, 0, hit.block);
           return { project: mapSlide(s.project, hit.slide.id, (sl) => ({ ...sl, blocks })) };
         }),
+      moveBlockTo: (id, index) =>
+        set((s) => {
+          const hit = findBlock(s.project, id);
+          if (!hit) return {};
+          const blocks = [...hit.slide.blocks];
+          const i = blocks.indexOf(hit.block);
+          const to = Math.max(0, Math.min(blocks.length - 1, index));
+          if (i === to) return {};
+          blocks.splice(i, 1);
+          blocks.splice(to, 0, hit.block);
+          return { project: mapSlide(s.project, hit.slide.id, (sl) => ({ ...sl, blocks })) };
+        }),
+      groupBlocks: (ids) =>
+        set((s) => {
+          const members = new Set(expandGroups(s.project, ids));
+          if (members.size < 2) return {};
+          const groupId = uid();
+          /* Members become one contiguous run in z-order, ending where the topmost member was. */
+          const slides = s.project.slides.map((sl) => {
+            const inside = sl.blocks.filter((b) => members.has(b.id));
+            if (inside.length < 2) return sl;
+            const top = sl.blocks.reduce((acc, b, i) => (members.has(b.id) ? i : acc), -1);
+            const rest = sl.blocks.filter((b) => !members.has(b.id));
+            const at = top - (inside.length - 1);
+            const grouped = inside.map((b) => ({ ...b, groupId }));
+            return { ...sl, blocks: [...rest.slice(0, at), ...grouped, ...rest.slice(at)] };
+          });
+          return { project: touch({ ...s.project, slides }), selection: [...members] };
+        }),
+      ungroupBlocks: (ids) =>
+        set((s) => {
+          const groups = new Set<string>();
+          for (const sl of s.project.slides) for (const b of sl.blocks) if (ids.includes(b.id) && b.groupId) groups.add(b.groupId);
+          if (!groups.size) return {};
+          return {
+            project: mapBlocks(s.project, (b) => (b.groupId && groups.has(b.groupId) ? { ...b, groupId: undefined } : b)),
+          };
+        }),
       copy: () => {
         const s = get();
         const blocks = s.selection.map((id) => findBlock(s.project, id)?.block).filter(Boolean) as Block[];
@@ -303,16 +373,19 @@ export const useEditor = create<EditorState>()(
       paste: () => {
         const s = get();
         if (!s.clipboard.length) return;
-        const copies = s.clipboard.map((b) => cloneBlock(b));
+        const copies = regroup(s.clipboard.map((b) => cloneBlock(b)));
         set({ clipboard: copies.map((c) => structuredClone(c)) });
         get().addBlocks(copies);
       },
 
-      select: (ids, additive) =>
+      select: (ids, additive, exact) =>
         set((s) => {
-          if (!additive) return { selection: ids, editingTextId: null };
+          const wanted = exact ? ids : expandGroups(s.project, ids);
+          if (!additive) return { selection: wanted, editingTextId: null };
+          /* Toggling: a group flips as one — if any member is selected the whole group leaves. */
           const next = new Set(s.selection);
-          ids.forEach((id) => (next.has(id) ? next.delete(id) : next.add(id)));
+          const on = wanted.some((id) => next.has(id));
+          wanted.forEach((id) => (on ? next.delete(id) : next.add(id)));
           return { selection: [...next], editingTextId: null };
         }),
       clearSelection: () => set({ selection: [], editingTextId: null }),

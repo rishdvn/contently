@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowDown, ArrowUp, ChevronsDown, ChevronsUp, ClipboardPaste, Copy, CopyPlus, Lock, LockOpen, Trash2, Type } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronsDown, ChevronsUp, ClipboardPaste, Copy, CopyPlus, Group, Lock, LockOpen, Trash2, Type, Ungroup } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { MenuDivider, MenuItem } from "@/components/ui/menu";
@@ -62,6 +62,7 @@ export function ContextMenu({ container }: { container: HTMLDivElement | null })
   const s = useEditor.getState();
   const ids = target.blockId ? (s.selection.includes(target.blockId) ? s.selection : [target.blockId]) : [];
   const one = target.blockId ? findBlock(s.project, target.blockId)?.block : null;
+  const grouped = ids.some((id) => findBlock(s.project, id)?.block.groupId);
   const x = Math.min(target.x, container.clientWidth - 220);
   const y = Math.min(target.y, container.clientHeight - 320);
 
@@ -98,6 +99,16 @@ export function ContextMenu({ container }: { container: HTMLDivElement | null })
             Send to back
           </MenuItem>
           <MenuDivider />
+          {ids.length > 1 && !grouped ? (
+            <MenuItem icon={<Group />} shortcut="⌘G" onClick={() => s.groupBlocks(ids)}>
+              Group
+            </MenuItem>
+          ) : null}
+          {grouped ? (
+            <MenuItem icon={<Ungroup />} shortcut="⌘⇧G" onClick={() => s.ungroupBlocks(ids)}>
+              Ungroup
+            </MenuItem>
+          ) : null}
           <MenuItem icon={one.locked ? <LockOpen /> : <Lock />} onClick={() => ids.forEach((id) => s.updateBlock(id, { locked: !one.locked }))}>
             {one.locked ? "Unlock" : "Lock"}
           </MenuItem>

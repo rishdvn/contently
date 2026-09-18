@@ -9,12 +9,14 @@ import {
   Crop,
   FlipHorizontal2,
   FlipVertical2,
+  Group,
   ImageDown,
   Lock,
   LockOpen,
   MoreHorizontal,
   RefreshCw,
   Trash2,
+  Ungroup,
 } from "lucide-react";
 import { useLayoutEffect, useRef } from "react";
 
@@ -38,6 +40,8 @@ export function SelectionToolbar({ container }: { container: HTMLDivElement | nu
   const duplicateBlocks = useEditor((s) => s.duplicateBlocks);
   const removeBlocks = useEditor((s) => s.removeBlocks);
   const reorder = useEditor((s) => s.reorder);
+  const groupBlocks = useEditor((s) => s.groupBlocks);
+  const ungroupBlocks = useEditor((s) => s.ungroupBlocks);
   const setBackground = useEditor((s) => s.setBackground);
   const setLeftTab = useEditor((s) => s.setLeftTab);
   const activeSlideId = useEditor((s) => s.activeSlideId);
@@ -70,6 +74,7 @@ export function SelectionToolbar({ container }: { container: HTMLDivElement | nu
 
   const one = blocks.length === 1 ? blocks[0] : null;
   const allLocked = blocks.every((b) => b.locked);
+  const grouped = blocks.some((b) => b.groupId);
   const ids = blocks.map((b) => b.id);
 
   return (
@@ -96,6 +101,16 @@ export function SelectionToolbar({ container }: { container: HTMLDivElement | nu
       <ToolbarButton label="Flip vertical" onClick={() => blocks.forEach((b) => updateBlock(b.id, { flipY: !b.flipY }))}>
         <FlipVertical2 />
       </ToolbarButton>
+      {blocks.length > 1 && !grouped ? (
+        <ToolbarButton label="Group (⌘G)" onClick={() => groupBlocks(ids)}>
+          <Group />
+        </ToolbarButton>
+      ) : null}
+      {grouped ? (
+        <ToolbarButton label="Ungroup (⌘⇧G)" onClick={() => ungroupBlocks(ids)}>
+          <Ungroup />
+        </ToolbarButton>
+      ) : null}
       <ToolbarButton label="Duplicate" onClick={() => duplicateBlocks(ids)}>
         <Copy />
       </ToolbarButton>

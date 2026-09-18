@@ -56,6 +56,11 @@ export function useHotkeys() {
         e.preventDefault();
         return s.selection.length && s.duplicateBlocks(s.selection);
       }
+      if (mod && e.key.toLowerCase() === "g") {
+        e.preventDefault();
+        if (!s.selection.length) return;
+        return e.shiftKey ? s.ungroupBlocks(s.selection) : s.groupBlocks(s.selection);
+      }
       if (mod && e.key.toLowerCase() === "c") return s.copy();
       if (mod && e.key.toLowerCase() === "v") return s.paste();
       if (mod && e.key.toLowerCase() === "a") {

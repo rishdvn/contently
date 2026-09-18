@@ -74,6 +74,11 @@ export type BlockBase = {
   animation: Animation;
   effects: Effect[];
   shadow?: Shadow;
+  /*
+    Blocks sharing a groupId select and move as one. Groups are flat — a
+    tag, not a container — so z-order and export stay a single list.
+  */
+  groupId?: string;
 };
 
 export type Gradient = {

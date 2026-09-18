@@ -1,10 +1,16 @@
 "use client";
 
 import {
+  ArrowDown,
+  ArrowUp,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   ChevronUp,
   Copy,
   Group,
+  Lock,
+  LockOpen,
   Maximize2,
   Music,
   Pause,
@@ -22,7 +28,7 @@ import {
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { create } from "zustand";
 
-import { Menu, MenuItem } from "@/components/ui/menu";
+import { Menu, MenuDivider, MenuItem } from "@/components/ui/menu";
 import { Tooltip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/cn";
 import { formatTime, sceneAt, sceneOffsets, totalDuration } from "@/lib/editor/geometry";
@@ -37,23 +43,34 @@ import { Panel } from "../controls";
 export const STRIP_HEIGHT = 92;
 export const TIMELINE_HEIGHT = 212;
 export const TIMELINE_COLLAPSED = 44;
+const TIMELINE_MIN_HEIGHT = 140;
 
 /* Timeline chrome state: not part of the document, not part of undo. */
 type BottomUi = {
   collapsed: boolean;
+  /* Expanded timeline height; the user drags the top edge to make room for more layer rows. */
+  height: number;
   pxPerSec: number | null;
+  /* Zoom that fits the whole project in view; measured by the track area, used by the header. */
+  fitPx: number;
   brokenApart: string[];
   toggleCollapsed: () => void;
   setPxPerSec: (v: number | null) => void;
+  setFitPx: (v: number) => void;
+  setHeight: (v: number) => void;
   breakApart: (slideId: string, on: boolean) => void;
 };
 
 export const useBottomUi = create<BottomUi>((set) => ({
   collapsed: false,
+  height: TIMELINE_HEIGHT,
   pxPerSec: null,
+  fitPx: 40,
   brokenApart: [],
   toggleCollapsed: () => set((s) => ({ collapsed: !s.collapsed })),
   setPxPerSec: (v) => set({ pxPerSec: v }),
+  setFitPx: (v) => set({ fitPx: v }),
+  setHeight: (v) => set({ height: Math.round(Math.min(Math.max(TIMELINE_MIN_HEIGHT, v), window.innerHeight * 0.6)) }),
   breakApart: (id, on) =>
     set((s) => ({ brokenApart: on ? [...new Set([...s.brokenApart, id])] : s.brokenApart.filter((x) => x !== id) })),
 }));
@@ -62,7 +79,8 @@ export const useBottomUi = create<BottomUi>((set) => ({
 export function useBottomInset() {
   const kind = useEditor((s) => s.project.kind);
   const collapsed = useBottomUi((s) => s.collapsed);
-  if (kind === "video") return (collapsed ? TIMELINE_COLLAPSED : TIMELINE_HEIGHT) + 16;
+  const height = useBottomUi((s) => s.height);
+  if (kind === "video") return (collapsed ? TIMELINE_COLLAPSED : height) + 16;
   if (kind === "carousel") return STRIP_HEIGHT + 16;
   return 8;
 }
@@ -201,10 +219,13 @@ const PAD_X = 12;
 /*
   Video timeline. Header carries transport; under it a ruler, the "Add
   blocks" affordance, one bar per scene, any broken-apart layers, and the
-  audio lane. Zoom sits bottom-right, exactly where the reference keeps it.
+  audio lane. Zoom lives in the header so nothing floats over the bars: every
+  pill end stays reachable for trimming.
 */
 function Timeline({ left, right }: { left: number; right: number }) {
   const collapsed = useBottomUi((s) => s.collapsed);
+  const height = useBottomUi((s) => s.height);
+  const setHeight = useBottomUi((s) => s.setHeight);
   const toggleCollapsed = useBottomUi((s) => s.toggleCollapsed);
   const playing = useEditor((s) => s.playing);
   const setPlaying = useEditor((s) => s.setPlaying);
@@ -224,9 +245,32 @@ function Timeline({ left, right }: { left: number; right: number }) {
   return (
     <Panel
       className="absolute bottom-2 flex flex-col overflow-hidden"
-      style={{ left, right, height: collapsed ? TIMELINE_COLLAPSED : TIMELINE_HEIGHT }}
+      style={{ left, right, height: collapsed ? TIMELINE_COLLAPSED : height }}
       onPointerDown={(e) => e.stopPropagation()}
     >
+      {collapsed ? null : (
+        <div
+          role="separator"
+          aria-label="Resize timeline"
+          aria-orientation="horizontal"
+          className="group/resize absolute inset-x-0 top-0 z-30 h-2 cursor-ns-resize"
+          onPointerDown={(e) => {
+            if (e.button !== 0) return;
+            e.preventDefault();
+            const y0 = e.clientY;
+            const h0 = height;
+            const move = (ev: PointerEvent) => setHeight(h0 + (y0 - ev.clientY));
+            const up = () => {
+              window.removeEventListener("pointermove", move);
+              window.removeEventListener("pointerup", up);
+            };
+            window.addEventListener("pointermove", move);
+            window.addEventListener("pointerup", up);
+          }}
+        >
+          <div className="mx-auto mt-[3px] h-[3px] w-10 rounded-full bg-white/0 transition-colors group-hover/resize:bg-white/30" />
+        </div>
+      )}
       <div className="flex h-11 shrink-0 items-center gap-2 px-2.5">
         <Tooltip label={playing ? "Pause (Space)" : "Play (Space)"}>
           <button
@@ -252,10 +296,12 @@ function Timeline({ left, right }: { left: number; right: number }) {
           className="flex h-7 items-center gap-1.5 rounded-[8px] px-2 text-cap text-ink-secondary transition-colors hover:bg-[var(--state-hover)] hover:text-ink"
           onClick={() => breakApart(activeSlideId, !isApart)}
         >
-          {isApart ? <Group className="size-3.5" /> : <Ungroup className="size-3.5" />}
-          {isApart ? "Group" : "Break Apart"}
+          <Rows3 className="size-3.5" />
+          {isApart ? "Hide layers" : "Show layers"}
         </button>
         <div className="flex-1" />
+        {collapsed ? null : <ZoomControls />}
+        <div className="mx-1 h-4 w-px bg-line-strong" />
         <Tooltip label={muted ? "Unmute" : "Mute"}>
           <button type="button" aria-label={muted ? "Unmute" : "Mute"} aria-pressed={muted} className={headerIcon} onClick={() => setMuted(!muted)}>
             {muted ? <VolumeX /> : <Volume2 />}
@@ -285,7 +331,6 @@ function Tracks() {
   const playing = useEditor((s) => s.playing);
   const setLeftTab = useEditor((s) => s.setLeftTab);
   const pxPerSecPref = useBottomUi((s) => s.pxPerSec);
-  const setPxPerSec = useBottomUi((s) => s.setPxPerSec);
   const brokenApart = useBottomUi((s) => s.brokenApart);
 
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -304,6 +349,8 @@ function Tracks() {
   const total = totalDuration(project);
   const fitPx = Math.max(20, (viewW - PAD_X * 2 - 80) / Math.max(total, 0.5));
   const pxPerSec = pxPerSecPref ?? fitPx;
+  const setFitPx = useBottomUi((s) => s.setFitPx);
+  useEffect(() => setFitPx(fitPx), [fitPx, setFitPx]);
   const offsets = sceneOffsets(project);
   const activeIndex = Math.max(0, project.slides.findIndex((s) => s.id === activeSlideId));
   const globalTime = offsets[activeIndex] + time;
@@ -347,12 +394,12 @@ function Tracks() {
   const ticks: number[] = [];
   for (let t = 0; t <= total + step; t += step) ticks.push(Math.round(t * 100) / 100);
 
-  const layerRows: { slide: Slide; block: Block }[] = [];
+  /* Rows read top-down as the canvas stacks: the frontmost layer is the first row. */
+  const layerRows: { slide: Slide; block: Block; index: number; rows: number }[] = [];
   project.slides.forEach((sl) => {
     const apart = brokenApart.includes(sl.id);
-    sl.blocks.forEach((b) => {
-      if (apart || selection.includes(b.id)) layerRows.push({ slide: sl, block: b });
-    });
+    const shown = sl.blocks.map((b, index) => ({ slide: sl, block: b, index })).filter(({ block }) => apart || selection.includes(block.id));
+    shown.reverse().forEach((r) => layerRows.push({ ...r, rows: shown.length }));
   });
 
   return (
@@ -393,11 +440,14 @@ function Tracks() {
             ))}
           </div>
 
-          {layerRows.map(({ slide, block }) => (
+          {layerRows.map(({ slide, block, index, rows }) => (
             <LayerBar
               key={block.id}
               slide={slide}
               block={block}
+              index={index}
+              /* Only a fully expanded slide can be re-stacked by drag; a lone selected row has nothing to pass. */
+              reorderable={rows === slide.blocks.length && rows > 1}
               offset={offsets[project.slides.indexOf(slide)]}
               pxPerSec={pxPerSec}
               selected={selection.includes(block.id)}
@@ -431,8 +481,6 @@ function Tracks() {
         </div>
       </div>
 
-      <ZoomControls pxPerSec={pxPerSec} fitPx={fitPx} onChange={setPxPerSec} />
-
       {ctx ? (
         <div
           role="menu"
@@ -451,13 +499,17 @@ function Tracks() {
 const laneBtn =
   "flex h-6 items-center gap-1.5 rounded-[6px] px-2 text-cap text-ink-secondary transition-colors hover:bg-[var(--state-hover)] hover:text-ink";
 
-function ZoomControls({ pxPerSec, fitPx, onChange }: { pxPerSec: number; fitPx: number; onChange: (v: number | null) => void }) {
+function ZoomControls() {
+  const fitPx = useBottomUi((s) => s.fitPx);
+  const pref = useBottomUi((s) => s.pxPerSec);
+  const onChange = useBottomUi((s) => s.setPxPerSec);
+  const pxPerSec = pref ?? fitPx;
   const min = 10;
   const max = 400;
   const toSlider = (v: number) => (Math.log(v / min) / Math.log(max / min)) * 100;
   const fromSlider = (s: number) => min * Math.pow(max / min, s / 100);
   return (
-    <div className="pointer-events-auto absolute right-2.5 bottom-2 flex h-7 items-center gap-1 rounded-[8px] bg-raised px-1 shadow-overlay">
+    <div className="flex h-7 items-center gap-1 rounded-[8px] px-1">
       <button type="button" aria-label="Zoom out" className={zoomIcon} onClick={() => onChange(Math.max(min, pxPerSec / 1.25))}>
         <ZoomOut />
       </button>
@@ -535,6 +587,7 @@ function SceneBar({
   const duplicateSlide = useEditor((s) => s.duplicateSlide);
   const removeSlide = useEditor((s) => s.removeSlide);
   const addSlide = useEditor((s) => s.addSlide);
+  const moveSlide = useEditor((s) => s.moveSlide);
   const count = useEditor((s) => s.project.slides.length);
   const height = useEditor((s) => s.project.height);
   const isApart = useBottomUi((s) => s.brokenApart.includes(slide.id));
@@ -585,11 +638,25 @@ function SceneBar({
           e.clientX,
           e.clientY,
           <>
-            <MenuItem onClick={() => breakApart(slide.id, !isApart)}>{isApart ? "Group" : "Break Apart"}</MenuItem>
-            <MenuItem onClick={() => duplicateSlide(slide.id)}>Duplicate scene</MenuItem>
-            <MenuItem onClick={() => addSlide(slide.id)}>Add scene after</MenuItem>
-            <MenuItem onClick={() => removeSlide(slide.id)} disabled={count <= 1} destructive>
-              Delete
+            <MenuItem onClick={() => breakApart(slide.id, !isApart)} icon={<Rows3 />}>
+              {isApart ? "Hide layers" : "Show layers"}
+            </MenuItem>
+            <MenuDivider />
+            <MenuItem onClick={() => moveSlide(slide.id, -1)} disabled={index === 0} icon={<ChevronLeft />}>
+              Move scene left
+            </MenuItem>
+            <MenuItem onClick={() => moveSlide(slide.id, 1)} disabled={index >= count - 1} icon={<ChevronRight />}>
+              Move scene right
+            </MenuItem>
+            <MenuDivider />
+            <MenuItem onClick={() => duplicateSlide(slide.id)} icon={<Copy />}>
+              Duplicate scene
+            </MenuItem>
+            <MenuItem onClick={() => addSlide(slide.id)} icon={<Plus />}>
+              Add scene after
+            </MenuItem>
+            <MenuItem onClick={() => removeSlide(slide.id)} disabled={count <= 1} icon={<Trash2 />} destructive>
+              Delete scene
             </MenuItem>
           </>,
         );
@@ -697,9 +764,18 @@ function layerLabel(b: Block) {
   return { image: "Image", video: "Video", shape: "Shape" }[b.type];
 }
 
+/*
+  One layer's pill. Horizontal drag moves it in time (with every other
+  selected layer in the scene); a mostly vertical drag re-stacks it, which is
+  what moving a row up or down in the list means for z-order. Shift or ⌘
+  click adds to the selection so several layers can be deleted, grouped or
+  moved together.
+*/
 function LayerBar({
   slide,
   block,
+  index,
+  reorderable,
   offset,
   pxPerSec,
   selected,
@@ -707,34 +783,85 @@ function LayerBar({
 }: {
   slide: Slide;
   block: Block;
+  index: number;
+  reorderable: boolean;
   offset: number;
   pxPerSec: number;
   selected: boolean;
   onContext: (x: number, y: number, items: ReactNode) => void;
 }) {
   const updateBlock = useEditor((s) => s.updateBlock);
+  const updateBlocks = useEditor((s) => s.updateBlocks);
+  const moveBlockTo = useEditor((s) => s.moveBlockTo);
   const select = useEditor((s) => s.select);
   const setActiveSlide = useEditor((s) => s.setActiveSlide);
   const removeBlocks = useEditor((s) => s.removeBlocks);
   const duplicateBlocks = useEditor((s) => s.duplicateBlocks);
+  const reorder = useEditor((s) => s.reorder);
+  const groupBlocks = useEditor((s) => s.groupBlocks);
+  const ungroupBlocks = useEditor((s) => s.ungroupBlocks);
   const drag = useDragSeconds(pxPerSec);
+  const [lifting, setLifting] = useState(false);
 
   const clampStart = (v: number) => Math.min(Math.max(0, v), block.end - 0.1);
   const clampEnd = (v: number) => Math.max(Math.min(slide.duration, v), block.start + 0.1);
 
-  const pick = () => {
+  /* The ids an action applies to: the selection when this layer is part of it, else just this layer. */
+  const targets = () => {
+    const s = useEditor.getState();
+    return s.selection.includes(block.id) ? s.selection : [block.id];
+  };
+  const pick = (e?: React.PointerEvent | React.MouseEvent) => {
     if (useEditor.getState().activeSlideId !== slide.id) setActiveSlide(slide.id);
-    select([block.id]);
+    if (e && (e.shiftKey || e.metaKey || e.ctrlKey)) select([block.id], true);
+    else if (!useEditor.getState().selection.includes(block.id)) select([block.id]);
   };
 
   const move = (e: React.PointerEvent) => {
-    const { start, end } = block;
-    const len = end - start;
-    pick();
-    drag(e, (dt) => {
-      const s = Math.min(Math.max(0, snap(start + dt)), slide.duration - len);
-      updateBlock(block.id, { start: s, end: s + len });
-    });
+    if (e.button !== 0) return;
+    const additive = e.shiftKey || e.metaKey || e.ctrlKey;
+    pick(e);
+    if (additive) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const ids = targets();
+    const state = useEditor.getState();
+    const movers = slide.blocks.filter((b) => ids.includes(b.id));
+    const origin = new Map(movers.map((b) => [b.id, { start: b.start, end: b.end }]));
+    /* Together the selection can only shift as far as its tightest member allows. */
+    const minDt = -Math.min(...movers.map((b) => b.start));
+    const maxDt = Math.min(...movers.map((b) => slide.duration - b.end));
+    const x0 = e.clientX;
+    const y0 = e.clientY;
+    let mode: "time" | "stack" | null = null;
+    const onMove = (ev: PointerEvent) => {
+      const dx = ev.clientX - x0;
+      const dy = ev.clientY - y0;
+      if (!mode) {
+        if (Math.abs(dx) < 4 && Math.abs(dy) < 4) return;
+        mode = reorderable && Math.abs(dy) > Math.abs(dx) ? "stack" : "time";
+        state.setInteracting(true);
+        if (mode === "stack") setLifting(true);
+      }
+      if (mode === "stack") {
+        /* Rows run top-down from the front, so moving down the list is moving back in z. */
+        const to = index - Math.round(dy / ROW_H);
+        if (to !== useEditor.getState().project.slides.find((s) => s.id === slide.id)?.blocks.findIndex((b) => b.id === block.id)) moveBlockTo(block.id, to);
+        return;
+      }
+      const dt = Math.min(maxDt, Math.max(minDt, snap(dx / pxPerSec)));
+      const patches: Record<string, Partial<Block>> = {};
+      origin.forEach((o, id) => (patches[id] = { start: snap(o.start + dt), end: snap(o.end + dt) }));
+      updateBlocks(patches);
+    };
+    const onUp = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      state.setInteracting(false);
+      setLifting(false);
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
   };
   const trimStart = (e: React.PointerEvent) => {
     const { start } = block;
@@ -757,6 +884,7 @@ function LayerBar({
         className={cn(
           "group absolute top-[3px] bottom-[3px] flex cursor-grab items-center overflow-hidden rounded-[5px] ring-1 ring-inset active:cursor-grabbing",
           selected ? "ring-ink" : "ring-white/10 hover:ring-white/30",
+          lifting && "z-10 shadow-overlay ring-ink brightness-125",
         )}
         style={style}
         onPointerDown={move}
@@ -764,20 +892,44 @@ function LayerBar({
           e.preventDefault();
           e.stopPropagation();
           pick();
+          const ids = targets();
+          const grouped = slide.blocks.some((b) => ids.includes(b.id) && b.groupId);
           onContext(
             e.clientX,
             e.clientY,
             <>
-              <MenuItem onClick={() => duplicateBlocks([block.id])} icon={<Copy />}>
+              <MenuItem onClick={() => duplicateBlocks(ids)} icon={<Copy />} shortcut="⌘D">
                 Duplicate
               </MenuItem>
-              <MenuItem onClick={() => removeBlocks([block.id])} icon={<Trash2 />} destructive>
-                Delete
+              <MenuDivider />
+              <MenuItem onClick={() => ids.forEach((id) => reorder(id, "forward"))} icon={<ArrowUp />} shortcut="]">
+                Move up
+              </MenuItem>
+              <MenuItem onClick={() => ids.forEach((id) => reorder(id, "backward"))} icon={<ArrowDown />} shortcut="[">
+                Move down
+              </MenuItem>
+              <MenuDivider />
+              {ids.length > 1 && !grouped ? (
+                <MenuItem onClick={() => groupBlocks(ids)} icon={<Group />} shortcut="⌘G">
+                  Group
+                </MenuItem>
+              ) : null}
+              {grouped ? (
+                <MenuItem onClick={() => ungroupBlocks(ids)} icon={<Ungroup />} shortcut="⌘⇧G">
+                  Ungroup
+                </MenuItem>
+              ) : null}
+              <MenuItem onClick={() => ids.forEach((id) => updateBlock(id, { locked: !block.locked }))} icon={block.locked ? <LockOpen /> : <Lock />}>
+                {block.locked ? "Unlock" : "Lock"}
+              </MenuItem>
+              <MenuItem onClick={() => removeBlocks(ids)} icon={<Trash2 />} shortcut="⌫" destructive>
+                Delete{ids.length > 1 ? ` ${ids.length} layers` : ""}
               </MenuItem>
             </>,
           );
         }}
       >
+        {block.groupId ? <Group className="ml-1.5 size-3 shrink-0 text-white/70" aria-label="In a group" /> : null}
         <span className="pointer-events-none truncate px-2 text-[10px] leading-none font-medium tracking-[0.3px] text-white/90">{layerLabel(block)}</span>
         <div className="absolute top-0 bottom-0 left-0 w-2 cursor-ew-resize" onPointerDown={trimStart}>
           <div className="absolute top-1/2 left-[3px] h-2.5 w-[2px] -translate-y-1/2 rounded-full bg-white/70 opacity-0 group-hover:opacity-100" />

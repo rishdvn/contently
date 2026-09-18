@@ -152,11 +152,16 @@ export function Gizmo({ container, worldRef }: { container: HTMLDivElement | nul
       if (!e.inputEvent?.shiftKey) clearSelection();
       return;
     }
-    if (e.inputEvent?.shiftKey) select([el.dataset.blockId], true);
-    else if (e.isDouble && el.dataset.type === "text") {
-      select([el.dataset.blockId]);
-      setEditingText(el.dataset.blockId);
-    } else if (!e.isDouble) select([el.dataset.blockId]);
+    const id = el.dataset.blockId;
+    if (e.inputEvent?.shiftKey) select([id], true);
+    else if (e.isDouble) {
+      /* Double-click drills into the group: just this child, and straight into editing for text. */
+      select([id], false, true);
+      if (el.dataset.type === "text") setEditingText(id);
+    } else {
+      /* A plain click keeps a group whole but narrows an ad-hoc multi-selection to the one block. */
+      select([id]);
+    }
   };
 
   const begin = () => setInteracting(true);

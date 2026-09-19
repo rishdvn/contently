@@ -33,7 +33,8 @@ export function Badge({
       {...props}
     >
       {dot ? <span className={cn("size-1.5 rounded-full", tones[tone].dot)} /> : null}
-      <span>{children}</span>
+      {/* Flex so an icon passed as a child sits beside the label rather than above it. */}
+      <span className="inline-flex items-center gap-1 whitespace-nowrap">{children}</span>
     </span>
   );
 }

@@ -34,7 +34,7 @@ export default function ViewsPage() {
       <PageHeader
         title="Views"
         lede="Things the user reads. Views arrange content and report state; they do not take input. When a view needs a control it composes one from the Controls page."
-        note="Mobbin's View category also lists table, stacked list, tab bar, carousel, gallery and progress. Table and stacked list arrive with the library; progress with the board's generation queue."
+        note="Mobbin's View category also lists table, stacked list, tab bar, carousel, gallery and progress. Table and stacked list arrive with Documents; progress with the Content production queue."
       />
 
       <Section

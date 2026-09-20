@@ -1,3 +1,5 @@
+import { ConvexError } from "convex/values";
+
 import type { Doc } from "../_generated/dataModel";
 import type { QueryCtx } from "../_generated/server";
 
@@ -18,17 +20,38 @@ import type { QueryCtx } from "../_generated/server";
   writes. Actions have no `db`, so they authorise by calling a query/mutation.
 */
 
-export class AuthError extends Error {}
+export type AuthDenialCode =
+  /* No token, or a token Convex would not accept. */
+  | "unauthenticated"
+  /* Signed in, but Clerk's `user.created` has not reached the mirror yet. */
+  | "unmirrored"
+  /* Signed in and mirrored, but not a member of the org asked about. */
+  | "forbidden";
 
-/* Thrown as `ConvexError`-free plain errors: the client only ever needs to know
-   that it was not allowed, and Convex logs the message server-side. */
-function deny(message: string): never {
-  throw new AuthError(message);
+export type AuthDenial = { kind: "auth"; code: AuthDenialCode; message: string };
+
+/*
+  A `ConvexError` rather than a bare throw: its `data` reaches the client on the
+  production deployment too, where plain errors are flattened to "Server Error".
+  A client that has to tell "you are not in this org" apart from "the query
+  crashed" can only do that if the denial is part of the value.
+*/
+function deny(code: AuthDenialCode, message: string): never {
+  throw new ConvexError({ kind: "auth", code, message } satisfies AuthDenial);
+}
+
+export function isAuthDenial(error: unknown): error is ConvexError<AuthDenial> {
+  return (
+    error instanceof ConvexError &&
+    typeof error.data === "object" &&
+    error.data !== null &&
+    (error.data as { kind?: unknown }).kind === "auth"
+  );
 }
 
 export async function requireUser(ctx: QueryCtx): Promise<Doc<"users">> {
   const identity = await ctx.auth.getUserIdentity();
-  if (!identity) deny("Not signed in");
+  if (!identity) deny("unauthenticated", "Not signed in");
 
   const user = await ctx.db
     .query("users")
@@ -36,9 +59,9 @@ export async function requireUser(ctx: QueryCtx): Promise<Doc<"users">> {
     .unique();
 
   /* The mirror is eventually consistent: a brand-new user can reach a query
-     before Clerk's `user.created` webhook lands. Saying so beats a generic
-     failure, and the client can retry. */
-  if (!user) deny(`No mirrored user for ${identity.subject} yet`);
+     before Clerk's `user.created` webhook lands. Saying which of the two it is
+     lets the client retry instead of treating it as a dead end. */
+  if (!user) deny("unmirrored", "This user has not been mirrored from Clerk yet");
   return user;
 }
 
@@ -55,15 +78,15 @@ export async function requireOrg(ctx: QueryCtx, clerkOrgId: string): Promise<Org
     .query("organizations")
     .withIndex("by_clerkOrgId", (q) => q.eq("clerkOrgId", clerkOrgId))
     .unique();
-  /* Deliberately the same shape of failure as "not a member": whether an org
-     exists is not something a non-member should be able to probe. */
-  if (!org) deny("No access to this organisation");
+  /* Deliberately the same failure as "not a member": whether an org exists is
+     not something a non-member should be able to probe. */
+  if (!org) deny("forbidden", "No access to this organisation");
 
   const membership = await ctx.db
     .query("memberships")
     .withIndex("by_org_user", (q) => q.eq("orgId", org._id).eq("userId", user._id))
     .unique();
-  if (!membership) deny("No access to this organisation");
+  if (!membership) deny("forbidden", "No access to this organisation");
 
   return { user, org, membership };
 }
@@ -71,14 +94,14 @@ export async function requireOrg(ctx: QueryCtx, clerkOrgId: string): Promise<Org
 /*
   Same checks, but for read paths that would rather return nothing than fail —
   the hub renders while Clerk is still switching orgs, and a thrown error there
-  would blank the page. Only our own `AuthError` is swallowed; a real failure
-  still propagates.
+  would blank the page. Only a denial is swallowed; a real failure still
+  propagates.
 */
 async function orNull<T>(check: Promise<T>): Promise<T | null> {
   try {
     return await check;
   } catch (error) {
-    if (error instanceof AuthError) return null;
+    if (isAuthDenial(error)) return null;
     throw error;
   }
 }

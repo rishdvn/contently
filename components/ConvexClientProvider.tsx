@@ -6,9 +6,14 @@ import { ConvexProviderWithClerk } from "convex/react-clerk";
 import type { ReactNode } from "react";
 
 /*
-  The Convex client, authenticated with Clerk: `ConvexProviderWithClerk` asks
-  Clerk for a JWT from the template named `convex` and refreshes it, so
-  `ctx.auth.getUserIdentity()` resolves inside every query and mutation.
+  The Convex client, authenticated with Clerk: `ConvexProviderWithClerk` hands
+  Convex a Clerk token and refreshes it, so `ctx.auth.getUserIdentity()` resolves
+  inside every query and mutation.
+
+  Our Clerk instance has the Convex integration enabled, which puts
+  `aud: "convex"` on the session token itself — the audience `auth.config.ts`
+  requires — so there is no `convex` JWT template to look for. The provider falls
+  back to asking for one only when the session token lacks that audience.
 
   It must be rendered inside `ClerkProvider` (see `app/layout.tsx`).
 */

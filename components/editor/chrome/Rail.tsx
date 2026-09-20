@@ -1,17 +1,6 @@
 "use client";
 
-import {
-  Captions,
-  Hammer,
-  LayoutTemplate,
-  MoreVertical,
-  Music,
-  Palette,
-  Shapes,
-  Sparkles,
-  Type,
-  Upload,
-} from "lucide-react";
+import { LayoutTemplate, MoreVertical, Music, Shapes, Sparkles, Type, Upload } from "lucide-react";
 import { Fragment, useEffect, useRef, useState } from "react";
 import { create } from "zustand";
 
@@ -22,19 +11,16 @@ import { useEditor, type LeftTab } from "@/lib/editor/store";
 import { Panel } from "../controls";
 
 export const RAIL_TABS: { id: LeftTab; label: string; icon: React.ReactNode }[] = [
-  { id: "build", label: "Build", icon: <Hammer /> },
   { id: "templates", label: "Templates", icon: <LayoutTemplate /> },
   { id: "blocks", label: "Blocks", icon: <Shapes /> },
   { id: "text", label: "Text", icon: <Type /> },
   { id: "stock", label: "Stock", icon: <Sparkles /> },
   { id: "audio", label: "Audio", icon: <Music /> },
-  { id: "brandkit", label: "BrandKit", icon: <Palette /> },
   { id: "uploads", label: "Uploads", icon: <Upload /> },
-  { id: "captions", label: "Captions", icon: <Captions /> },
 ];
 
 /* Index of the first workspace tab; the reference rules a hairline between the two groups. */
-const WORKSPACE_START = 6;
+const WORKSPACE_START = 5;
 
 /* Geometry used to decide how many tabs fit before the rest go under ⋮. */
 const ITEM_H = 53;

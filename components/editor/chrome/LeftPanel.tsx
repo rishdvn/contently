@@ -8,14 +8,14 @@ import { useEditor } from "@/lib/editor/store";
 
 import { Panel } from "../controls";
 import { usePeek } from "./Rail";
-import { AudioPanel, BrandkitPanel, BuildPanel, CaptionsPanel, StockPanel, UploadsPanel } from "./panels/misc";
+import { AudioPanel, StockPanel, UploadsPanel } from "./panels/misc";
 import { BlocksPanel, TemplatesPanel, TextPanel } from "./panels/library";
 
 export const LEFT_PANEL_WIDTH = 400;
 export const LEFT_PANEL_X = 84;
 
 /*
-  The flyout beside the rail. One shell, nine bodies. Hovering a rail tab
+  The flyout beside the rail. One shell, one body per rail tab. Hovering a tab
   peeks it as an overlay from the top edge down to the timeline, leaving the
   canvas where it is; clicking pins it, and the pinned panel runs from below
   the top bar to the window's bottom while the timeline and canvas make room.
@@ -35,15 +35,12 @@ export function LeftPanel({ bottom }: { bottom: number }) {
       onPointerEnter={pinned ? undefined : hold}
       onPointerLeave={pinned ? undefined : release}
     >
-      {tab === "build" ? <BuildPanel /> : null}
       {tab === "templates" ? <TemplatesPanel /> : null}
       {tab === "blocks" ? <BlocksPanel /> : null}
       {tab === "text" ? <TextPanel /> : null}
       {tab === "stock" ? <StockPanel /> : null}
       {tab === "audio" ? <AudioPanel /> : null}
-      {tab === "brandkit" ? <BrandkitPanel /> : null}
       {tab === "uploads" ? <UploadsPanel /> : null}
-      {tab === "captions" ? <CaptionsPanel /> : null}
     </Panel>
   );
 }

@@ -18,16 +18,7 @@ import {
   type Viewport,
 } from "./types";
 
-export type LeftTab =
-  | "build"
-  | "templates"
-  | "blocks"
-  | "text"
-  | "stock"
-  | "audio"
-  | "brandkit"
-  | "uploads"
-  | "captions";
+export type LeftTab = "templates" | "blocks" | "text" | "stock" | "audio" | "uploads";
 
 export type InspectorTab = "design" | "effects";
 
@@ -47,6 +38,7 @@ type EditorState = Tracked & {
   spaceHeld: boolean;
   clipboard: Block[];
   uploads: Upload[];
+  /* Swatches offered by every colour field in the inspector. */
   brandColors: string[];
   playing: boolean;
   time: number;
@@ -96,7 +88,6 @@ type EditorState = Tracked & {
   setInteracting: (v: boolean) => void;
   setSpaceHeld: (v: boolean) => void;
   addUpload: (u: Upload) => void;
-  addBrandColor: (c: string) => void;
   setPlaying: (v: boolean) => void;
   setTime: (t: number) => void;
   setMuted: (v: boolean) => void;
@@ -396,7 +387,6 @@ export const useEditor = create<EditorState>()(
       setInteracting: (v) => set({ interacting: v }),
       setSpaceHeld: (v) => set({ spaceHeld: v }),
       addUpload: (u) => set((s) => ({ uploads: [u, ...s.uploads] })),
-      addBrandColor: (c) => set((s) => (s.brandColors.includes(c) ? {} : { brandColors: [...s.brandColors, c] })),
       setPlaying: (v) => set({ playing: v }),
       setTime: (t) => set({ time: Math.max(0, t) }),
       setMuted: (v) => set({ muted: v }),

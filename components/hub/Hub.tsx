@@ -17,6 +17,7 @@ import {
 import { useRouter } from "next/navigation";
 import { useCallback, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 
+import { AuthFooter } from "@/components/auth/AuthFooter";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogBody, DialogHeader } from "@/components/ui/dialog";
 import { Menu, MenuItem } from "@/components/ui/menu";
@@ -77,13 +78,7 @@ export function Hub() {
           <NavItem icon={<Palette />}>Brandkit</NavItem>
           <NavItem icon={<Users />}>Team</NavItem>
         </SidebarGroup>
-        <div className="mt-auto flex items-center gap-2.5 px-2.5 py-2">
-          <span className="flex size-8 items-center justify-center rounded-full bg-spectrum-green text-[13px] font-semibold text-canvas">P</span>
-          <div className="min-w-0">
-            <div className="truncate text-ui text-ink">Personal</div>
-            <div className="truncate text-cap text-ink-secondary">Local workspace</div>
-          </div>
-        </div>
+        <AuthFooter />
       </Sidebar>
 
       <main className="min-w-0 flex-1 px-8 py-6">

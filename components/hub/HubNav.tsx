@@ -4,6 +4,7 @@ import { Folder, Images, LayoutTemplate } from "lucide-react";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 
+import { AuthFooter } from "@/components/auth/AuthFooter";
 import { NavLink, Sidebar, SidebarGroup } from "@/components/ui/nav";
 
 /* V1 navigation: three destinations, nothing that leads nowhere. */
@@ -26,13 +27,7 @@ export function HubNav() {
           </NavLink>
         ))}
       </SidebarGroup>
-      <div className="mt-auto flex items-center gap-2.5 px-2.5 py-2">
-        <span className="flex size-8 items-center justify-center rounded-full bg-spectrum-green text-[13px] font-semibold text-canvas">P</span>
-        <div className="min-w-0">
-          <div className="truncate text-ui text-ink">Personal</div>
-          <div className="truncate text-cap text-ink-secondary">Local workspace</div>
-        </div>
-      </div>
+      <AuthFooter />
     </Sidebar>
   );
 }

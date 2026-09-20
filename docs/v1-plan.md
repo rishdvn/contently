@@ -115,7 +115,7 @@ Document integration: a new block type `component` (`{ type: "component", compon
 - Goal: `/templates` styled after Butter's: search, category chips, Video/Static toggle, masonry of template cards (hover plays, click opens the enlarged preview with the sidebar: Create button, Info, scenes list, tags, More like this). **Create** makes a project from the template in the current org and opens the studio.
 - Reference: butter.video/templates (agent logs in with the `BUTTER_*` secrets and records the grid, hover, preview and Create flow first).
 - Files: `app/templates/page.tsx`, `components/hub/*`, `convex/templates.ts`.
-- Depends on: T-012, T-030 (needs real templates to show; can start against seed fixtures).
+- Depends on: T-012, T-082a (verifies against the three mock templates).
 
 ### Phase 3 — Block platform (sequential; blocks Phase 4/5)
 
@@ -178,8 +178,8 @@ Text blocks are components whose main input is text, with a designed look and an
 
 ### Phase 6 — Templates
 
-**T-030 → T-080 Template document format + roles + authoring guide**
-- Goal: `isTemplate`, `role` on blocks, `scenePosters`, categories/tags; `docs/templates.md` on how to author one (aspect targets, roles, block usage, poster generation); a script to render posters.
+**T-080 Template document format + roles + authoring guide**
+- Goal: `isTemplate`, `role` on blocks (`heading`, `subheading`, `body`, `benefit`, `cta`, `price`, `brand`, `quote`, `author`, `hook`, `logo`, `image:product`, `image:lifestyle`, `image:background`, `video:background`), `scenePosters`, categories/tags, `kind` (image | carousel | video); `docs/templates.md` covering aspect targets, which roles a slot should carry, what makes a slot "replaceable" (media slots must be `image`/`video` blocks or component `image`/`video` inputs; text slots must not be baked into images), poster generation; a script to render posters.
 - Depends on: T-030.
 
 **T-081 Template scene picker in the studio (Templates flyout)**
@@ -189,10 +189,17 @@ Text blocks are components whose main input is text, with a designed look and an
 - Verify: recording of hover preview, add one, add all; headless check of slide count/order and rescaled geometry.
 - Depends on: T-080.
 
-**T-082 Seed template library (authoring)**
-- Goal: 15–20 published templates across image (4:5, 1:1), carousel (3–5 slides, 4:5) and video (9:16, 2–4 scenes), built from the V1 blocks, with roles on every content block and posters generated. Categories: Product showcase, Sale, Reviews, Feature callouts, Before/After, Listicle, Hook + CTA, Press, How-to, UGC reaction.
-- Verify: each template opens, every scene renders, every `image:*` slot can be replaced from Uploads/Stock, the poster matches the scene, and the API (T-100) lists it with roles.
-- Depends on: T-080, Phase 4/5 blocks it uses. Can be split into 3 tickets by kind.
+**T-082a Mock templates (fixtures for every downstream ticket)**
+- Goal: exactly three published templates, one per kind, built to exercise every code path rather than to look finished:
+  - **Image — "Product spotlight"** (4:5): roles `heading`, `body`, `cta`, `image:product`, `image:background`; one component block (Product card) in static mode; a shape; a highlight-style text.
+  - **Carousel — "3 reasons"** (3 slides, 4:5): a `heading` per slide plus `benefit` roles; a brand block (Logo strip) repeated on every slide; `image:lifestyle` on slide 1; `cta` on slide 3.
+  - **Video — "Hook → demo → CTA"** (3 scenes, 9:16, different durations): a `hook` text with word-by-word entrance; a `video:background` slot; an animated component (Search bar or iMessage); a Counter; a `cta`.
+- Verify: each opens in the studio; every scene renders; every `image:*`/`video:*` slot is replaceable from Uploads/Stock; posters generated; T-081 can add one scene and all scenes; the API lists each with roles.
+- Depends on: T-080 and the specific blocks used (Product card, Logo strip, Search bar or iMessage, Counter).
+
+**T-082b Template library (post-V1 authoring)**
+- Goal: 15–20 real templates across the three kinds, authored from the owner's own examples of organic posts/carousels/videos (screenshots or links plus a one-line "why") and from Butter's templates studied for **structure only** (scene count, durations, hierarchy) — never copying artwork or copy. Follows `docs/templates.md`.
+- Not in V1; scheduled once the block catalog and scene picker have been used against the mocks.
 
 ### Phase 7 — Stock and audio (parallel with Phase 4–6)
 
@@ -236,7 +243,7 @@ Text blocks are components whose main input is text, with a designed look and an
 **T-100 Public REST API (Convex HTTP actions) + API keys**
 - Goal: per-org API keys (create/revoke in a Settings dialog); endpoints: `GET /v1/templates` (filters, roles summary, posters), `GET /v1/templates/:id` (scenes → blocks with `id`, `type`, `role`, current text / image slot / constraints / component schema), `POST /v1/projects` (from template, optional scene subset), `GET /v1/projects/:id`, `PATCH /v1/projects/:id/content` (batch replace by `blockId` or `role`: text, image (URL or media id), component props), `GET /v1/media`, `POST /v1/media` (upload URL), `POST /v1/projects/:id/render` (format: png | carousel-zip | mp4) → job, `GET /v1/render-jobs/:id`.
 - Verify: an end-to-end script that lists templates, creates a project, replaces a heading and a product image, requests a render and downloads it.
-- Depends on: T-080, T-082, T-101.
+- Depends on: T-080, T-082a, T-101.
 
 **T-101 Render worker**
 - Goal: a Node service with headless Chrome that opens `/render/:projectId?token=…` (a chrome-less route rendering artboards at 1:1) and produces PNGs per slide and MP4 for video using the existing exporter; uploads results to Convex storage; processes `renderJobs`.
@@ -275,16 +282,16 @@ Phase 2  { T-020, T-021 } (after T-012/T-013)   T-022 after T-080
 Phase 3  T-030 → { T-031, T-032 }
 Phase 4  T-041 … T-051 in parallel (each in its own folder)   after T-030
 Phase 5  T-060 … T-072 in parallel                            after T-030
-Phase 6  T-080 → T-081 → T-082 (needs blocks it uses)
+Phase 6  T-080 → T-081 → T-082a (needs the blocks it uses); T-082b post-V1
 Phase 7  { T-090 → T-091, T-093 → T-094, T-092 }              after T-011
-Phase 8  T-101 → T-100 → T-102                                 after T-082
+Phase 8  T-101 → T-100 → T-102                                 after T-082a
 Phase 9  any time after their dependency
 Phase 10 after each merge batch
 ```
 
 Run 3–5 agents at once. Block and text-block tickets are the safest to parallelise because each lives in its own folder and only registers itself in `lib/blocks/registry.ts` (one-line conflicts, trivially rebased). Anything touching `Bottom.tsx`, `Inspector.tsx`, `store.ts` or `Hub.tsx` should be sequential.
 
-Suggested batches: **B1** T-001 + T-010. **B2** T-011. **B3** T-012, T-013, T-030, T-090, T-093 (five agents; disjoint files). **B4** T-031, T-032, T-080, T-021, T-091, T-094 + first four blocks. **B5** remaining blocks and text blocks, T-081, T-101. **B6** T-082 (three authoring agents by kind), T-022, T-100. **B7** T-102, Phase 9 items, T-120.
+Suggested batches: **B1** T-001 + T-010. **B2** T-011. **B3** T-012, T-013, T-030, T-090, T-093 (five agents; disjoint files). **B4** T-031, T-032, T-080, T-021, T-091, T-094 + first four blocks (T-041 Search bar, T-044 Carousel, T-045 Product card, T-048 Logo strip — the ones the mocks need). **B5** remaining blocks and text blocks, T-081, T-101. **B6** T-082a, T-022, T-100. **B7** T-102, Phase 9 items, T-120.
 
 ---
 

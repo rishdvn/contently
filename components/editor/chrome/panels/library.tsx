@@ -1,6 +1,6 @@
 "use client";
 
-import { Plus, SlidersHorizontal } from "lucide-react";
+import { Plus } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { Chip, ChipRow } from "@/components/ui/chip";
@@ -50,9 +50,6 @@ export function TemplatesPanel() {
         <PanelSearch value={q} onChange={setQ} placeholder="Search templates" />
       </PanelHeader>
       <div className="flex items-center gap-2 px-3 pb-2">
-        <button type="button" aria-label="Filters" className="flex size-8 shrink-0 items-center justify-center rounded-[8px] text-ink-secondary hover:bg-[var(--state-hover)] hover:text-ink [&>svg]:size-4">
-          <SlidersHorizontal />
-        </button>
         <ChipRow className="min-w-0 [scrollbar-width:none]">
           {TEMPLATE_CATEGORIES.map((c) => (
             <Chip key={c} selected={cat === c} onClick={() => setCat(cat === c ? null : c)} className="h-7 px-3 text-cap">
@@ -119,9 +116,6 @@ export function BlocksPanel() {
         </div>
       </PanelHeader>
       <div className="flex items-center gap-1 px-3 pb-2">
-        <Chip selected className="h-8 gap-1.5 px-3 text-cap">
-          <Plus className="size-3.5" /> Build
-        </Chip>
         {SHAPES.slice(0, 6).map((s) => (
           <Tooltip key={s.kind} label={s.label} side="bottom">
             <button type="button" aria-label={s.label} className="flex size-8 items-center justify-center rounded-[8px] text-ink-secondary hover:bg-[var(--state-hover)] hover:text-ink" onClick={() => addShape(s.kind)}>

@@ -1,14 +1,6 @@
 "use client";
 
-import {
-  ChevronDown,
-  CircleHelp,
-  Maximize,
-  MessageCircle,
-  Redo2,
-  Smartphone,
-  Undo2,
-} from "lucide-react";
+import { ChevronDown, Maximize, Redo2, Smartphone, Undo2 } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
@@ -22,10 +14,10 @@ import { cameraRef } from "../canvas/Viewport";
 import { Panel } from "../controls";
 
 /*
-  Top chrome: identity on the left, a floating command pill in the centre.
-  Mirrors the reference — undo/redo · ratio · quality · zoom · comments · help
-  · Share · Export — with the export split button carrying the only filled
-  treatment on the bar.
+  Top chrome: identity on the left, a floating command pill in the centre —
+  undo/redo · ratio · zoom · Share · Export. Every control on the bar acts on
+  the project; the reference's comments, help and export-preset affordances are
+  out of scope for V1 and are not stubbed here.
 */
 export function TopBar({ left, right }: { left: number; right: number }) {
   return (
@@ -40,19 +32,7 @@ export function TopBar({ left, right }: { left: number; right: number }) {
         <HistoryButtons />
         <Divider />
         <AspectPicker />
-        <QualityPicker />
         <ZoomPicker />
-        <Divider />
-        <Tooltip label="Comments" side="bottom">
-          <button type="button" className={iconBtn} aria-label="Comments">
-            <MessageCircle />
-          </button>
-        </Tooltip>
-        <Tooltip label="Help" side="bottom">
-          <button type="button" className={iconBtn} aria-label="Help">
-            <CircleHelp />
-          </button>
-        </Tooltip>
         <Divider />
         <ShareExport />
       </Panel>
@@ -133,26 +113,6 @@ function AspectPicker() {
   );
 }
 
-function QualityPicker() {
-  const [q, setQ] = useState("High");
-  return (
-    <Menu
-      trigger={(p) => (
-        <button type="button" className={textBtn} {...p}>
-          {q}
-          <ChevronDown className="!size-3 text-ink-disabled" />
-        </button>
-      )}
-    >
-      {["Best", "High", "Medium", "Low"].map((o) => (
-        <MenuItem key={o} onClick={() => setQ(o)} className={cn(o === q && "bg-[var(--state-selected)]")}>
-          {o}
-        </MenuItem>
-      ))}
-    </Menu>
-  );
-}
-
 function ZoomPicker() {
   const zoom = useEditor((s) => s.viewport.zoom);
   return (
@@ -192,22 +152,15 @@ function ShareExport() {
       <button type="button" data-flyout-trigger className={cn(textBtn, "text-ink", dialog === "share" && "bg-[var(--state-selected)]")} onClick={() => toggle("share")}>
         Share
       </button>
-      <div className={cn("ml-0.5 flex h-8 items-stretch overflow-hidden rounded-[8px] ring-1 ring-line-strong", dialog === "export" && "bg-[var(--state-selected)]")}>
-        <button type="button" data-flyout-trigger className="px-3 text-ui text-ink transition-colors hover:bg-[var(--state-hover)]" onClick={() => toggle("export")}>
-          Export
-        </button>
-        <Menu
-          align="end"
-          trigger={(p) => (
-            <button type="button" className="flex w-7 items-center justify-center border-l border-line-strong text-ink-secondary transition-colors hover:bg-[var(--state-hover)] hover:text-ink" aria-label="Export options" {...p}>
-              <ChevronDown className="size-3.5" />
-            </button>
-          )}
-        >
-          <MenuItem onClick={() => setDialog("export")}>Export image…</MenuItem>
-          <MenuItem onClick={() => setDialog("export")}>Export all slides…</MenuItem>
-        </Menu>
-      </div>
+      {/* One button, not a split one: the dialog already carries format, size and range. */}
+      <button
+        type="button"
+        data-flyout-trigger
+        className={cn("ml-0.5 flex h-8 items-center rounded-[8px] px-3 text-ui text-ink ring-1 ring-line-strong transition-colors hover:bg-[var(--state-hover)]", dialog === "export" && "bg-[var(--state-selected)]")}
+        onClick={() => toggle("export")}
+      >
+        Export
+      </button>
     </>
   );
 }

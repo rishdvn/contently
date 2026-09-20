@@ -318,3 +318,33 @@ All keys go into Cursor Cloud Agent secrets (repo-scoped to `rishdvn/contently`)
 3. **Aspect handling when adding a template scene** to a project of a different aspect: rescale to fit width and centre (plan), vs. refuse with a prompt.
 4. ~~Pexels vs Dupe~~ — decided: Dupe one-off import for the trial.
 5. **Personal org**: every user gets a personal org on sign-up (plan), or require creating one.
+
+---
+
+## 6. Linear
+
+Project: **Contently V1** (team Creative Studio) — https://linear.app/terraclays/project/contently-v1-cab230d48628
+
+| Ticket | Linear | Ticket | Linear | Ticket | Linear |
+|---|---|---|---|---|---|
+| T-001 | CRE-2 | T-041 | CRE-16 | T-063 | CRE-30 |
+| T-010 | CRE-3 | T-044 | CRE-17 | T-064 | CRE-31 |
+| T-011 | CRE-4 | T-045 | CRE-18 | T-065 | CRE-32 |
+| T-012 | CRE-5 | T-048 | CRE-19 | T-066 | CRE-33 |
+| T-013 | CRE-6 | T-042 | CRE-20 | T-067 | CRE-34 |
+| T-030 | CRE-7 | T-043 | CRE-21 | T-068 | CRE-35 |
+| T-090 | CRE-8 | T-046 | CRE-22 | T-069 | CRE-36 |
+| T-093 | CRE-9 | T-047 | CRE-23 | T-070 | CRE-37 |
+| T-031 | CRE-10 | T-049 | CRE-24 | T-071 | CRE-38 |
+| T-032 | CRE-11 | T-050 | CRE-25 | T-072 | CRE-39 |
+| T-080 | CRE-12 | T-051 | CRE-26 | T-081 | CRE-40 |
+| T-021 | CRE-13 | T-060 | CRE-27 | T-101 | CRE-41 |
+| T-091 | CRE-14 | T-061 | CRE-28 | T-082a | CRE-42 |
+| T-094 | CRE-15 | T-062 | CRE-29 | T-022 | CRE-43 |
+| T-100 | CRE-44 | T-102 | CRE-45 | T-110 | CRE-46 |
+| T-111 | CRE-47 | T-112 | CRE-48 | T-113 | CRE-49 |
+| T-114 | CRE-50 | T-115 | CRE-51 | T-116 | CRE-52 |
+| T-117 | CRE-53 | T-118 | CRE-54 | T-092 | CRE-55 |
+| T-120 | CRE-56 | | | | |
+
+Labels: `batch/B1…B7` (launch order) and `area/*` (one per issue; two open issues with the same area will contend for files). `blocked by` relations mirror the Depends-on lines above. Batches B1 issues start in **Todo**; everything else in **Backlog** — move a batch to Todo when launching it.

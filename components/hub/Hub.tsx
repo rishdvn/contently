@@ -1,32 +1,19 @@
 "use client";
 
-import {
-  Blocks,
-  Bookmark,
-  Clapperboard,
-  Compass,
-  Folder,
-  GalleryHorizontalEnd,
-  Image as ImageIcon,
-  LayoutTemplate,
-  MoreHorizontal,
-  Palette,
-  Plus,
-  Users,
-} from "lucide-react";
+import { Clapperboard, GalleryHorizontalEnd, Image as ImageIcon, MoreHorizontal, Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogBody, DialogHeader } from "@/components/ui/dialog";
 import { Menu, MenuItem } from "@/components/ui/menu";
-import { NavItem, Sidebar, SidebarGroup } from "@/components/ui/nav";
 import { cn } from "@/lib/cn";
 import { uid } from "@/lib/editor/factory";
 import { googleFontsHref } from "@/lib/editor/fonts";
 import { deleteProject, duplicateProject, loadProject, renameProject, useProjectIndex, type ProjectSummary } from "@/lib/editor/persistence";
 import type { Project, ProjectKind } from "@/lib/editor/types";
 
+import { HubNav } from "./HubNav";
 import { PreviewModal } from "./PreviewModal";
 import { projectMeta, ProjectStage, useProjectClock } from "./ProjectPreview";
 
@@ -59,32 +46,7 @@ export function Hub() {
   return (
     <div className="flex min-h-dvh bg-canvas text-ink">
       <link rel="stylesheet" href={googleFontsHref()} crossOrigin="anonymous" />
-      <Sidebar className="sticky top-0 h-dvh">
-        <div className="px-2.5 pt-1 pb-2 text-titles text-ink italic">Contently</div>
-        <SidebarGroup label="Home">
-          <NavItem icon={<Compass />}>Explore</NavItem>
-          <NavItem icon={<LayoutTemplate />}>Templates</NavItem>
-          <NavItem icon={<Blocks />}>Blocks</NavItem>
-          <NavItem icon={<Plus />} onClick={() => setCreating(true)}>
-            Create
-          </NavItem>
-        </SidebarGroup>
-        <SidebarGroup label="Workspace">
-          <NavItem icon={<Folder />} active>
-            Projects
-          </NavItem>
-          <NavItem icon={<Bookmark />}>Favorites</NavItem>
-          <NavItem icon={<Palette />}>Brandkit</NavItem>
-          <NavItem icon={<Users />}>Team</NavItem>
-        </SidebarGroup>
-        <div className="mt-auto flex items-center gap-2.5 px-2.5 py-2">
-          <span className="flex size-8 items-center justify-center rounded-full bg-spectrum-green text-[13px] font-semibold text-canvas">P</span>
-          <div className="min-w-0">
-            <div className="truncate text-ui text-ink">Personal</div>
-            <div className="truncate text-cap text-ink-secondary">Local workspace</div>
-          </div>
-        </div>
-      </Sidebar>
+      <HubNav />
 
       <main className="min-w-0 flex-1 px-8 py-6">
         <header className="flex items-center justify-between gap-4">

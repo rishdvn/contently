@@ -196,10 +196,21 @@ Text blocks are components whose main input is text, with a designed look and an
 
 ### Phase 7 — Stock and audio (parallel with Phase 4–6)
 
-**T-090 Stock provider + taxonomy (photos and videos)**
-- Goal: Convex action that queries Pexels (photos + videos) and caches into `stockAssets`; a curated **organic-content taxonomy** with query terms per category: Cafe · Beach · Workspace · City · Gym · Home · Food · Fashion/OOTD · Travel · Nature · Tech/Desk · Night out · People/Hands · Textures/Backgrounds; nightly refresh of the top N per category; "Our media" in T-021 reads this table.
-- Needs from you: a Pexels API key (free at pexels.com/api) as `PEXELS_API_KEY`. If you secure a Dupe partnership, this provider is the swap point.
-- Depends on: T-011.
+**T-090 Stock library: provider interface + one-off Dupe import (photos and videos)**
+- Goal: a `StockProvider` interface (`search(label, page)`, `fetchAsset(id)`) and an **import script** (Convex action run once from the CLI, not on a cron and never at request time) that pulls a curated set of UGC photos and videos from Dupe into **Convex storage** and writes `media` rows with `source: "stock"`, `sourceRef`, credit (`user`, `username`), dimensions and our category tags. The app then serves everything from Convex; nothing in the product calls Dupe at runtime.
+- Taxonomy (one Dupe search label per category, ~40 photos + ~15 videos each for the trial): Cafe · Beach · Workspace · City · Gym · Home · Food · OOTD · Travel · Nature · Desk/Tech · Night out · Hands/People · Textures.
+- Dupe specifics (verified 2026-09-20; private API, may change without notice):
+  - Browse: `GET https://content-api-prod-6gxsdymdsq-ue.a.run.app/api/v1/content/all?page=N` → 20 items/page, no auth.
+  - Search: `POST …/api/v1/content/search` body `{"label":"cafe","page":1}` (field is `label`; other names return "Search label cannot be empty").
+  - Item fields: `id`, `img_id`, `img_preview_id`, `content_type` (`PHOTO`|`VIDEO`), `img_width`, `img_height`, `user`, `username`, `aesthetics`, `labels`.
+  - Files: photos at `https://d3p3fw3rutb1if.cloudfront.net/photos/<img_id>` (no extension; `image/jpeg`); videos at `…/videos/<img_id>` (`video/mp4`, supports range). `img_preview_id` for videos is not publicly served — generate the poster ourselves on import.
+  - Be polite: sequential requests, ~500 ms apart, a realistic User-Agent, stop on 429/5xx. Total for the trial ≈ 800 files.
+- Licensing note for the ticket: Dupe's terms allow free commercial use of images but exclude aggregating them into a comparable service. This import is for **internal trial use** by the owner's decision; the PR must label imported rows `license: "dupe-internal-trial"` so they can be filtered or purged before any external release, and must not expose the Dupe endpoints in client code.
+- Files: `convex/stock/provider.ts`, `convex/stock/dupe.ts`, `convex/stock/import.ts`, `scripts/import-stock.ts`, `convex/media.ts` (`source`/`license` fields).
+- Verify: run the import against the dev deployment; `media` rows exist with storage ids; each file opens from its Convex URL; the Media page "Our media" tab shows them by category; a video plays on hover; posters present.
+- Depends on: T-011, T-013.
+
+**T-090b (later) Additional providers** — Pexels/Unsplash (licence-clean) or a Dupe partnership via DupeBiz plug into the same interface.
 
 **T-091 Stock panel UI**
 - Goal: Photos / Videos tabs, category chips under each, search box (live query through the Convex action), infinite grid, hover-to-play for videos, click adds as a block sized to the artboard; "Set as background" secondary action.
@@ -283,9 +294,8 @@ Suggested batches: **B1** T-001 + T-010. **B2** T-011. **B3** T-012, T-013, T-03
 |---|---|---|
 | **Clerk application** with Organizations enabled; publishable + secret keys; a JWT template named `convex`; webhook signing secret | T-010, T-011 | Before B1 |
 | **Convex project** (or a deploy key so the agent creates one), `NEXT_PUBLIC_CONVEX_URL`, `CONVEX_DEPLOYMENT` | T-011 | Before B2 |
-| **Pexels API key** (free) | T-090 stock photos/videos | Before B3 |
-| **Soundstripe API key** — request the trial at docs.soundstripe.com; tell them: video/creative editor, server-side indexing, previews served from their CDN | T-093 | Before B3 (fallback exists) |
-| **Decision: Dupe Photos** — their terms forbid aggregating their library and there is no API. Either contact DupeBiz for a partnership (then T-090 gets a Dupe provider) or accept Pexels + our taxonomy for V1 | T-090 | Before B3 |
+| **Soundstripe API key** — trial key received and stored as `SOUNDSTRIPE_API_KEY`; production needs their partnership agreement | T-093 | Done (trial) |
+| **Dupe Photos** — decided: one-off import for internal trial use via their private content API; no key needed. Revisit (partnership or licence-clean provider) before any external release | T-090 | Decided |
 | **Decision: reactions/UGC clips source** (curated set, AI-avatar provider, or defer) | T-092 | Before B5 |
 | **Decision: render worker hosting** (Fly.io recommended) + account | T-101 | Before B5 |
 | **Vercel env vars** for all of the above on the production project, and the same as Cloud Agent secrets so agents can run the app | all | As each arrives |
@@ -299,5 +309,5 @@ All keys go into Cursor Cloud Agent secrets (repo-scoped to `rishdvn/contently`)
 1. **Roles in templates vs AI infers**: plan is both (roles authored, poster returned). Confirm.
 2. **Static behaviour of animated blocks**: render the block's `poster.progress` (default: settled end state). Confirm, or prefer a "middle" frame for some blocks.
 3. **Aspect handling when adding a template scene** to a project of a different aspect: rescale to fit width and centre (plan), vs. refuse with a prompt.
-4. **Pexels vs Dupe** (above).
+4. ~~Pexels vs Dupe~~ — decided: Dupe one-off import for the trial.
 5. **Personal org**: every user gets a personal org on sign-up (plan), or require creating one.

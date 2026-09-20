@@ -64,7 +64,10 @@ const clerkWebhook = httpAction(async (ctx, request) => {
   switch (event.type) {
     case "user.created":
     case "user.updated": {
-      await ctx.runMutation(internal.clerk.mirror.upsertUser, userInput(event.data as ClerkUser));
+      await ctx.runMutation(internal.clerk.mirror.upsertUser, {
+        ...userInput(event.data as ClerkUser),
+        isNew: event.type === "user.created",
+      });
       break;
     }
     case "user.deleted": {

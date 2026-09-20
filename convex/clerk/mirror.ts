@@ -79,22 +79,28 @@ export const upsertOrg = internalMutation({
 });
 
 export const upsertUser = internalMutation({
-  args: userFields,
-  handler: async (ctx, args) => {
-    const userId = await upsertUserRow(ctx, args);
+  args: {
+    ...userFields,
+    /* Set by the `user.created` handler only. The backfill leaves it off: it
+       walks users before organisations, so every user would look org-less. */
+    isNew: v.optional(v.boolean()),
+  },
+  handler: async (ctx, { isNew, ...user }) => {
+    const userId = await upsertUserRow(ctx, user);
+    if (!isNew) return;
+
     /*
-      Personal org: Clerk sends `user.created` before the user has any
-      membership, and we do not create orgs server-side — the client does it
-      through Clerk on first load, so that Clerk stays the source of truth and
-      the mirror only ever follows. Noted in the logs so a user who somehow
-      never gets one is visible here.
+      Personal org: a new Clerk user has no membership yet, and we do not create
+      orgs server-side — the client does that through Clerk on first load, so
+      Clerk stays the source of truth and the mirror only ever follows. Noted
+      here so a user who never gets one is visible in the logs.
     */
     const membership = await ctx.db
       .query("memberships")
       .withIndex("by_user", (q) => q.eq("userId", userId))
       .first();
     if (!membership) {
-      console.info(`user ${args.clerkUserId} has no org membership; awaiting a personal org from the client`);
+      console.info(`user ${user.clerkUserId} has no org membership; awaiting a personal org from the client`);
     }
   },
 });

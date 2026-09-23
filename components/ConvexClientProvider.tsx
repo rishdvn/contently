@@ -19,9 +19,6 @@ import type { ReactNode } from "react";
 */
 
 const url = process.env.NEXT_PUBLIC_CONVEX_URL;
-if (!url) {
-  throw new Error("NEXT_PUBLIC_CONVEX_URL is missing; the app has no datastore without it");
-}
 
 /*
   One client for the whole tab, created at module scope so that a re-render — or
@@ -31,9 +28,23 @@ if (!url) {
   signed-in-only, so the alternative is a pointless unauthenticated pass whose
   results would be thrown away as soon as Clerk loads.
 */
-const convex = new ConvexReactClient(url, { expectAuth: true });
+const convex = url ? new ConvexReactClient(url, { expectAuth: true }) : null;
 
 export function ConvexClientProvider({ children }: { children: ReactNode }) {
+  if (!convex) {
+    /*
+      No `NEXT_PUBLIC_CONVEX_URL`. Prerendering carries on without Convex rather
+      than failing: this is a runtime value, and taking `next build` down over it
+      kills the preview deploy of every branch — including ones that touch no
+      data — with a message only visible in the build log. In the browser, where
+      someone can act on it, it is an error.
+    */
+    if (typeof window === "undefined") return children;
+    throw new Error(
+      "NEXT_PUBLIC_CONVEX_URL is missing; set it on the Vercel project and in .env.local. The app has no datastore without it.",
+    );
+  }
+
   return (
     <ConvexProviderWithClerk client={convex} useAuth={useAuth}>
       {children}

@@ -30,20 +30,22 @@ const url = process.env.NEXT_PUBLIC_CONVEX_URL;
 */
 const convex = url ? new ConvexReactClient(url, { expectAuth: true }) : null;
 
+if (!convex && typeof window !== "undefined") {
+  console.error(
+    "NEXT_PUBLIC_CONVEX_URL is missing; set it on the Vercel project and in .env.local. Anything backed by Convex will fail until it is there.",
+  );
+}
+
 export function ConvexClientProvider({ children }: { children: ReactNode }) {
-  if (!convex) {
-    /*
-      No `NEXT_PUBLIC_CONVEX_URL`. Prerendering carries on without Convex rather
-      than failing: this is a runtime value, and taking `next build` down over it
-      kills the preview deploy of every branch — including ones that touch no
-      data — with a message only visible in the build log. In the browser, where
-      someone can act on it, it is an error.
-    */
-    if (typeof window === "undefined") return children;
-    throw new Error(
-      "NEXT_PUBLIC_CONVEX_URL is missing; set it on the Vercel project and in .env.local. The app has no datastore without it.",
-    );
-  }
+  /*
+    Without a URL there is no client to provide, and the tree renders anyway.
+    Neither failing the build nor throwing here is worth it for a value only
+    needed at runtime: the first took every branch preview down, the second
+    blanked every page behind "this page couldn't load". Convex hooks then fail
+    at their own call site with "Could not find Convex client!", next to the code
+    that needs one, and the console says which variable is missing.
+  */
+  if (!convex) return children;
 
   return (
     <ConvexProviderWithClerk client={convex} useAuth={useAuth}>

@@ -100,8 +100,15 @@ export function useMediaUrl(mediaId: string | undefined, fallback = ""): string 
   return entry.url ?? "";
 }
 
-/* The poster frame generated for a video upload, if it has one. */
+/* The poster frame generated for a video upload, if it has one. Registers the id
+   like `useMediaUrl` does, so it works on its own as well as beside it. */
 export function useMediaPoster(mediaId: string | undefined): string | undefined {
+  useEffect(() => {
+    if (!mediaId) return;
+    retain(mediaId);
+    return () => release(mediaId);
+  }, [mediaId]);
+
   const entry = useSyncExternalStore(
     subscribe,
     () => (mediaId ? resolved.get(mediaId) : undefined),

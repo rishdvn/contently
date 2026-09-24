@@ -1,6 +1,7 @@
 import { ClerkProvider } from "@clerk/nextjs";
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { ConvexClientProvider } from "@/components/ConvexClientProvider";
 import { clerkAppearance } from "@/lib/auth/appearance";
 import "./globals.css";
 
@@ -33,7 +34,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           signUpUrl="/sign-up"
           afterSignOutUrl="/sign-in"
         >
-          {children}
+          {/* Convex reads the session from Clerk, so it nests inside. */}
+          <ConvexClientProvider>{children}</ConvexClientProvider>
         </ClerkProvider>
       </body>
     </html>

@@ -1,0 +1,22 @@
+{
+  /* Convex functions run in Convex's own runtime, not in Next.js, so they are
+     typechecked separately (by `npx convex dev`) against that runtime's target
+     and libs. The root tsconfig still covers these files for the app's own
+     `tsc --noEmit`; both have to pass. */
+  "compilerOptions": {
+    "allowJs": true,
+    "strict": true,
+    "moduleResolution": "Bundler",
+    "jsx": "react-jsx",
+    "skipLibCheck": true,
+    "allowSyntheticDefaultImports": true,
+    "target": "ESNext",
+    "lib": ["ES2021", "dom", "DOM.Iterable"],
+    "forceConsistentCasingInFileNames": true,
+    "module": "ESNext",
+    "isolatedModules": true,
+    "noEmit": true
+  },
+  "include": ["./**/*"],
+  "exclude": ["./_generated"]
+}

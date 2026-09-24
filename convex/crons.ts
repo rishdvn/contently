@@ -19,4 +19,12 @@ const crons = cronJobs();
 */
 crons.daily("soundstripe index", { hourUTC: 3, minuteUTC: 15 }, internal.audio.index.run, {});
 
+/*
+  A render worker that dies mid-job leaves the row it claimed in `running`, and
+  nothing else in the system is watching the clock: the next claim would sweep
+  it, but only if a worker ever comes back. This is what moves the job on when
+  one does not — the caller gets "timed out" rather than a spinner for ever.
+*/
+crons.interval("render job sweep", { minutes: 5 }, internal.render.sweep, {});
+
 export default crons;

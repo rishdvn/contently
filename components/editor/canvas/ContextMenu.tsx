@@ -28,6 +28,8 @@ import { textFromPreset, TEXT_PRESETS } from "@/lib/editor/presets";
 import { findBlock, useEditor } from "@/lib/editor/store";
 import type { Block } from "@/lib/editor/types";
 
+import { shortcutKey } from "../useHotkeys";
+
 type Target = { x: number; y: number; blockId: string | null; slideId: string | null };
 
 /*
@@ -102,26 +104,26 @@ export function ContextMenu({ container }: { container: HTMLDivElement | null })
     >
       {one ? (
         <>
-          <MenuItem icon={<Copy />} shortcut="⌘C" onClick={() => s.copy()}>
+          <MenuItem icon={<Copy />} shortcut={shortcutKey("selection.copy")} onClick={() => s.copy()}>
             Copy
           </MenuItem>
-          <MenuItem icon={<ClipboardPaste />} shortcut="⌘V" disabled={!s.clipboard.length} onClick={() => s.paste()}>
+          <MenuItem icon={<ClipboardPaste />} shortcut={shortcutKey("canvas.paste")} disabled={!s.clipboard.length} onClick={() => s.paste()}>
             Paste
           </MenuItem>
-          <MenuItem icon={<CopyPlus />} shortcut="⌘D" onClick={() => s.duplicateBlocks(ids)}>
+          <MenuItem icon={<CopyPlus />} shortcut={shortcutKey("selection.duplicate")} onClick={() => s.duplicateBlocks(ids)}>
             Duplicate
           </MenuItem>
           <MenuDivider />
-          <MenuItem icon={<ChevronsUp />} shortcut="⌘]" onClick={() => ids.forEach((id) => s.reorder(id, "front"))}>
+          <MenuItem icon={<ChevronsUp />} shortcut={shortcutKey("arrange.front")} onClick={() => ids.forEach((id) => s.reorder(id, "front"))}>
             Bring to front
           </MenuItem>
-          <MenuItem icon={<ArrowUp />} shortcut="]" onClick={() => ids.forEach((id) => s.reorder(id, "forward"))}>
+          <MenuItem icon={<ArrowUp />} shortcut={shortcutKey("arrange.forward")} onClick={() => ids.forEach((id) => s.reorder(id, "forward"))}>
             Bring forward
           </MenuItem>
-          <MenuItem icon={<ArrowDown />} shortcut="[" onClick={() => ids.forEach((id) => s.reorder(id, "backward"))}>
+          <MenuItem icon={<ArrowDown />} shortcut={shortcutKey("arrange.backward")} onClick={() => ids.forEach((id) => s.reorder(id, "backward"))}>
             Send backward
           </MenuItem>
-          <MenuItem icon={<ChevronsDown />} shortcut="⌘[" onClick={() => ids.forEach((id) => s.reorder(id, "back"))}>
+          <MenuItem icon={<ChevronsDown />} shortcut={shortcutKey("arrange.back")} onClick={() => ids.forEach((id) => s.reorder(id, "back"))}>
             Send to back
           </MenuItem>
           <MenuDivider />
@@ -152,36 +154,36 @@ export function ContextMenu({ container }: { container: HTMLDivElement | null })
           ))}
           <MenuDivider />
           {ids.length > 1 && !grouped ? (
-            <MenuItem icon={<Group />} shortcut="⌘G" onClick={() => s.groupBlocks(ids)}>
+            <MenuItem icon={<Group />} shortcut={shortcutKey("selection.group")} onClick={() => s.groupBlocks(ids)}>
               Group
             </MenuItem>
           ) : null}
           {grouped ? (
-            <MenuItem icon={<Ungroup />} shortcut="⌘⇧G" onClick={() => s.ungroupBlocks(ids)}>
+            <MenuItem icon={<Ungroup />} shortcut={shortcutKey("selection.ungroup")} onClick={() => s.ungroupBlocks(ids)}>
               Ungroup
             </MenuItem>
           ) : null}
           <MenuItem icon={one.locked ? <LockOpen /> : <Lock />} onClick={() => ids.forEach((id) => s.updateBlock(id, { locked: !one.locked }))}>
             {one.locked ? "Unlock" : "Lock"}
           </MenuItem>
-          <MenuItem icon={<Trash2 />} shortcut="⌫" destructive onClick={() => s.removeBlocks(ids)}>
+          <MenuItem icon={<Trash2 />} shortcut={shortcutKey("selection.delete")} destructive onClick={() => s.removeBlocks(ids)}>
             Delete
           </MenuItem>
         </>
       ) : (
         <>
-          <MenuItem icon={<ClipboardPaste />} shortcut="⌘V" disabled={!s.clipboard.length} onClick={() => s.paste()}>
+          <MenuItem icon={<ClipboardPaste />} shortcut={shortcutKey("canvas.paste")} disabled={!s.clipboard.length} onClick={() => s.paste()}>
             Paste
           </MenuItem>
           <MenuItem
             icon={<Type />}
-            shortcut="T"
+            shortcut={shortcutKey("canvas.addText")}
             onClick={() => s.addBlock(textFromPreset(TEXT_PRESETS.find((p) => p.id === "heading") ?? TEXT_PRESETS[0], s.project.width, s.project.height), target.slideId ?? undefined)}
           >
             Add text
           </MenuItem>
           <MenuItem
-            shortcut="⌘A"
+            shortcut={shortcutKey("canvas.selectAll")}
             onClick={() => {
               const slide = s.project.slides.find((sl) => sl.id === target.slideId);
               if (slide) s.select(slide.blocks.filter((b) => !b.locked).map((b) => b.id));

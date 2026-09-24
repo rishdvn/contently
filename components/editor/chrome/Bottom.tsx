@@ -42,6 +42,7 @@ import type { Block, Slide } from "@/lib/editor/types";
 import { SlidePreview } from "../canvas/Artboard";
 import { cameraRef } from "../canvas/Viewport";
 import { Panel } from "../controls";
+import { shortcutKey } from "../useHotkeys";
 
 export const STRIP_HEIGHT = 92;
 export const TIMELINE_HEIGHT = 212;
@@ -275,7 +276,7 @@ function Timeline({ left, right }: { left: number; right: number }) {
         </div>
       )}
       <div className="flex h-11 shrink-0 items-center gap-2 px-2.5">
-        <Tooltip label={playing ? "Pause (Space)" : "Play (Space)"}>
+        <Tooltip label={`${playing ? "Pause" : "Play"} (${shortcutKey("playback.toggle")})`}>
           <button
             type="button"
             aria-label={playing ? "Pause" : "Play"}
@@ -1082,31 +1083,31 @@ function LayerBar({
       x,
       y,
       <>
-        <MenuItem onClick={() => duplicateBlocks(ids)} icon={<Copy />} shortcut="⌘D">
+        <MenuItem onClick={() => duplicateBlocks(ids)} icon={<Copy />} shortcut={shortcutKey("selection.duplicate")}>
           Duplicate
         </MenuItem>
         <MenuDivider />
-        <MenuItem onClick={() => ids.forEach((id) => reorder(id, "forward"))} icon={<ArrowUp />} shortcut="]">
+        <MenuItem onClick={() => ids.forEach((id) => reorder(id, "forward"))} icon={<ArrowUp />} shortcut={shortcutKey("arrange.forward")}>
           Move up
         </MenuItem>
-        <MenuItem onClick={() => ids.forEach((id) => reorder(id, "backward"))} icon={<ArrowDown />} shortcut="[">
+        <MenuItem onClick={() => ids.forEach((id) => reorder(id, "backward"))} icon={<ArrowDown />} shortcut={shortcutKey("arrange.backward")}>
           Move down
         </MenuItem>
         <MenuDivider />
         {ids.length > 1 && !grouped ? (
-          <MenuItem onClick={() => groupBlocks(ids)} icon={<Group />} shortcut="⌘G">
+          <MenuItem onClick={() => groupBlocks(ids)} icon={<Group />} shortcut={shortcutKey("selection.group")}>
             Group
           </MenuItem>
         ) : null}
         {grouped ? (
-          <MenuItem onClick={() => ungroupBlocks(ids)} icon={<Ungroup />} shortcut="⌘⇧G">
+          <MenuItem onClick={() => ungroupBlocks(ids)} icon={<Ungroup />} shortcut={shortcutKey("selection.ungroup")}>
             Ungroup
           </MenuItem>
         ) : null}
         <MenuItem onClick={() => ids.forEach((id) => updateBlock(id, { locked: !block.locked }))} icon={block.locked ? <LockOpen /> : <Lock />}>
           {block.locked ? "Unlock" : "Lock"}
         </MenuItem>
-        <MenuItem onClick={() => removeBlocks(ids)} icon={<Trash2 />} shortcut="⌫" destructive>
+        <MenuItem onClick={() => removeBlocks(ids)} icon={<Trash2 />} shortcut={shortcutKey("selection.delete")} destructive>
           Delete{ids.length > 1 ? ` ${ids.length} layers` : ""}
         </MenuItem>
       </>,

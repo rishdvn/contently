@@ -24,6 +24,8 @@ import { Menu, MenuDivider, MenuItem } from "@/components/ui/menu";
 import { Tooltip } from "@/components/ui/tooltip";
 import { useEditor, useSelectedBlocks } from "@/lib/editor/store";
 
+import { shortcutKey } from "../useHotkeys";
+
 /*
   The dark pill that rises above a selection, as in the reference: flip,
   duplicate, lock, delete, and an overflow for ordering. Positioned from the
@@ -102,12 +104,12 @@ export function SelectionToolbar({ container }: { container: HTMLDivElement | nu
         <FlipVertical2 />
       </ToolbarButton>
       {blocks.length > 1 && !grouped ? (
-        <ToolbarButton label="Group (⌘G)" onClick={() => groupBlocks(ids)}>
+        <ToolbarButton label={`Group (${shortcutKey("selection.group")})`} onClick={() => groupBlocks(ids)}>
           <Group />
         </ToolbarButton>
       ) : null}
       {grouped ? (
-        <ToolbarButton label="Ungroup (⌘⇧G)" onClick={() => ungroupBlocks(ids)}>
+        <ToolbarButton label={`Ungroup (${shortcutKey("selection.ungroup")})`} onClick={() => ungroupBlocks(ids)}>
           <Ungroup />
         </ToolbarButton>
       ) : null}
@@ -129,16 +131,16 @@ export function SelectionToolbar({ container }: { container: HTMLDivElement | nu
           </ToolbarButton>
         )}
       >
-        <MenuItem icon={<ArrowUpToLine />} onClick={() => ids.forEach((id) => reorder(id, "front"))}>
+        <MenuItem icon={<ArrowUpToLine />} shortcut={shortcutKey("arrange.front")} onClick={() => ids.forEach((id) => reorder(id, "front"))}>
           Bring to front
         </MenuItem>
-        <MenuItem icon={<ArrowUp />} shortcut="⌘]" onClick={() => ids.forEach((id) => reorder(id, "forward"))}>
+        <MenuItem icon={<ArrowUp />} shortcut={shortcutKey("arrange.forward")} onClick={() => ids.forEach((id) => reorder(id, "forward"))}>
           Bring forward
         </MenuItem>
-        <MenuItem icon={<ArrowDown />} shortcut="⌘[" onClick={() => ids.forEach((id) => reorder(id, "backward"))}>
+        <MenuItem icon={<ArrowDown />} shortcut={shortcutKey("arrange.backward")} onClick={() => ids.forEach((id) => reorder(id, "backward"))}>
           Send backward
         </MenuItem>
-        <MenuItem icon={<ArrowDownToLine />} onClick={() => ids.forEach((id) => reorder(id, "back"))}>
+        <MenuItem icon={<ArrowDownToLine />} shortcut={shortcutKey("arrange.back")} onClick={() => ids.forEach((id) => reorder(id, "back"))}>
           Send to back
         </MenuItem>
         {one && one.type === "image" ? (

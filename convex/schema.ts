@@ -160,20 +160,58 @@ export default defineSchema({
     .index("by_kind", ["kind"]),
 
   audioTracks: defineTable({
-    provider: v.string(), // soundstripe
+    provider: v.string(), // soundstripe | cc0
     kind: v.union(v.literal("music"), v.literal("sfx")),
     externalId: v.string(),
     title: v.string(),
     artist: v.optional(v.string()),
     duration: v.optional(v.number()),
+    /* Music facets. */
     mood: v.array(v.string()),
     genre: v.array(v.string()),
     bpm: v.optional(v.number()),
-    /* Expires within a week, so it is re-fetched by the nightly index run and
-       on demand before playback. */
+    /* Sound-effect facet. Kept apart from `genre` because the two vocabularies
+       do not overlap and the panel filters one tab with each. */
+    categories: v.array(v.string()),
+    /* Everything else worth matching on — instruments, characteristics,
+       sub-categories. Searched, never offered as a filter chip. */
+    tags: v.array(v.string()),
+    /* Title, artist and every facet value in one string, because a Convex
+       search index takes a single field. */
+    searchText: v.string(),
+    /* Soundstripe signs its CDN URLs with a token that expires in seven days,
+       so the nightly run refreshes every row and `getPlayableUrl` re-fetches
+       anything that went stale in between. Absent on a row whose provider has
+       no hosted file (a `cc0` upload plays from `storageId`). */
     previewUrl: v.optional(v.string()),
+    previewExpiresAt: v.optional(v.number()),
+    /* `cc0` rows are uploads: the audio lives in Convex storage and never
+       expires. */
+    storageId: v.optional(v.id("_storage")),
+    artworkUrl: v.optional(v.string()),
+    /* What we are allowed to do with it, and who to credit — `cc0` rows carry
+       the source page so the credit survives the seed script. */
+    license: v.optional(v.string()),
+    attribution: v.optional(v.string()),
+    sourceUrl: v.optional(v.string()),
     fetchedAt: v.number(),
   })
     .index("by_provider_externalId", ["provider", "externalId"])
-    .index("by_kind", ["kind"]),
+    .index("by_kind", ["kind"])
+    /* Browsing a tab: one index scan in a stable order, no sort in the query. */
+    .index("by_kind_title", ["kind", "title"])
+    /* Refreshing what the nightly run missed, oldest first. */
+    .index("by_provider_fetchedAt", ["provider", "fetchedAt"])
+    .searchIndex("by_text", { searchField: "searchText", filterFields: ["kind", "provider"] }),
+
+  /* The filter chips above the audio list. Recomputed at the end of an index
+     run rather than derived per request: counting moods across the whole
+     catalog on every keystroke would read every track row. */
+  audioFacets: defineTable({
+    kind: v.union(v.literal("music"), v.literal("sfx")),
+    facet: v.union(v.literal("mood"), v.literal("genre"), v.literal("category")),
+    /* Sorted by count, descending — the order the chips are shown in. */
+    values: v.array(v.object({ value: v.string(), count: v.number() })),
+    computedAt: v.number(),
+  }).index("by_kind_facet", ["kind", "facet"]),
 });

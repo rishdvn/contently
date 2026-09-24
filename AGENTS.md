@@ -48,7 +48,8 @@ Keep throwaway scripts outside the repo (`/tmp`). `playwright-core` driving the 
 import { chromium } from "playwright-core";
 const browser = await chromium.launch({ executablePath: "/usr/local/bin/google-chrome", headless: true, args: ["--no-sandbox"] });
 const page = await browser.newPage({ viewport: { width: 1400, height: 900 } });
-await page.goto("http://localhost:3000/editor/test-1?kind=video");
+// Sign in first: every route is behind Clerk, and a project belongs to an organisation.
+await page.goto("http://localhost:3000/editor/new?kind=video"); // creates one and redirects to its id
 await page.waitForSelector(".artboard");
 // press t / r / o on the canvas to add a heading, rectangle, ellipse
 ```
@@ -56,7 +57,8 @@ await page.waitForSelector(".artboard");
 Useful facts for scripts:
 - Scope canvas selectors to `.world .block` — the timeline filmstrip renders a second copy of each artboard.
 - Timeline rows are `.timeline-scroll .cursor-grab`; the scene end handle is `[aria-label="Scene length"]`; the timeline resize grip is `role="separator"`.
-- Project state lives in `localStorage["contently.project.<id>"]` (autosaved ~500 ms after a change) — read it to assert results.
+- Projects live in Convex, autosaved ~500 ms after a change. Assert against the deployment, not the browser: `POST <NEXT_PUBLIC_CONVEX_URL>/api/query` with `{ path: "projects:get", args: { orgId, id }, format: "json" }` and `Authorization: Bearer <await window.Clerk.session.getToken()>`.
+- Clerk test users (`…+clerk_test@example.com`) verify a new device with the code `424242`; `window.Clerk.setActive({ session, organization })` switches org without the switcher.
 - The Next.js dev badge sits over the bottom-left corner; don't click there.
 - Drags on an unselected block work at any speed; sample geometry per step when checking for drift.
 

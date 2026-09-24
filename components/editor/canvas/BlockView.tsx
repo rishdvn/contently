@@ -2,6 +2,7 @@
 
 import { memo, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 
+import { useMediaPoster, useMediaUrl } from "@/lib/editor/media";
 import { useEditor } from "@/lib/editor/store";
 import { effectOverlays, filterCss, flipStyle, frameStyle, gradientCss, highlightStyle, shadowCss, textStyle } from "@/lib/editor/style";
 import type { Block, ImageBlock, ShapeBlock, TextBlock, VideoBlock } from "@/lib/editor/types";
@@ -190,7 +191,12 @@ function TextContent({ block, editing, measure }: { block: TextBlock; editing: b
 
 /* --------------------------------------------------------------- media --- */
 
-function MediaFrame({ block, children }: { block: ImageBlock | VideoBlock; children: React.ReactNode }) {
+/*
+  The frame around a photo or a clip. `src` is passed in rather than read off the
+  block because org media lives behind a `media` id and only resolves to a URL at
+  render time; "no src" is what draws the missing-media state.
+*/
+function MediaFrame({ block, src, children }: { block: ImageBlock | VideoBlock; src: string; children: React.ReactNode }) {
   const overlays = effectOverlays(block.effects);
   return (
     <div
@@ -199,7 +205,7 @@ function MediaFrame({ block, children }: { block: ImageBlock | VideoBlock; child
         borderRadius: block.radius,
         boxShadow: shadowCss(block.shadow),
         border: block.border?.width ? `${block.border.width}px solid ${block.border.color}` : undefined,
-        background: block.src ? undefined : "#1d1d1d",
+        background: src ? undefined : "#1d1d1d",
       }}
     >
       <div className="absolute inset-0" style={{ filter: filterCss(block.adjustments, block.effects) }}>
@@ -211,7 +217,7 @@ function MediaFrame({ block, children }: { block: ImageBlock | VideoBlock; child
       {overlays.map((o, i) => (
         <div key={i} className="pointer-events-none absolute inset-0" style={o} />
       ))}
-      {!block.src ? <MissingMedia /> : null}
+      {!src ? <MissingMedia /> : null}
     </div>
   );
 }
@@ -225,12 +231,13 @@ function MissingMedia() {
 }
 
 function ImageContent({ block }: { block: ImageBlock }) {
+  const src = useMediaUrl(block.mediaId, block.src);
   return (
-    <MediaFrame block={block}>
-      {block.src ? (
+    <MediaFrame block={block} src={src}>
+      {src ? (
         // eslint-disable-next-line @next/next/no-img-element -- arbitrary user URLs, rendered at document scale
         <img
-          src={block.src}
+          src={src}
           alt=""
           draggable={false}
           crossOrigin="anonymous"
@@ -244,6 +251,10 @@ function ImageContent({ block }: { block: ImageBlock }) {
 
 function VideoContent({ block }: { block: VideoBlock }) {
   const ref = useRef<HTMLVideoElement>(null);
+  const src = useMediaUrl(block.mediaId, block.src);
+  /* Uploads carry a poster, so a clip shows its first frame while it buffers
+     instead of a black hole. */
+  const poster = useMediaPoster(block.mediaId);
   const pb = usePlaybackOverride();
   const playing = useEditor((s) => (pb ? pb.playing : s.playing));
   const isVideoProject = useEditor((s) => (pb ? pb.kind : s.project.kind) === "video");
@@ -283,11 +294,12 @@ function VideoContent({ block }: { block: VideoBlock }) {
   }, [block.volume]);
 
   return (
-    <MediaFrame block={block}>
-      {block.src ? (
+    <MediaFrame block={block} src={src}>
+      {src ? (
         <video
           ref={ref}
-          src={block.src}
+          src={src}
+          poster={poster}
           muted={block.muted || globalMuted}
           loop={block.loop && !isVideoProject}
           playsInline

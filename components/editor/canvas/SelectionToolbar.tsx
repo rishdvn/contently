@@ -147,7 +147,7 @@ export function SelectionToolbar({ container }: { container: HTMLDivElement | nu
             <MenuItem
               icon={<ImageDown />}
               onClick={() => {
-                setBackground(activeSlideId, { type: "image", src: one.src, focalX: one.focalX, focalY: one.focalY, adjustments: one.adjustments });
+                setBackground(activeSlideId, { type: "image", mediaId: one.mediaId, src: one.src, focalX: one.focalX, focalY: one.focalY, adjustments: one.adjustments });
                 removeBlocks([one.id]);
               }}
             >

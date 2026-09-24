@@ -111,16 +111,21 @@ export function useProject(id: string | null): ProjectLoad {
   Blob and data URLs are dropped before a document is written: an object URL
   dies with the tab, and a data URL would push the document past Convex's size
   limit in a couple of images. The block keeps its geometry and shows a
-  placeholder. T-013 replaces both with media ids that survive the round trip.
+  placeholder.
+
+  Media backed by a `media` id is exempt. Its `src` is a Convex storage URL that
+  outlives the tab, and even if it did not, the id resolves to a fresh one on
+  load — which is the whole point of storing ids rather than URLs.
 */
 function stripVolatile(p: Project): Project {
-  const scrub = (src: string) => (src.startsWith("blob:") || src.startsWith("data:") ? "" : src);
+  const scrub = <T extends { src: string; mediaId?: string }>(media: T): T =>
+    media.mediaId || !/^(blob|data):/.test(media.src) ? media : { ...media, src: "" };
   return {
     ...p,
     slides: p.slides.map((s) => ({
       ...s,
-      background: s.background.type === "image" ? { ...s.background, src: scrub(s.background.src) } : s.background,
-      blocks: s.blocks.map((b) => ("src" in b ? { ...b, src: scrub(b.src) } : b)),
+      background: s.background.type === "image" ? scrub(s.background) : s.background,
+      blocks: s.blocks.map((b) => (b.type === "image" || b.type === "video" ? scrub(b) : b)),
     })),
   };
 }

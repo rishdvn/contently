@@ -2,6 +2,7 @@
 
 import { memo } from "react";
 
+import { useMediaUrl } from "@/lib/editor/media";
 import { useEditor } from "@/lib/editor/store";
 import { backgroundCss } from "@/lib/editor/style";
 import type { Slide } from "@/lib/editor/types";
@@ -29,13 +30,15 @@ export const Artboard = memo(function Artboard({
   interactive?: boolean;
 }) {
   const bg = slide.background;
+  const image = bg.type === "image" ? bg : null;
+  const bgSrc = useMediaUrl(image?.mediaId, image?.src ?? "");
   return (
     <div
       className="artboard absolute overflow-hidden"
       data-slide-id={slide.id}
       style={{ left: x, top: y, width, height, background: "#1d1d1d" }}
     >
-      <div className="absolute inset-0" style={backgroundCss(bg)} />
+      <div className="absolute inset-0" style={backgroundCss(bg, image ? bgSrc : undefined)} />
       {slide.blocks.map((b) => (
         <BlockView key={b.id} block={b} interactive={interactive} />
       ))}

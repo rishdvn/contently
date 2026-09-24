@@ -113,6 +113,13 @@ export type TextBlock = BlockBase & {
 
 export type ImageBlock = BlockBase & {
   type: "image";
+  /*
+    Media the organisation owns is referenced by its `media` id and resolved to a
+    URL at render time (`useMediaUrl`); `src` is then only the last URL we saw,
+    kept so the first paint after a reload has something to show. Without a
+    `mediaId` — stock presets, anything pasted in — `src` is the truth.
+  */
+  mediaId?: string;
   src: string;
   fit: "cover" | "contain";
   /* Focal point for cover fit, 0–100 each axis. */
@@ -160,7 +167,8 @@ export type BlockType = Block["type"];
 export type Background =
   | { type: "color"; color: string }
   | { type: "gradient"; gradient: Gradient }
-  | { type: "image"; src: string; focalX: number; focalY: number; adjustments: Adjustments };
+  /* `mediaId` / `src` behave exactly as they do on an ImageBlock. */
+  | { type: "image"; mediaId?: string; src: string; focalX: number; focalY: number; adjustments: Adjustments };
 
 export type Slide = {
   id: string;

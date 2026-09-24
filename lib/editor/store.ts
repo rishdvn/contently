@@ -22,8 +22,6 @@ export type LeftTab = "templates" | "blocks" | "text" | "stock" | "audio" | "upl
 
 export type InspectorTab = "design" | "effects";
 
-export type Upload = { id: string; kind: "image" | "video"; src: string; name: string };
-
 type Tracked = { project: Project };
 
 type EditorState = Tracked & {
@@ -37,7 +35,6 @@ type EditorState = Tracked & {
   interacting: boolean;
   spaceHeld: boolean;
   clipboard: Block[];
-  uploads: Upload[];
   /* Swatches offered by every colour field in the inspector. */
   brandColors: string[];
   playing: boolean;
@@ -87,7 +84,6 @@ type EditorState = Tracked & {
   setViewport: (v: Viewport | ((v: Viewport) => Viewport)) => void;
   setInteracting: (v: boolean) => void;
   setSpaceHeld: (v: boolean) => void;
-  addUpload: (u: Upload) => void;
   setPlaying: (v: boolean) => void;
   setTime: (t: number) => void;
   setMuted: (v: boolean) => void;
@@ -167,7 +163,6 @@ export const useEditor = create<EditorState>()(
       interacting: false,
       spaceHeld: false,
       clipboard: [],
-      uploads: [],
       brandColors: ["#f5f5f5", "#0a0909", "#6ee86e", "#ffd84d", "#ff9a3c", "#4cc7f0", "#f6c8dd"],
       playing: false,
       time: 0,
@@ -386,7 +381,6 @@ export const useEditor = create<EditorState>()(
       setViewport: (v) => set((s) => ({ viewport: typeof v === "function" ? v(s.viewport) : v })),
       setInteracting: (v) => set({ interacting: v }),
       setSpaceHeld: (v) => set({ spaceHeld: v }),
-      addUpload: (u) => set((s) => ({ uploads: [u, ...s.uploads] })),
       setPlaying: (v) => set({ playing: v }),
       setTime: (t) => set({ time: Math.max(0, t) }),
       setMuted: (v) => set({ muted: v }),

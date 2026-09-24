@@ -30,5 +30,8 @@
     ".next/dev/types/**/*.ts",
     "**/*.mts"
   ],
-  "exclude": ["node_modules"]
+  /* `workers/` is a Node service with its own compiler settings and its own
+     `npm run check`; typechecking it against the browser's libs here would ask
+     it to be something it is not. */
+  "exclude": ["node_modules", "workers"]
 }

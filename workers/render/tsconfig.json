@@ -1,0 +1,20 @@
+{
+  /* The worker is a Node service, not part of the Next app: its own compiler
+     settings, its own `npm run check`. The root tsconfig excludes `workers/`
+     for the same reason — DOM libs and bundler resolution describe the browser,
+     and nothing here runs in one except the code inside `page.evaluate`. */
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "types": ["node"]
+  },
+  "include": ["src/**/*.ts"]
+}

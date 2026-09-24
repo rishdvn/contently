@@ -49,6 +49,10 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     // Written by `convex dev` from convex/schema.ts and the function files.
     "convex/_generated/**",
+    // The render worker: a Node service, linted and typechecked on its own
+    // (`workers/render && npm run check`). The Next config here describes a
+    // React app and has nothing true to say about it.
+    "workers/**",
   ]),
 ]);
 

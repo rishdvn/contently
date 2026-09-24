@@ -2,6 +2,7 @@ import { ClerkProvider } from "@clerk/nextjs";
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { ConvexClientProvider } from "@/components/ConvexClientProvider";
+import { ToastProvider } from "@/components/ui/toast";
 import { clerkAppearance } from "@/lib/auth/appearance";
 import "./globals.css";
 
@@ -35,7 +36,14 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           afterSignOutUrl="/sign-in"
         >
           {/* Convex reads the session from Clerk, so it nests inside. */}
-          <ConvexClientProvider>{children}</ConvexClientProvider>
+          <ConvexClientProvider>
+            {/*
+              Above the routes so a toast raised on the way out of one — the
+              studio saying a project is gone as it sends you to the hub —
+              is still on screen when the next one paints.
+            */}
+            <ToastProvider>{children}</ToastProvider>
+          </ConvexClientProvider>
         </ClerkProvider>
       </body>
     </html>

@@ -4,43 +4,58 @@ import { Clapperboard, GalleryHorizontalEnd, Image as ImageIcon, MoreHorizontal,
 import { useRouter } from "next/navigation";
 import { useCallback, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 
+import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogBody, DialogHeader } from "@/components/ui/dialog";
 import { Menu, MenuItem } from "@/components/ui/menu";
+import { useToast } from "@/components/ui/toast";
+import { useActiveOrg } from "@/lib/auth/useActiveOrg";
 import { cn } from "@/lib/cn";
-import { uid } from "@/lib/editor/factory";
+import { project as makeProject } from "@/lib/editor/factory";
 import { googleFontsHref } from "@/lib/editor/fonts";
-import { deleteProject, duplicateProject, loadProject, renameProject, useProjectIndex, type ProjectSummary } from "@/lib/editor/persistence";
+import { useProjectActions, useProjectIndex, type ProjectRecord } from "@/lib/editor/persistence";
 import type { Project, ProjectKind } from "@/lib/editor/types";
 
 import { HubNav } from "./HubNav";
+import { ImportLocalProjects } from "./ImportLocalProjects";
 import { PreviewModal } from "./PreviewModal";
 import { projectMeta, ProjectStage, useProjectClock } from "./ProjectPreview";
 
 /*
   The workspace: sidebar, page header with the single filled Create action,
-  and a grid of what the user has made. Projects are local to this browser.
+  and a grid of what the organisation has made.
 */
 export function Hub() {
   const router = useRouter();
+  const toast = useToast();
+  const { orgId, isLoaded } = useActiveOrg();
   const projects = useProjectIndex();
+  const { createProject, deleteProject, duplicateProject, renameProject } = useProjectActions();
   const [creating, setCreating] = useState(false);
+  const [busy, setBusy] = useState(false);
   const preview = usePreviewRoute();
+  /* Signed in with no organisation selected: nothing owns a project, so the
+     grid would be empty for a reason the user cannot see. */
+  const orgless = isLoaded && !orgId;
 
-  const create = (kind: ProjectKind) => {
-    const id = uid();
-    router.push(`/editor/${id}?kind=${kind}`);
+  /*
+    Create in Convex first, then navigate: the studio opens on a real id, so a
+    reload or a shared link resolves instead of dead-ending.
+  */
+  const create = async (kind: ProjectKind) => {
+    if (busy || orgless) return;
+    setBusy(true);
+    try {
+      router.push(`/editor/${await createProject(makeProject(kind))}`);
+    } catch (error) {
+      console.error(error);
+      setBusy(false);
+      setCreating(false);
+      toast({ title: "Couldn't create that project", description: "Check your connection and try again." });
+    }
   };
 
-  /* Full documents for the previews. Re-read when the index changes, since that is when storage changed. */
-  const docs = useMemo(() => {
-    const map = new Map<string, Project>();
-    projects?.forEach((p) => {
-      const doc = loadProject(p.id);
-      if (doc) map.set(p.id, doc);
-    });
-    return map;
-  }, [projects]);
+  const docs = useMemo(() => new Map((projects ?? []).map((p) => [p.id, p.document])), [projects]);
   const previewDoc = preview.id ? docs.get(preview.id) : undefined;
 
   return (
@@ -51,10 +66,12 @@ export function Hub() {
       <main className="min-w-0 flex-1 px-8 py-6">
         <header className="flex items-center justify-between gap-4">
           <span className="text-panels text-ink">Projects</span>
-          <Button variant="primary" size="lg" onClick={() => setCreating(true)}>
+          <Button variant="primary" size="lg" disabled={orgless || busy} onClick={() => setCreating(true)}>
             <Plus /> Create
           </Button>
         </header>
+
+        {orgless ? <OrglessNotice /> : <ImportLocalProjects />}
 
         <section className="mt-10">
           <h2 className="text-sections text-ink">Start something</h2>
@@ -76,17 +93,18 @@ export function Hub() {
                 <ProjectCard
                   key={p.id}
                   p={p}
-                  doc={docs.get(p.id)}
                   onPreview={() => preview.open(p.id)}
                   onOpen={() => router.push(`/editor/${p.id}`)}
-                  onDelete={() => deleteProject(p.id)}
-                  onDuplicate={() => duplicateProject(p.id, uid())}
-                  onRename={(name) => renameProject(p.id, name)}
+                  onDelete={() => void deleteProject(p.id)}
+                  onDuplicate={() => void duplicateProject(p.id)}
+                  onRename={(name) => void renameProject(p.id, name)}
                 />
               ))}
             </div>
           ) : (
-            <div className="mt-5 flex h-40 items-center justify-center rounded-card bg-panel text-default text-ink-secondary">No projects yet — pick a format above.</div>
+            <div className="mt-5 flex h-40 items-center justify-center rounded-card bg-panel text-default text-ink-secondary">
+              {orgless ? "Choose an organisation to see its projects." : "No projects yet — pick a format above."}
+            </div>
           )}
         </section>
       </main>
@@ -165,6 +183,20 @@ function usePreviewRoute() {
   return { id, open, replace, close };
 }
 
+/*
+  Signed in on a personal account. Projects are owned by an organisation, so
+  there is nothing to show and nothing to create until one is picked — in the
+  switcher at the bottom of the nav, which is why this points at it rather than
+  repeating the control.
+*/
+function OrglessNotice() {
+  return (
+    <Alert className="mt-6" tone="caution" title="No organisation selected">
+      Projects belong to an organisation. Pick one — or create one — with the switcher at the bottom of the sidebar.
+    </Alert>
+  );
+}
+
 const KIND_ART: Record<ProjectKind, string> = {
   image: "linear-gradient(160deg,#efe3cf,#c9a877)",
   carousel: "linear-gradient(160deg,#4cc9f0,#2a7fb8)",
@@ -201,21 +233,20 @@ function StartCard({ kind, icon, title, body, onClick, compact }: { kind: Projec
 */
 function ProjectCard({
   p,
-  doc,
   onPreview,
   onOpen,
   onDelete,
   onDuplicate,
   onRename,
 }: {
-  p: ProjectSummary;
-  doc?: Project;
+  p: ProjectRecord;
   onPreview: () => void;
   onOpen: () => void;
   onDelete: () => void;
   onDuplicate: () => void;
   onRename: (name: string) => void;
 }) {
+  const doc = p.document;
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(p.name);
   const [hover, setHover] = useState(false);
@@ -229,17 +260,20 @@ function ProjectCard({
 
   return (
     <div
-      className="group relative mb-4 break-inside-avoid rounded-[12px]"
+      /* A duplicate shows its copy before the server has minted an id for it;
+         until it does, the card has nothing to open. */
+      className={cn("group relative mb-4 break-inside-avoid rounded-[12px]", p.pending && "opacity-60")}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
     >
       <button
         type="button"
         onClick={onPreview}
+        disabled={p.pending}
         aria-label={`Preview ${p.name}`}
         className="relative block w-full overflow-hidden rounded-[12px] bg-card text-left outline-none focus-visible:ring-2 focus-visible:ring-ink/40 focus-visible:ring-inset"
       >
-        {doc ? <LiveArt project={doc} playing={hover && animated} /> : <div className="aspect-[4/5] w-full" style={{ backgroundImage: KIND_ART[p.kind] }} />}
+        <LiveArt project={doc} playing={hover && animated} />
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-2/5 scrim" />
       </button>
 
@@ -264,10 +298,16 @@ function ProjectCard({
         ) : (
           <span className="truncate text-ui font-medium text-white [text-shadow:0_1px_2px_rgb(0_0_0/0.6)]">{p.name}</span>
         )}
-        {hover ? <span className="shrink-0 rounded-[6px] bg-black/60 px-1.5 py-0.5 text-tiny whitespace-nowrap text-white">{doc ? projectMeta(doc) : p.aspect}</span> : null}
+        {hover ? <span className="shrink-0 rounded-[6px] bg-black/60 px-1.5 py-0.5 text-tiny whitespace-nowrap text-white">{projectMeta(doc)}</span> : null}
       </div>
 
-      <div className={cn("absolute top-2 right-2 transition-opacity duration-150 has-[[aria-expanded=true]]:opacity-100 focus-within:opacity-100", hover ? "opacity-100" : "opacity-0")}>
+      <div
+        className={cn(
+          "absolute top-2 right-2 transition-opacity duration-150 has-[[aria-expanded=true]]:opacity-100 focus-within:opacity-100",
+          hover && !p.pending ? "opacity-100" : "opacity-0",
+          p.pending && "pointer-events-none",
+        )}
+      >
         <Menu
           align="end"
           trigger={(props) => (

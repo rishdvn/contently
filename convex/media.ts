@@ -144,15 +144,6 @@ export const list = query({
 export const resolve = query({
   args: { ids: v.array(v.string()) },
   handler: async (ctx, { ids }): Promise<MediaItem[]> => {
-    const user = await tryUser(ctx);
-    if (!user) return [];
-
-    const memberships = await ctx.db
-      .query("memberships")
-      .withIndex("by_user", (q) => q.eq("userId", user._id))
-      .collect();
-    const orgIds = new Set(memberships.map((m) => m.orgId));
-
     const missing = (id: string): MediaItem => ({
       id,
       kind: "image",
@@ -165,6 +156,21 @@ export const resolve = query({
       source: "upload",
       createdAt: 0,
     });
+
+    /*
+      A caller we cannot place gets a definite "no" for every id rather than an
+      empty answer. The difference matters: with no answer at all the canvas
+      keeps showing the URL cached in the document, which is exactly the media
+      this caller is not entitled to.
+    */
+    const user = await tryUser(ctx);
+    if (!user) return ids.map(missing);
+
+    const memberships = await ctx.db
+      .query("memberships")
+      .withIndex("by_user", (q) => q.eq("userId", user._id))
+      .collect();
+    const orgIds = new Set(memberships.map((m) => m.orgId));
 
     return await Promise.all(
       [...new Set(ids)].map(async (raw) => {

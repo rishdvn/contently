@@ -3,6 +3,7 @@
 import { getFontEmbedCSS, toCanvas, toSvg } from "html-to-image";
 import { ArrayBufferTarget, Muxer } from "mp4-muxer";
 
+import { waitForMedia, waitForPaintableMedia } from "./media";
 import { useEditor } from "./store";
 import type { Project } from "./types";
 
@@ -29,6 +30,13 @@ const captureOptions = (project: Project, fontEmbedCSS?: string) => ({
 export async function renderSlide(project: Project, slideId: string, scale = 1): Promise<HTMLCanvasElement> {
   const node = artboardNode(slideId);
   if (!node) throw new Error("Slide is not on the canvas");
+  /*
+    Media first. A document opened a moment ago is still turning its `media` ids
+    into URLs, and rasterising now would bake in the placeholder rather than the
+    photo — the export would look like the media had been lost.
+  */
+  await waitForMedia(project);
+  await waitForPaintableMedia(node);
   return toCanvas(node, { ...captureOptions(project), pixelRatio: scale });
 }
 
@@ -109,6 +117,8 @@ export async function renderVideo(
   opts: { fps: number; quality: VideoQuality; onProgress?: (p: number) => void; signal?: AbortSignal },
 ): Promise<Blob> {
   if (!canEncodeVideo()) throw new Error("This browser cannot encode video. Try Chrome or Edge.");
+  /* As in `renderSlide`: no frame is painted before its media has a URL. */
+  await waitForMedia(project);
   const width = project.width - (project.width % 2);
   const height = project.height - (project.height % 2);
 

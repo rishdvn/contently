@@ -81,9 +81,10 @@ export function Editor({ projectId, kind }: { projectId: string; kind?: string }
 }
 
 /*
-  `/editor/new?kind=…`: make the document, then stand on its real id. The
-  result is loaded straight into the store so the canvas does not wait for the
-  query to come back with what we just sent.
+  `/editor/new?kind=…`: make the document, then stand on its real id and let
+  the query below deliver it, the same as every other way in. Loading it
+  straight into the store would save a round trip and open a window in which
+  the query's answer arrives on top of whatever had been typed.
 */
 function useCreateOnDemand(isNew: boolean, kind?: string) {
   const router = useRouter();
@@ -104,10 +105,7 @@ function useCreateOnDemand(isNew: boolean, kind?: string) {
     const k = KINDS.includes(kind as ProjectKind) ? (kind as ProjectKind) : "carousel";
     const document = makeProject(k);
     createProject(document)
-      .then((id) => {
-        useEditor.getState().load({ ...document, id });
-        router.replace(`/editor/${id}`);
-      })
+      .then((id) => router.replace(`/editor/${id}`))
       .catch((error: unknown) => {
         console.error(error);
         started.current = false;

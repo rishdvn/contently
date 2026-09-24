@@ -197,7 +197,9 @@ export function useProjectActions(): ProjectActions {
     patchList(store, org, (rows) => {
       const source = rows.find((r) => r.id === id);
       if (!source) return rows;
-      const pendingId = `${PENDING}${id}` as Id<"projects">;
+      /* Unique among the placeholders already on screen, so duplicating twice
+         in a row does not put the same key on two cards. */
+      const pendingId = `${PENDING}${id}:${rows.filter((r) => r.id.startsWith(PENDING)).length}` as Id<"projects">;
       const name = `${source.name} copy`;
       const updatedAt = Date.now();
       return [...rows, { ...source, id: pendingId, name, updatedAt, document: { ...source.document, id: pendingId, name, updatedAt } }];

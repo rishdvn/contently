@@ -19,6 +19,7 @@ import { Rail } from "./chrome/Rail";
 import { TopBar } from "./chrome/TopBar";
 import { ExportDialog } from "./dialogs/ExportDialog";
 import { ShareDialog } from "./dialogs/ShareDialog";
+import { ShortcutsDialog } from "./dialogs/ShortcutsDialog";
 import { useHotkeys } from "./useHotkeys";
 
 const KINDS: ProjectKind[] = ["image", "carousel", "video"];
@@ -76,6 +77,7 @@ export function Editor({ projectId, kind }: { projectId: string; kind?: string }
       </Viewport>
       <ExportDialog />
       <ShareDialog />
+      <ShortcutsDialog />
     </div>
   );
 }

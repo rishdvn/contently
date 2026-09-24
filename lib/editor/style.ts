@@ -6,20 +6,24 @@ export function gradientCss(g: Gradient) {
   return `linear-gradient(${g.angle}deg, ${g.stops.join(", ")})`;
 }
 
-export function backgroundCss(bg: Background): CSSProperties {
+/* `src` overrides an image background's own, for the caller that has resolved its
+   `mediaId` to a URL (see `useMediaUrl`); without one the saved URL is used. */
+export function backgroundCss(bg: Background, src?: string): CSSProperties {
   switch (bg.type) {
     case "color":
       return { background: bg.color };
     case "gradient":
       return { background: gradientCss(bg.gradient) };
-    case "image":
+    case "image": {
+      const url = src ?? bg.src;
       return {
-        backgroundImage: bg.src ? `url("${bg.src}")` : undefined,
+        backgroundImage: url ? `url("${url}")` : undefined,
         backgroundColor: "#1d1d1d",
         backgroundSize: "cover",
         backgroundPosition: `${bg.focalX}% ${bg.focalY}%`,
         filter: filterCss(bg.adjustments),
       };
+    }
   }
 }
 

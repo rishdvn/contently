@@ -5,6 +5,8 @@ import { ConvexReactClient } from "convex/react";
 import { ConvexProviderWithClerk } from "convex/react-clerk";
 import type { ReactNode } from "react";
 
+import { MediaUrlResolver } from "@/lib/editor/media";
+
 /*
   The Convex client, authenticated with Clerk: `ConvexProviderWithClerk` hands
   Convex a Clerk token and refreshes it, so `ctx.auth.getUserIdentity()` resolves
@@ -50,6 +52,10 @@ export function ConvexClientProvider({ children }: { children: ReactNode }) {
   return (
     <ConvexProviderWithClerk client={convex} useAuth={useAuth}>
       {children}
+      {/* Media ids become URLs here, for the whole tab: the studio, the hub
+          previews and the media library all render documents, and one
+          subscription for all of them beats one per image. */}
+      <MediaUrlResolver />
     </ConvexProviderWithClerk>
   );
 }

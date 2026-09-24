@@ -23,6 +23,7 @@ import { Tooltip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/cn";
 import { imageBlock } from "@/lib/editor/factory";
 import { FONTS, WEIGHT_LABELS, fontDef, nearestWeight } from "@/lib/editor/fonts";
+import { useMediaUrl } from "@/lib/editor/media";
 import { BG_COLORS, BG_GRADIENTS, TEXT_PRESETS, textFromPreset } from "@/lib/editor/presets";
 import { useActiveSlide, useEditor, useSelectedBlocks } from "@/lib/editor/store";
 import { gradientCss } from "@/lib/editor/style";
@@ -144,6 +145,7 @@ function SlideProperties() {
   const addBlock = useEditor((s) => s.addBlock);
   const setLeftTab = useEditor((s) => s.setLeftTab);
   const bg = slide.background;
+  const bgSrc = useMediaUrl(bg.type === "image" ? bg.mediaId : undefined, bg.type === "image" ? bg.src : "");
 
   const hooks = TEXT_PRESETS.filter((p) => p.category === "TikTok Hooks");
   const generateText = () => addBlock(textFromPreset(hooks[Math.floor(Math.random() * hooks.length)], project.width, project.height));
@@ -189,13 +191,13 @@ function SlideProperties() {
             <div className="flex items-center gap-2">
               <div className="size-14 shrink-0 overflow-hidden rounded-[8px] bg-raised">
                 {/* eslint-disable-next-line @next/next/no-img-element -- user media */}
-                {bg.src ? <img src={bg.src} alt="" className="size-full object-cover" /> : null}
+                {bgSrc ? <img src={bgSrc} alt="" className="size-full object-cover" /> : null}
               </div>
               <div className="flex min-w-0 flex-1 flex-col gap-1.5">
                 <CardButton onClick={() => setLeftTab("uploads")}>Replace</CardButton>
                 <CardButton
                   onClick={() => {
-                    addBlock(imageBlock({ src: bg.src, x: 0, y: 0, w: project.width, h: project.height, focalX: bg.focalX, focalY: bg.focalY, adjustments: bg.adjustments }));
+                    addBlock(imageBlock({ mediaId: bg.mediaId, src: bg.src, x: 0, y: 0, w: project.width, h: project.height, focalX: bg.focalX, focalY: bg.focalY, adjustments: bg.adjustments }));
                     setBackground(slide.id, { type: "color", color: "#111111" });
                   }}
                 >
@@ -372,6 +374,7 @@ function MediaProperties({ b }: { b: ImageBlock | VideoBlock }) {
   const activeSlideId = useEditor((s) => s.activeSlideId);
   const brand = useEditor((s) => s.brandColors);
   const set = (patch: Partial<Omit<ImageBlock, "type"> & Omit<VideoBlock, "type">>) => updateBlock(b.id, patch as Partial<Block>);
+  const src = useMediaUrl(b.mediaId, b.src);
   const [cropping, setCropping] = useState(false);
   const neutral = JSON.stringify(b.adjustments) === JSON.stringify(NEUTRAL_ADJUSTMENTS);
 
@@ -382,7 +385,7 @@ function MediaProperties({ b }: { b: ImageBlock | VideoBlock }) {
         <div className="flex items-start gap-2">
           <button type="button" className="size-14 shrink-0 overflow-hidden rounded-[8px] bg-raised" onClick={() => setLeftTab("uploads")} title="Replace">
             {/* eslint-disable-next-line @next/next/no-img-element -- user media */}
-            {b.src ? b.type === "image" ? <img src={b.src} alt="" className="size-full object-cover" /> : <video src={b.src} muted className="size-full object-cover" /> : null}
+            {src ? b.type === "image" ? <img src={src} alt="" className="size-full object-cover" /> : <video src={src} muted className="size-full object-cover" /> : null}
           </button>
           <div className="flex min-w-0 flex-1 flex-col gap-1.5">
             <CardButton onClick={() => setCropping((c) => !c)} aria-pressed={cropping}>
@@ -409,7 +412,7 @@ function MediaProperties({ b }: { b: ImageBlock | VideoBlock }) {
         {b.type === "image" ? (
           <CardButton
             onClick={() => {
-              setBackground(activeSlideId, { type: "image", src: b.src, focalX: b.focalX, focalY: b.focalY, adjustments: b.adjustments });
+              setBackground(activeSlideId, { type: "image", mediaId: b.mediaId, src: b.src, focalX: b.focalX, focalY: b.focalY, adjustments: b.adjustments });
               removeBlocks([b.id]);
             }}
           >

@@ -14,6 +14,7 @@ import type * as clerk_payloads from "../clerk/payloads.js";
 import type * as http from "../http.js";
 import type * as lib_auth from "../lib/auth.js";
 import type * as orgs from "../orgs.js";
+import type * as projects from "../projects.js";
 import type * as users from "../users.js";
 
 import type {
@@ -29,6 +30,7 @@ declare const fullApi: ApiFromModules<{
   http: typeof http;
   "lib/auth": typeof lib_auth;
   orgs: typeof orgs;
+  projects: typeof projects;
   users: typeof users;
 }>;
 

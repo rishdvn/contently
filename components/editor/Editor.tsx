@@ -25,9 +25,9 @@ const KINDS: ProjectKind[] = ["image", "carousel", "video"];
 
 /*
   `/editor/new?kind=video` creates a project in the active org and redirects to
-  its real id. The hub creates before it navigates, so this is for the deep
-  links that have nothing to create from yet: bookmarks, scripts, and the
-  template "Create" button once templates exist.
+  its real id. The hub creates before it navigates, so this is the way in for
+  anything that has only a link: verification scripts today, the template
+  "Create" button once templates exist.
 */
 const NEW = "new";
 

@@ -13,6 +13,7 @@ import type * as clerk_mirror from "../clerk/mirror.js";
 import type * as clerk_payloads from "../clerk/payloads.js";
 import type * as http from "../http.js";
 import type * as lib_auth from "../lib/auth.js";
+import type * as media from "../media.js";
 import type * as orgs from "../orgs.js";
 import type * as users from "../users.js";
 
@@ -28,6 +29,7 @@ declare const fullApi: ApiFromModules<{
   "clerk/payloads": typeof clerk_payloads;
   http: typeof http;
   "lib/auth": typeof lib_auth;
+  media: typeof media;
   orgs: typeof orgs;
   users: typeof users;
 }>;

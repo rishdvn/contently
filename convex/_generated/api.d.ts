@@ -9,6 +9,7 @@
  */
 
 import type * as audio_index from "../audio/index.js";
+import type * as audio_library from "../audio/library.js";
 import type * as audio_soundstripe from "../audio/soundstripe.js";
 import type * as clerk_backfill from "../clerk/backfill.js";
 import type * as clerk_mirror from "../clerk/mirror.js";
@@ -27,6 +28,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   "audio/index": typeof audio_index;
+  "audio/library": typeof audio_library;
   "audio/soundstripe": typeof audio_soundstripe;
   "clerk/backfill": typeof clerk_backfill;
   "clerk/mirror": typeof clerk_mirror;

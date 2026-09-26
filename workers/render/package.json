@@ -1,0 +1,22 @@
+{
+  "name": "@contently/render-worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Headless Chrome worker that turns Contently projects into PNG and MP4 files in Convex storage.",
+  "scripts": {
+    "start": "tsx src/index.ts",
+    "once": "tsx src/index.ts --once",
+    "check": "tsc --noEmit -p ."
+  },
+  "dependencies": {
+    "convex": "^1.46.0",
+    "jszip": "^3.10.1",
+    "playwright-core": "^1.56.1",
+    "tsx": "^4.20.6"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "typescript": "^5.7.2"
+  }
+}

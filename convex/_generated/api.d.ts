@@ -22,6 +22,7 @@ import type * as lib_auth from "../lib/auth.js";
 import type * as media from "../media.js";
 import type * as orgs from "../orgs.js";
 import type * as projects from "../projects.js";
+import type * as render from "../render.js";
 import type * as users from "../users.js";
 
 import type {
@@ -45,6 +46,7 @@ declare const fullApi: ApiFromModules<{
   media: typeof media;
   orgs: typeof orgs;
   projects: typeof projects;
+  render: typeof render;
   users: typeof users;
 }>;
 

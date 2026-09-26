@@ -1,0 +1,41 @@
+# Fly.io is the recommended host: a long-running Chrome wants a machine, not a
+# function, and a render can take minutes. Hosting was still the owner's call
+# when this landed (see docs/render-worker.md) — nothing else in the repo
+# depends on this file, so another platform only needs the Dockerfile.
+#
+#   fly launch --no-deploy --copy-config --name contently-render
+#   fly secrets set CONVEX_URL=… RENDER_WORKER_SECRET=… APP_URL=…
+#   fly deploy
+
+app = "contently-render"
+primary_region = "lhr"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  PORT = "8080"
+  RENDER_CONCURRENCY = "1"
+  RENDER_POLL_MS = "2000"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  # The queue is polled, so the worker is useful with nobody talking to it —
+  # and it must not be stopped while it is holding a job.
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[http_service.checks]]
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "20s"
+    method = "GET"
+    path = "/healthz"
+
+# One render is one Chrome encoding 1080×1920 frames: CPU and memory bound,
+# and shared CPUs stretch a 30-second job into minutes.
+[[vm]]
+  size = "performance-2x"
+  memory = "4gb"

@@ -115,8 +115,23 @@ export default defineSchema({
       v.literal("done"),
       v.literal("failed"),
     ),
+    /* One scene by index, or every scene when absent. */
+    scene: v.optional(v.number()),
+    /* Pixel multiplier for stills (1× or 2×), frame rate for video. */
+    scale: v.optional(v.number()),
+    fps: v.optional(v.number()),
     outputStorageIds: v.array(v.id("_storage")),
+    /* Parallel to `outputStorageIds`: what to call each file on the way out.
+       Storage ids carry no name and a caller downloading three PNGs needs to
+       know which scene each one is. */
+    outputNames: v.optional(v.array(v.string())),
     error: v.optional(v.string()),
+    /* Set when a worker claims the job; the timeout sweep reads it. */
+    claimedAt: v.optional(v.number()),
+    finishedAt: v.optional(v.number()),
+    /* Claims so far. A job whose worker died is requeued, but not forever. */
+    attempts: v.optional(v.number()),
+    requestedBy: v.optional(v.id("users")),
   })
     .index("by_org", ["orgId"])
     .index("by_project", ["projectId"])

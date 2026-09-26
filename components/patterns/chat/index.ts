@@ -1,5 +1,7 @@
 export * from "./types";
+export * from "./kinds";
 export * from "./composer";
+export * from "./mention-menu";
 export * from "./context-pill";
 export * from "./quick-prompts";
 export * from "./message";

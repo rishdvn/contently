@@ -41,7 +41,7 @@ const layers: {
     path: "app/**",
     role: "Routes. They fetch data, hold state and arrange patterns. They add layout, never style.",
     mayImport: "anything",
-    examples: "/chat · /board · /calendar · /library · /editor",
+    examples: "/chat · /ideas · /content · /calendar · /documents · /editor",
   },
 ];
 
@@ -72,7 +72,7 @@ const rules: [string, string][] = [
   ],
   [
     "Patterns are the unit of product design.",
-    "When a designer asks 'what does a brief look like in the board', the answer is a pattern, documented here, used by exactly one surface.",
+    "When a designer asks 'what does a brief look like in Ideas', the answer is a pattern, documented here, used by exactly one surface.",
   ],
 ];
 

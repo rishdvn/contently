@@ -3,6 +3,7 @@
 import {
   Activity,
   AppWindow,
+  AtSign,
   Bell,
   CircleUser,
   Compass,
@@ -92,10 +93,11 @@ export const designNav: Group[] = [
     label: "Patterns",
     items: [
       { label: "Chat", href: "/design/chat", icon: MessageSquare },
+      { label: "Composer & mentions", href: "/design/chat#composer", icon: AtSign },
       { label: "Messages", href: "/design/chat#messages", icon: MessageSquareMore },
       { label: "Artifacts", href: "/design/chat#artifacts", icon: FileText },
     ],
-    planned: ["Board", "Calendar", "Library", "Editor", "Templates"],
+    planned: ["Ideas", "Content", "Calendar", "Documents", "Editor"],
   },
   {
     label: "Reference",

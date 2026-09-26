@@ -55,6 +55,23 @@ Status follows the PR, so don't set it by hand:
 
 A ticket sitting In Progress with no PR attached means something went wrong — a branch pushed without a PR, or a body missing `Closes CRE-<id>`. Fix the PR; don't drag the ticket.
 
+### Never write a closing keyword next to another ticket's id
+
+Linear scans the PR title, body and commit messages for a keyword beside an issue id. **It does not read context.** Backticks, quotation marks, an example, a sentence explaining the convention — all invisible. If the pair is in the text, the ticket closes when the PR merges.
+
+This has already cost us once: a docs PR quoted the closing syntax while explaining how linking works, and merging it marked an unrelated ticket Done while that ticket's own PR was still an open draft with none of its code in `main`. Nothing warns you. The only symptom is a ticket in Done that nobody finished, which is worse than a loud failure because the board looks healthy.
+
+So: **a closing keyword is only ever for the one ticket this PR completes.** To mention any other ticket:
+
+| Intent | Write | Effect |
+|---|---|---|
+| This PR completes it | `Closes CRE-<id>` | Links, and closes on merge |
+| This PR contributes to it | `Part of CRE-<id>`, `Ref CRE-<id>` | Links, never closes |
+| Just pointing at it | `CRE-<id>` alone, no keyword nearby | Links from the title only; inert in the body |
+| Don't touch it at all | `skip CRE-<id>` | Suppresses linking entirely |
+
+Closing keywords are `close`, `fix`, `resolve`, `complete`, `implement` and their tenses. When in doubt, name the ticket in words ("the render-worker ticket") and put the id nowhere near a verb.
+
 ## Verifying behaviour
 
 Keep throwaway scripts outside the repo (`/tmp`). `playwright-core` driving the installed Chrome works well:

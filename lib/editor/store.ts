@@ -40,7 +40,7 @@ type EditorState = Tracked & {
   playing: boolean;
   time: number;
   muted: boolean;
-  dialog: "export" | "share" | null;
+  dialog: "export" | "share" | "shortcuts" | null;
 
   load: (p: Project) => void;
   newProject: (kind: ProjectKind) => Project;

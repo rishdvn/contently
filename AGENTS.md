@@ -33,12 +33,27 @@ Hot files that most tickets touch: `Bottom.tsx`, `Gizmo.tsx`, `Inspector.tsx`, `
 ## Working on a ticket
 
 1. Branch from current `main`. One ticket per branch and PR; keep the PR to what the ticket asks. Anything else you notice goes in the PR description as a follow-up, not in the diff.
-2. Read the relevant files before editing. Reuse existing primitives (`Panel`, `Card`, `Section`, `Group`, `Row`, `NumberField`, `Select`, `Segmented`, `Tooltip`, `Menu`) rather than adding one-off markup.
-3. Before opening the PR, all of these must pass:
+   **Put the Linear issue id in the branch name** — `cre-41`, not `t-101`. The `T-` number is ours; `CRE-` is the only id Linear matches on.
+2. **Open a draft PR on your first push**, before the work is finished, with `Closes CRE-<id>` on its own line in the body. That line is what links the PR to the ticket and moves it to In Progress. A pushed branch with no PR is invisible work: nobody can review it and nothing will ever merge it.
+3. Read the relevant files before editing. Reuse existing primitives (`Panel`, `Card`, `Section`, `Group`, `Row`, `NumberField`, `Select`, `Segmented`, `Tooltip`, `Menu`) rather than adding one-off markup.
+4. Commit per logical change with a message that says why, not just what. Push as you go; the PR stays a draft while you work.
+5. Before **marking the PR ready for review**, all of these must pass:
    - `npx tsc --noEmit -p .`
    - `npx eslint . --max-warnings=0` (the React Compiler rules are on: no `setState` directly inside effects; use `useSyncExternalStore` or event handlers instead).
-   - A headless Playwright pass of the behaviour you changed (see below).
-4. Commit per logical change with a message that says why, not just what. Push and open a draft PR.
+   - A headless Playwright pass of the behaviour you changed (see below), with stills or a recording attached.
+6. Mark it ready only once those pass. If they don't, **leave it as a draft** and say plainly what is failing and what you tried. Draft means "still mine"; ready means "yours to review". Never mark a PR ready to signal that you have run out of ideas.
+
+### Linear looks after itself
+
+Status follows the PR, so don't set it by hand:
+
+| What you do | What the ticket does |
+|---|---|
+| Draft PR opened | → In Progress |
+| PR marked ready for review | → In Review |
+| PR merged | → Done |
+
+A ticket sitting In Progress with no PR attached means something went wrong — a branch pushed without a PR, or a body missing `Closes CRE-<id>`. Fix the PR; don't drag the ticket.
 
 ## Verifying behaviour
 
@@ -55,6 +70,8 @@ await page.waitForSelector(".artboard");
 ```
 
 Useful facts for scripts:
+- **Use `localhost`, never `127.0.0.1`.** Next 16 treats them as different origins and answers 403 to static chunks requested from a non-allowed one. Hydration then never happens and you get a blank backdrop with zero buttons — it reads exactly like an app crash. `curl` will not reproduce it, because it sends no `Origin` header.
+- **Don't hardcode port 3000.** Conductor gives each workspace its own port as `$CONDUCTOR_PORT` so parallel workspaces don't collide; read it and fall back to 3000. A hardcoded port means you may be testing a different workspace's app.
 - Scope canvas selectors to `.world .block` — the timeline filmstrip renders a second copy of each artboard.
 - Timeline rows are `.timeline-scroll .cursor-grab`; the scene end handle is `[aria-label="Scene length"]`; the timeline resize grip is `role="separator"`.
 - Projects live in Convex, autosaved ~500 ms after a change. Assert against the deployment, not the browser: `POST <NEXT_PUBLIC_CONVEX_URL>/api/query` with `{ path: "projects:get", args: { orgId, id }, format: "json" }` and `Authorization: Bearer <await window.Clerk.session.getToken()>`.

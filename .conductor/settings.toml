@@ -1,0 +1,15 @@
+"$schema" = "https://conductor.build/schemas/settings.schema.json"
+
+# Committed, shared by every workspace. Secrets never go here — they come from
+# the cloud environment (Settings → Organization → Cloud Computer) or, locally,
+# from .conductor/settings.local.toml, which is gitignored.
+
+[scripts]
+setup = ".conductor/setup.sh"
+
+# Each workspace gets its own port, so several can serve the app at once.
+# Anything that drives a browser must read $CONDUCTOR_PORT rather than assume 3000.
+[scripts.run.dev]
+command = "npm run dev -- --port $CONDUCTOR_PORT"
+default = true
+icon = "play"

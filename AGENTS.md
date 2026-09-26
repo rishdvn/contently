@@ -96,7 +96,26 @@ Useful facts for scripts:
 - The Next.js dev badge sits over the bottom-left corner; don't click there.
 - Drags on an unselected block work at any speed; sample geometry per step when checking for drift.
 
-For anything visual, capture before/after stills or a short recording and attach them to the PR. A reviewer should be able to judge the change without running it.
+For anything visual, capture before/after stills or a short recording. A reviewer should be able to judge the change without running it.
+
+### Recording a run, and where the evidence goes
+
+The repo ships a Playwright MCP server (`.mcp.json`), already headless, isolated, at 1440×900, writing to `.evidence/` (gitignored). The `devtools` capability is on, which is what makes recording available — without it you only get stills.
+
+- `browser_take_screenshot` — a still, returned to you as an image so you can judge it yourself, and written to `.evidence/`.
+- `browser_start_video` / `browser_stop_video` — records the session to WebM. Pass `cursor: true`: it draws a cursor and paces actions so the result is watchable rather than a blur.
+- `browser_video_chapter` — a titled card between steps. Use it to narrate ("before", "after the fix"), so the reviewer can follow without a written commentary.
+- **The video file is only finalised when recording stops.** Stop it before you try to attach anything, or you will attach an empty file.
+
+Evidence belongs on the **Linear issue**, not the pull request — that is where review happens, and Linear accepts uploads from an API key while GitHub's media endpoint rejects app and CI tokens.
+
+```sh
+node scripts/attach-evidence.mjs CRE-51 .evidence/video-1234.webm "Shortcuts sheet opens with ?"
+```
+
+Then say in the PR description what you attached and to which ticket, so a reader on GitHub knows to look. Convert WebM to MP4 first if `ffmpeg` is available (`ffmpeg -i in.webm -c:v libx264 -pix_fmt yuv420p out.mp4`) — it previews more widely; attach the WebM if not.
+
+What is worth recording: the gesture or flow the ticket asked for, end to end. What is not: the whole session, a page loading, or anything a still would say better. One clip under thirty seconds beats four minutes of scrolling.
 
 ## Matching Butter
 

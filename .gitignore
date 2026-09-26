@@ -39,3 +39,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# agent scratch: screenshots, recordings, traces
+/.evidence
+
+# Conductor machine-local settings — may hold secrets
+.conductor/settings.local.toml

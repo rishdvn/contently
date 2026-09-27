@@ -380,15 +380,14 @@ export function useHotkeys() {
       const state = useEditor.getState();
       const ctx: Ctx = { mod: e.metaKey || e.ctrlKey, state };
       /*
-        The sheet is a real modal: only the global bindings, and the key that
-        opened it, reach past it. Export and Share are flyouts over a live
-        canvas and leave the keys alone.
+        While the sheet, Export or Share is open, only the global bindings (and
+        the key that opened the sheet) run: R behind Export must not drop a
+        rectangle, and Space must not start playback under a render.
       */
       const typing = isEditable(e.target);
-      const modal = state.dialog === "shortcuts";
 
       for (const s of SHORTCUTS) {
-        if (!s.global && (typing || (modal && s.dialog !== state.dialog))) continue;
+        if (!s.global && (typing || (state.dialog && s.dialog !== state.dialog))) continue;
         if (s.kinds && !s.kinds.includes(state.project.kind)) continue;
         if (!s.match(e, ctx)) continue;
         if (s.preventDefault) e.preventDefault();

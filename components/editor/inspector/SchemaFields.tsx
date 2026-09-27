@@ -19,7 +19,7 @@ export type SchemaFieldsProps = {
   value: Props;
   onChange: (path: Path, value: unknown) => void;
   /* An image/video input asking for media; the caller opens a picker. */
-  onPickMedia: (path: Path, kind: "image" | "video") => void;
+  onPickMedia: (path: Path, kind: "image" | "video", label: string) => void;
   /* The input currently waiting on the picker, if any, so it can say so. */
   pendingMedia?: MediaTarget["path"] | null;
   brandColors?: string[];
@@ -111,7 +111,7 @@ function Field({ input, name, path, value, ctx }: { input: Input; name: string; 
           label={label}
           value={(value as MediaValue) ?? { src: "" }}
           pending={samePath(ctx.pendingMedia, path)}
-          onPick={() => ctx.onPickMedia(path, input.kind as "image" | "video")}
+          onPick={() => ctx.onPickMedia(path, input.kind as "image" | "video", label)}
           onClear={() => set({ src: "" })}
         />
       );
@@ -225,7 +225,7 @@ function MediaField({
         <span className="truncate pl-1 text-ui text-ink-secondary">{label}</span>
         <div className="flex gap-1.5">
           <CardButton className="h-7" onClick={onPick} aria-pressed={pending}>
-            {pending ? "Pick from Uploads…" : src ? "Replace" : "Choose"}
+            {pending ? "Picking…" : src ? "Replace" : "Choose"}
           </CardButton>
           {src ? (
             <CardButton className="h-7 w-auto px-2.5" onClick={onClear} aria-label={`Remove ${label.toLowerCase()}`}>

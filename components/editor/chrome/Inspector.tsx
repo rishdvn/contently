@@ -388,7 +388,7 @@ function MediaProperties({ b }: { b: ImageBlock | VideoBlock }) {
   const updateBlock = useEditor((s) => s.updateBlock);
   const removeBlocks = useEditor((s) => s.removeBlocks);
   const setBackground = useEditor((s) => s.setBackground);
-  const setLeftTab = useEditor((s) => s.setLeftTab);
+  const pickMedia = useEditor((s) => s.pickMedia);
   const activeSlideId = useEditor((s) => s.activeSlideId);
   const brand = useEditor((s) => s.brandColors);
   const set = (patch: Partial<Omit<ImageBlock, "type"> & Omit<VideoBlock, "type">>) => updateBlock(b.id, patch as Partial<Block>);
@@ -401,7 +401,7 @@ function MediaProperties({ b }: { b: ImageBlock | VideoBlock }) {
       <Card className="flex flex-col gap-2 p-2">
         <div className="pl-1 text-ui text-ink-secondary">Image or Video</div>
         <div className="flex items-start gap-2">
-          <button type="button" className="size-14 shrink-0 overflow-hidden rounded-[8px] bg-raised" onClick={() => setLeftTab("uploads")} title="Replace">
+          <button type="button" className="size-14 shrink-0 overflow-hidden rounded-[8px] bg-raised" onClick={() => pickMedia({ blockId: b.id, path: [], kind: b.type, label: b.type === "image" ? "Image" : "Video" })} title="Replace">
             {/* eslint-disable-next-line @next/next/no-img-element -- user media */}
             {src ? b.type === "image" ? <img src={src} alt="" className="size-full object-cover" /> : <video src={src} muted className="size-full object-cover" /> : null}
           </button>
@@ -575,14 +575,14 @@ function ShapeProperties({ b }: { b: ShapeBlock }) {
 
 /*
   Everything a catalog block exposes comes from its schema. Media inputs borrow
-  the Uploads panel: asking for an image opens it with this input as the target,
-  and the next upload picked lands here instead of on the canvas.
+  the Uploads and Stock panels: asking for an image opens the one last used with
+  this input as the target, and the next file picked lands here instead of on
+  the canvas.
 */
 function ComponentProperties({ b }: { b: ComponentBlock }) {
   const setComponentProp = useEditor((s) => s.setComponentProp);
-  const setMediaTarget = useEditor((s) => s.setMediaTarget);
+  const pickMedia = useEditor((s) => s.pickMedia);
   const mediaTarget = useEditor((s) => s.mediaTarget);
-  const setLeftTab = useEditor((s) => s.setLeftTab);
   const brand = useEditor((s) => s.brandColors);
   const def = getBlock(b.componentId);
   if (!def) {
@@ -593,10 +593,7 @@ function ComponentProperties({ b }: { b: ComponentBlock }) {
       schema={def.inputs}
       value={coerceProps(def.inputs, b.props)}
       onChange={(path, v) => setComponentProp(b.id, path, v)}
-      onPickMedia={(path, kind) => {
-        setMediaTarget({ blockId: b.id, path, kind });
-        setLeftTab("uploads");
-      }}
+      onPickMedia={(path, kind, label) => pickMedia({ blockId: b.id, path, kind, label })}
       pendingMedia={mediaTarget?.blockId === b.id ? mediaTarget.path : null}
       brandColors={brand}
     />

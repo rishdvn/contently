@@ -19,6 +19,7 @@ import type * as clerk_payloads from "../clerk/payloads.js";
 import type * as crons from "../crons.js";
 import type * as http from "../http.js";
 import type * as lib_auth from "../lib/auth.js";
+import type * as lib_documentMedia from "../lib/documentMedia.js";
 import type * as media from "../media.js";
 import type * as orgs from "../orgs.js";
 import type * as projects from "../projects.js";
@@ -46,6 +47,7 @@ declare const fullApi: ApiFromModules<{
   crons: typeof crons;
   http: typeof http;
   "lib/auth": typeof lib_auth;
+  "lib/documentMedia": typeof lib_documentMedia;
   media: typeof media;
   orgs: typeof orgs;
   projects: typeof projects;

@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, ChevronLeft, ChevronRight, Info, Maximize, Pause, Play, Share, Volume2, VolumeX, X } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, Download, Info, Maximize, Pause, Play, Share, Volume2, VolumeX, X } from "lucide-react";
 import { forwardRef, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { cn } from "@/lib/cn";
@@ -12,25 +12,38 @@ import { formatClock, projectMeta, ProjectStage, useProjectClock } from "./Proje
 const SIDEBAR_W = 264;
 const GUTTER = 8;
 
+/* A finished file a viewer can take away, from the render worker's output. */
+export type PreviewDownload = { label: string; url: string };
+
 /*
   The enlarged preview. The page stays underneath, dimmed and blurred; the
   project plays large in the space left of a floating sidebar of panels —
   actions, title, facts, and the rest of the library to move on to.
+
+  The share viewer at `/p/<id>` is the same surface with nothing underneath:
+  it leaves out what it has no use for (closing, the library, the studio for
+  someone outside the org) and adds the downloads.
 */
 export function PreviewModal({
   project,
-  others,
+  others = [],
   onClose,
   onOpen,
   onSwitch,
   relative,
+  shareUrl,
+  downloads = [],
 }: {
   project: Project;
-  others: Project[];
-  onClose: () => void;
-  onOpen: (id: string) => void;
-  onSwitch: (id: string) => void;
+  others?: Project[];
+  onClose?: () => void;
+  onOpen?: (id: string) => void;
+  onSwitch?: (id: string) => void;
   relative: string;
+  /* What the share button copies, absolute or from the origin. Defaults to the
+     studio link, for the hub. */
+  shareUrl?: string;
+  downloads?: PreviewDownload[];
 }) {
   const [playing, setPlaying] = useState(true);
   const [muted, setMuted] = useState(false);
@@ -41,7 +54,7 @@ export function PreviewModal({
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") onClose?.();
       if (e.key === " ") {
         e.preventDefault();
         setPlaying((p) => !p);
@@ -84,7 +97,7 @@ export function PreviewModal({
       aria-modal="true"
       aria-label={`${project.name} preview`}
       onClick={(e) => {
-        if (e.target === e.currentTarget || e.target === areaRef.current) onClose();
+        if (e.target === e.currentTarget || e.target === areaRef.current) onClose?.();
       }}
     >
       <div ref={areaRef} className="absolute inset-y-0 left-0 flex items-center justify-center" style={{ right: SIDEBAR_W + GUTTER * 2 }}>
@@ -108,15 +121,17 @@ export function PreviewModal({
         style={{ top: GUTTER, right: GUTTER, bottom: GUTTER, width: SIDEBAR_W }}
       >
         <div className="flex shrink-0 gap-2">
-          <ShareButton id={project.id} />
-          <button
-            type="button"
-            aria-label="Close preview"
-            onClick={onClose}
-            className="flex h-9 flex-1 items-center justify-center rounded-[10px] bg-white text-canvas transition-colors hover:bg-[#e8e8e8]"
-          >
-            <X className="size-4" />
-          </button>
+          <ShareButton url={shareUrl} id={project.id} />
+          {onClose ? (
+            <button
+              type="button"
+              aria-label="Close preview"
+              onClick={onClose}
+              className="flex h-9 flex-1 items-center justify-center rounded-[10px] bg-white text-canvas transition-colors hover:bg-[#e8e8e8]"
+            >
+              <X className="size-4" />
+            </button>
+          ) : null}
         </div>
 
         <Panel>
@@ -124,13 +139,29 @@ export function PreviewModal({
           <div className="mt-1 truncate text-[20px] leading-7 font-medium text-ink">{project.name}</div>
         </Panel>
 
-        <button
-          type="button"
-          onClick={() => onOpen(project.id)}
-          className="h-10 w-full shrink-0 rounded-[10px] border border-white/75 bg-transparent text-default text-ink transition-colors hover:bg-white hover:text-canvas focus-visible:ring-2 focus-visible:ring-spectrum-amber focus-visible:outline-none"
-        >
-          Open in editor
-        </button>
+        {downloads.map((d) => (
+          <a
+            key={d.url}
+            href={d.url}
+            download
+            target="_blank"
+            rel="noreferrer"
+            className="flex h-10 w-full shrink-0 items-center justify-center gap-2 rounded-[10px] bg-white text-default text-canvas transition-colors hover:bg-[#e8e8e8] focus-visible:ring-2 focus-visible:ring-spectrum-amber focus-visible:outline-none"
+          >
+            <Download className="size-4" />
+            {d.label}
+          </a>
+        ))}
+
+        {onOpen ? (
+          <button
+            type="button"
+            onClick={() => onOpen(project.id)}
+            className="h-10 w-full shrink-0 rounded-[10px] border border-white/75 bg-transparent text-default text-ink transition-colors hover:bg-white hover:text-canvas focus-visible:ring-2 focus-visible:ring-spectrum-amber focus-visible:outline-none"
+          >
+            Open in editor
+          </button>
+        ) : null}
 
         <Panel>
           <div className="text-ui text-ink">Info</div>
@@ -159,7 +190,7 @@ export function PreviewModal({
           </div>
         </Panel>
 
-        {others.length ? (
+        {others.length && onSwitch ? (
           <Panel>
             <div className="text-ui text-ink">More projects</div>
             <div className="mt-3 grid grid-cols-2 gap-2">
@@ -211,7 +242,7 @@ function tags(p: Project) {
   return [KIND_LABEL[p.kind], ASPECTS[p.aspect].label.split(" · ")[0], ...(motion ? ["Animated"] : []), ...Array.from(fonts).slice(0, 4)];
 }
 
-function ShareButton({ id }: { id: string }) {
+function ShareButton({ id, url }: { id: string; url?: string }) {
   const [done, setDone] = useState(false);
   return (
     <button
@@ -219,7 +250,7 @@ function ShareButton({ id }: { id: string }) {
       aria-label="Copy link"
       onClick={async () => {
         try {
-          await navigator.clipboard.writeText(`${window.location.origin}/editor/${id}`);
+          await navigator.clipboard.writeText(new URL(url ?? `/editor/${id}`, window.location.origin).href);
           setDone(true);
           setTimeout(() => setDone(false), 1600);
         } catch {

@@ -160,3 +160,15 @@ export function projectMeta(project: Project) {
   if (project.kind === "carousel") return `${n} slide${n === 1 ? "" : "s"}`;
   return project.aspect;
 }
+
+/* "3 min ago", for the preview's Edited fact. */
+export function relativeTime(ts: number) {
+  const d = Date.now() - ts;
+  const m = Math.round(d / 60000);
+  if (m < 1) return "Just now";
+  if (m < 60) return `${m} min ago`;
+  const h = Math.round(m / 60);
+  if (h < 24) return `${h} hour${h > 1 ? "s" : ""} ago`;
+  const days = Math.round(h / 24);
+  return `${days} day${days > 1 ? "s" : ""} ago`;
+}

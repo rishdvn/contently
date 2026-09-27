@@ -3,6 +3,7 @@ import { v } from "convex/values";
 import type { Doc } from "./_generated/dataModel";
 import { mutation, query, type QueryCtx } from "./_generated/server";
 import { requireOrg, requireUser, tryOrg, tryUser } from "./lib/auth";
+import { stockCategory } from "./stock/provider";
 
 /*
   The organisation's media library: files in Convex storage with one `media` row
@@ -160,6 +161,69 @@ export const listStock = query({
     return await Promise.all(matching.slice(0, Math.min(limit, 200)).map((row) => withUrls(ctx, row)));
   },
 });
+
+/*
+  The Stock panel's query: one page of "Our media" for a kind, narrowed by a
+  category chip and a typed search. Every word typed must appear somewhere in
+  the row — its name, the provider's subject and style labels, our category, or
+  the creator — so "iced matcha" finds the desk shot tagged with both and not
+  every photo with ice in it.
+
+  `cursor` is an offset into the filtered list, handed back as the next page's
+  `cursor` until there is nothing left (`null`). An offset, not a Convex
+  pagination cursor, because the filters run here rather than in an index:
+  Convex cannot index into `categories` or search across several fields of one
+  row. That costs a scan of the kind per page, which the trial library (under a
+  thousand rows) affords; a library ten times the size wants a search index on
+  a denormalised text field instead.
+*/
+export const searchStock = query({
+  args: {
+    kind: mediaKind,
+    category: v.optional(v.string()),
+    q: v.optional(v.string()),
+    cursor: v.optional(v.union(v.number(), v.null())),
+    pageSize: v.optional(v.number()),
+  },
+  handler: async (ctx, { kind, category, q, cursor, pageSize = 30 }): Promise<{ items: MediaItem[]; cursor: number | null }> => {
+    if (!(await tryUser(ctx))) return { items: [], cursor: null };
+
+    const rows = await ctx.db
+      .query("media")
+      .withIndex("by_source_kind", (index) => index.eq("source", "stock").eq("kind", kind))
+      .order("desc")
+      .collect();
+
+    const terms = normalise(q ?? "").split(/\s+/).filter(Boolean);
+    const matching = rows.filter(
+      (row) => (!category || row.categories?.includes(category)) && (!terms.length || matches(row, terms)),
+    );
+
+    const start = Math.max(0, cursor ?? 0);
+    const end = start + Math.min(Math.max(1, pageSize), 60);
+    const items = await Promise.all(matching.slice(start, end).map((row) => withUrls(ctx, row)));
+    return { items, cursor: end < matching.length ? end : null };
+  },
+});
+
+/* Lower case without accents or curly quotes, so "Café" finds "cafe" and
+   "you’re" finds "you're". */
+function normalise(text: string) {
+  return text
+    .normalize("NFKD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[‘’]/g, "'")
+    .toLowerCase()
+    .trim();
+}
+
+function matches(row: Doc<"media">, terms: string[]) {
+  const categories = (row.categories ?? []).flatMap((slug) => [slug, stockCategory(slug)?.name ?? ""]);
+  const haystack = normalise(
+    [row.name, ...row.tags, ...(row.aesthetics ?? []), ...categories, row.credit?.name ?? "", row.credit?.handle ?? ""].join(" · "),
+  );
+  return terms.every((term) => haystack.includes(term));
+}
 
 /*
   The batched resolver behind `useMediaUrl`: one subscription per page resolves

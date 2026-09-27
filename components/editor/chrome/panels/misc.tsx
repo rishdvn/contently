@@ -1,9 +1,10 @@
 "use client";
 
-import { useConvex, useMutation, useQuery } from "convex/react";
-import type { FunctionArgs } from "convex/server";
-import { AudioLines, ChevronDown, CircleAlert, LoaderCircle, Music, Pause, Play, Trash2, Upload, X } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useConvex, useMutation, useQueries, useQuery } from "convex/react";
+import type { FunctionArgs, FunctionReturnType } from "convex/server";
+import { AudioLines, ChevronDown, ChevronLeft, ChevronRight, CircleAlert, ImageDown, LoaderCircle, Music, Pause, Play, Trash2, Upload, Video, X } from "lucide-react";
+import Image from "next/image";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { Chip, ChipRow } from "@/components/ui/chip";
@@ -11,57 +12,358 @@ import { MenuItem } from "@/components/ui/menu";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import type { MediaItem } from "@/convex/media";
+import { STOCK_CATEGORIES } from "@/convex/stock/provider";
 import { useActiveOrg } from "@/lib/auth/useActiveOrg";
 import { cn } from "@/lib/cn";
 import { previewPosition, seekPreview, stopPreview, togglePreview, usePreview } from "@/lib/editor/audio";
 import { rememberWith, useImportLocalRecent, useRecentTracks, useRememberTrack, type RecentTrack } from "@/lib/editor/recentAudio";
 import { imageBlock, uid, videoBlock } from "@/lib/editor/factory";
 import { primeMedia } from "@/lib/editor/media";
-import { STOCK_PHOTOS, STOCK_VIDEOS, type StockItem } from "@/lib/editor/presets";
 import { useEditor, useSelectedBlocks } from "@/lib/editor/store";
 import { mediaKindOf, probeFile, uploadToStorage } from "@/lib/editor/upload";
 import { formatTime, sceneOffsets, totalDuration } from "@/lib/editor/geometry";
+import { NEUTRAL_ADJUSTMENTS } from "@/lib/editor/types";
 
 import { Empty } from "./library";
 import { PanelBody, PanelHeader, PanelPrimary, PanelSearch, PanelTabs } from "../LeftPanel";
 
 /* ---------------------------------------------------------------- Stock --- */
 
+/*
+  "Our media" in the studio: the stock library imported into Convex
+  (`convex/stock/*`), browsed as Photos or Videos, narrowed by one of our
+  categories and by search, in a two-column masonry that loads as it scrolls.
+  Clicking a tile adds it as a block covering the artboard; its second action
+  makes it the scene's background. Nothing here talks to a stock provider.
+
+  Butter stacks a section per kind (Graphics, Photos, Videos…) with "See more"
+  and a row of search-suggestion chips. We have two kinds and a fixed taxonomy,
+  so the kinds are tabs and the chips are that taxonomy, as a filter.
+*/
+
+type StockTab = "photos" | "videos";
+
+const STOCK_PAGE_SIZE = 30;
+
 export function StockPanel() {
+  if (!process.env.NEXT_PUBLIC_CONVEX_URL) {
+    return (
+      <>
+        <PanelHeader title="Stock" />
+        <PanelBody>
+          <Empty>The stock library needs a Convex deployment. Set NEXT_PUBLIC_CONVEX_URL.</Empty>
+        </PanelBody>
+      </>
+    );
+  }
+  return <StockLibrary />;
+}
+
+function StockLibrary() {
+  const [tab, setTab] = useState<StockTab>("photos");
+  const [category, setCategory] = useState<string | null>(null);
   const [q, setQ] = useState("");
-  const [tab, setTab] = useState<"photos" | "videos">("photos");
-  const addBlock = useEditor((s) => s.addBlock);
-  const width = useEditor((s) => s.project.width);
-  const height = useEditor((s) => s.project.height);
+  const [term, setTerm] = useState("");
+  const debounce = useRef<ReturnType<typeof setTimeout>>(undefined);
 
-  const items = (tab === "photos" ? STOCK_PHOTOS : STOCK_VIDEOS).filter((i) => i.label.toLowerCase().includes(q.toLowerCase()));
-
-  const add = (item: StockItem) => {
-    const w = Math.round(width * 0.7);
-    const h = Math.round(w * (item.kind === "video" ? 9 / 16 : 1.25));
-    const geo = { x: (width - w) / 2, y: (height - h) / 2, w, h };
-    addBlock(item.kind === "video" ? videoBlock({ src: item.src, ...geo }) : imageBlock({ src: item.src, ...geo }));
+  const search = (value: string) => {
+    setQ(value);
+    clearTimeout(debounce.current);
+    debounce.current = setTimeout(() => setTerm(value.trim()), SEARCH_DEBOUNCE_MS);
   };
+
+  const args: StockSearch = { kind: tab === "photos" ? "image" : "video", category: category ?? undefined, q: term || undefined };
 
   return (
     <>
       <PanelHeader>
-        <PanelSearch value={q} onChange={setQ} placeholder="Search stock" />
+        <PanelSearch value={q} onChange={search} placeholder={tab === "photos" ? "Search photos" : "Search videos"} />
       </PanelHeader>
-      <PanelTabs value={tab} onChange={setTab} options={[{ value: "photos", label: "Photos" }, { value: "videos", label: "Videos" }]} />
-      <PanelBody>
-        <div className="grid grid-cols-2 gap-2">
-          {items.map((i) => (
-            <button key={i.id} type="button" className="group relative overflow-hidden rounded-[10px] bg-card" style={{ aspectRatio: i.kind === "video" ? "16 / 10" : "3 / 4" }} onClick={() => add(i)} title={i.label}>
-              {/* eslint-disable-next-line @next/next/no-img-element -- remote stock thumbnails */}
-              <img src={i.thumb} alt={i.label} loading="lazy" className="size-full object-cover transition-transform duration-300 group-hover:scale-105" />
-              {i.duration ? <span className="absolute right-1.5 bottom-1.5 rounded-[4px] bg-black/70 px-1.5 py-0.5 text-[10px] text-white">{formatTime(i.duration)}</span> : null}
-            </button>
-          ))}
-        </div>
+      <PanelTabs
+        value={tab}
+        onChange={setTab}
+        options={[
+          { value: "photos", label: "Photos" },
+          { value: "videos", label: "Videos" },
+        ]}
+      />
+      <CategoryChips value={category} onChange={setCategory} />
+      {/* Keyed by the search, so a new query starts from its first page at the top. */}
+      <PanelBody key={JSON.stringify(args)}>
+        <StockResults args={args} searched={Boolean(term || category)} />
       </PanelBody>
     </>
   );
+}
+
+type StockSearch = { kind: "image" | "video"; category?: string; q?: string };
+
+/*
+  One row of chips that scrolls sideways, as Butter's does: the vertical wheel
+  scrolls it too, and chevrons at either end say there is more.
+*/
+function CategoryChips({ value, onChange }: { value: string | null; onChange: (slug: string | null) => void }) {
+  const row = useRef<HTMLDivElement>(null);
+  const [edges, setEdges] = useState({ start: false, end: false });
+
+  const measure = () => {
+    const el = row.current;
+    if (!el) return;
+    const next = { start: el.scrollLeft > 1, end: el.scrollLeft + el.clientWidth < el.scrollWidth - 1 };
+    setEdges((e) => (e.start === next.start && e.end === next.end ? e : next));
+  };
+
+  useEffect(() => {
+    const el = row.current;
+    if (!el) return;
+    /* A wheel's vertical travel scrolls the row. Registered by hand because
+       React's wheel listener is passive and could not keep the panel still. */
+    const onWheel = (e: WheelEvent) => {
+      if (Math.abs(e.deltaY) <= Math.abs(e.deltaX) || el.scrollWidth <= el.clientWidth) return;
+      e.preventDefault();
+      el.scrollLeft += e.deltaY;
+    };
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => {
+      ro.disconnect();
+      el.removeEventListener("wheel", onWheel);
+    };
+  }, []);
+
+  const nudge = (direction: 1 | -1) => row.current?.scrollBy({ left: direction * 200, behavior: "smooth" });
+  const chips = [{ slug: null, name: "All" }, ...STOCK_CATEGORIES];
+
+  return (
+    <div className="relative px-3 pb-2">
+      <ChipRow ref={row} role="toolbar" aria-label="Categories" className="[scrollbar-width:none] [&::-webkit-scrollbar]:hidden" onScroll={measure}>
+        {chips.map((c) => (
+          <Chip key={c.slug ?? "all"} selected={value === c.slug} onClick={() => onChange(c.slug === value ? null : c.slug)} className="h-7 px-3 text-cap">
+            {c.name}
+          </Chip>
+        ))}
+      </ChipRow>
+      {edges.start ? <ChipScroll side="start" onClick={() => nudge(-1)} /> : null}
+      {edges.end ? <ChipScroll side="end" onClick={() => nudge(1)} /> : null}
+    </div>
+  );
+}
+
+function ChipScroll({ side, onClick }: { side: "start" | "end"; onClick: () => void }) {
+  return (
+    <div className={cn("pointer-events-none absolute top-0 bottom-2 flex w-12 items-center from-panel from-40% to-transparent", side === "start" ? "left-3 justify-start bg-gradient-to-r" : "right-3 justify-end bg-gradient-to-l")}>
+      <button
+        type="button"
+        aria-label={side === "start" ? "Scroll categories left" : "Scroll categories right"}
+        className="pointer-events-auto flex size-6 items-center justify-center rounded-full bg-raised text-ink hover:bg-line-strong"
+        onClick={onClick}
+      >
+        {side === "start" ? <ChevronLeft className="size-3.5" /> : <ChevronRight className="size-3.5" />}
+      </button>
+    </div>
+  );
+}
+
+/*
+  Every page loaded so far, as one list: the masonry places each tile in the
+  shorter column, so a page cannot be laid out on its own without leaving a
+  ragged seam where the next one starts.
+*/
+function StockResults({ args, searched }: { args: StockSearch; searched: boolean }) {
+  const [pages, setPages] = useState(1);
+  /* `useQueries` resubscribes whenever its argument changes identity. */
+  const { kind, category, q } = args;
+  const requests = useMemo(
+    () =>
+      Object.fromEntries(
+        Array.from({ length: pages }, (_, page) => [
+          String(page),
+          {
+            query: api.media.searchStock,
+            /* Unset filters are left out: a query's arguments cannot hold `undefined`. */
+            args: { kind, ...(category ? { category } : {}), ...(q ? { q } : {}), cursor: page * STOCK_PAGE_SIZE, pageSize: STOCK_PAGE_SIZE },
+          },
+        ]),
+      ),
+    [kind, category, q, pages],
+  );
+  const results = useQueries(requests) as Record<string, FunctionReturnType<typeof api.media.searchStock> | undefined | Error>;
+
+  /* Pages in order, stopping at the first still on its way. */
+  const loaded: FunctionReturnType<typeof api.media.searchStock>[] = [];
+  for (let page = 0; page < pages; page++) {
+    const result = results[String(page)];
+    if (!result || result instanceof Error) break;
+    loaded.push(result);
+  }
+  const items = loaded.flatMap((page) => page.items);
+  const last = loaded.at(-1);
+  const failed = Object.values(results).some((result) => result instanceof Error);
+
+  if (!loaded.length) {
+    return failed ? <div className="py-10 text-center text-cap text-ink-secondary">Couldn&rsquo;t load stock. Try again in a moment.</div> : <StockSkeleton />;
+  }
+  if (!items.length) {
+    return <div className="py-10 text-center text-cap text-ink-secondary">{searched ? "Nothing matches. Try another word or category." : "Nothing in this library yet."}</div>;
+  }
+  return (
+    <>
+      <StockMasonry items={items} />
+      {loaded.length === pages && last?.cursor !== null ? <LoadMore onVisible={() => setPages(pages + 1)} /> : null}
+    </>
+  );
+}
+
+/* Tiles keep the media's own shape, within limits: a panorama would be a sliver
+   and a tall screenshot a column of its own. */
+const tileRatio = (item: MediaItem) => Math.min(Math.max(item.width && item.height ? item.width / item.height : 1, 9 / 16), 16 / 9);
+
+function StockMasonry({ items }: { items: MediaItem[] }) {
+  const columns: MediaItem[][] = [[], []];
+  const heights = [0, 0];
+  for (const item of items) {
+    const shorter = heights[0] <= heights[1] ? 0 : 1;
+    columns[shorter].push(item);
+    heights[shorter] += 1 / tileRatio(item);
+  }
+  return (
+    <div role="list" aria-label="Stock" className="flex items-start gap-2">
+      {columns.map((column, i) => (
+        <div key={i} className="flex min-w-0 flex-1 flex-col gap-2">
+          {column.map((item) => (
+            <StockTile key={item.id} item={item} />
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function StockSkeleton() {
+  const shapes = ["aspect-[3/4]", "aspect-square", "aspect-[4/5]", "aspect-[3/4]", "aspect-[9/16]", "aspect-[4/5]"];
+  return (
+    <div aria-hidden className="flex gap-2">
+      {[0, 1].map((col) => (
+        <div key={col} className="flex flex-1 flex-col gap-2">
+          {shapes.slice(col * 3, col * 3 + 3).map((shape, i) => (
+            <div key={i} className={cn("animate-pulse rounded-[10px] bg-card", shape)} />
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/*
+  One stock asset. Photos and video posters come through Next's image
+  optimiser: the originals are full-resolution camera files, and a panel of
+  them would pull hundreds of megabytes to draw thumbnails. A video's file is
+  only fetched once the pointer is on it, and plays muted from the start.
+  Hover comes from pointer events, not `:hover`, for the VNC desktop's sake.
+*/
+function StockTile({ item }: { item: MediaItem }) {
+  const [hover, setHover] = useState(false);
+  const [added, setAdded] = useState<"block" | "background" | null>(null);
+  const addedTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const thumb = item.kind === "image" ? item.url : item.posterUrl;
+  const credit = item.credit?.name ?? item.credit?.handle;
+  const kindLabel = item.kind === "image" ? "photo" : "video";
+
+  const act = (as: "block" | "background") => {
+    if (!item.url) return;
+    placeStock(item, as);
+    setAdded(as);
+    clearTimeout(addedTimer.current);
+    addedTimer.current = setTimeout(() => setAdded(null), 1200);
+  };
+
+  return (
+    <div
+      role="listitem"
+      data-media-id={item.id}
+      className="group relative overflow-hidden rounded-[10px] bg-card"
+      style={{ aspectRatio: tileRatio(item) }}
+      onPointerEnter={() => setHover(true)}
+      onPointerLeave={() => setHover(false)}
+    >
+      <button
+        type="button"
+        aria-label={`Add ${kindLabel}${credit ? ` by ${credit}` : ""}`}
+        title={item.url ? "Add to canvas" : undefined}
+        disabled={!item.url}
+        className="absolute inset-0 outline-none focus-visible:ring-2 focus-visible:ring-ink/40 focus-visible:ring-inset disabled:cursor-not-allowed"
+        onClick={() => act("block")}
+      >
+        {thumb ? (
+          <Image src={thumb} alt="" fill sizes="190px" className="object-cover" />
+        ) : (
+          <span className="flex size-full items-center justify-center text-[10px] text-ink-disabled">{item.url ? "" : "Unavailable"}</span>
+        )}
+        {item.kind === "video" && hover && item.url ? (
+          <video src={item.url} poster={item.posterUrl ?? undefined} autoPlay muted loop playsInline className="absolute inset-0 size-full object-cover" />
+        ) : null}
+      </button>
+
+      <div className={cn("pointer-events-none absolute inset-x-0 bottom-0 flex items-end gap-1.5 p-1.5 transition-opacity", hover || added ? "bg-gradient-to-t from-black/60 to-transparent pt-6 opacity-100" : "opacity-0")}>
+        <span className="min-w-0 flex-1 truncate text-[10px] text-white/85">{added ? (added === "block" ? "Added" : "Set as background") : credit ? `by ${credit}` : ""}</span>
+        {item.url ? (
+          <button
+            type="button"
+            aria-label="Set as background"
+            title="Set as background"
+            className="pointer-events-auto flex size-6 shrink-0 items-center justify-center rounded-[6px] bg-white/90 text-black shadow-sm transition-colors hover:bg-white focus-visible:opacity-100"
+            onClick={() => act("background")}
+          >
+            <ImageDown className="size-3.5" />
+          </button>
+        ) : null}
+      </div>
+
+      {item.kind === "video" && item.duration && !hover && !added ? (
+        <span className="pointer-events-none absolute right-1.5 bottom-1.5 flex items-center gap-1 rounded-[4px] bg-black/70 px-1.5 py-0.5 text-[10px] text-white tabular-nums">
+          <Video className="size-2.5" />
+          {formatTime(item.duration)}
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
+/*
+  Putting a stock asset on the scene. As a block it covers the artboard, the
+  way a stock shot is almost always used, cropped from its centre; a catalog
+  block's media input that asked for a file (`mediaTarget`) takes it instead.
+  As a background a photo becomes the scene's background image. A scene
+  background cannot be a video, so a video goes in as the same covering block
+  sent to the back, beneath everything already there.
+*/
+function placeStock(item: MediaItem, as: "block" | "background") {
+  if (!item.url) return;
+  /* Read at the click rather than subscribed to: a panel of tiles has no use
+     for re-rendering on every edit. */
+  const { project, activeSlideId, mediaTarget, selection, addBlock, moveBlockTo, setBackground, setComponentProp, setMediaTarget } = useEditor.getState();
+  primeMedia([item]);
+
+  if (as === "background" && item.kind === "image") {
+    setBackground(activeSlideId, { type: "image", mediaId: item.id, src: item.url, focalX: 50, focalY: 50, adjustments: { ...NEUTRAL_ADJUSTMENTS } });
+    return;
+  }
+  const target = mediaTarget && selection.length === 1 && selection[0] === mediaTarget.blockId ? mediaTarget : null;
+  if (as === "block" && target && target.kind === item.kind) {
+    setComponentProp(target.blockId, target.path, { mediaId: item.id, src: item.url });
+    setMediaTarget(null);
+    return;
+  }
+
+  const common = { mediaId: item.id, src: item.url, x: 0, y: 0, w: project.width, h: project.height };
+  const block =
+    item.kind === "video"
+      ? videoBlock({ ...common, sourceDuration: item.duration, ...(as === "background" ? { name: "Background video" } : {}) })
+      : imageBlock(common);
+  addBlock(block);
+  /* Inside the history's coalescing window, so one undo takes back both. */
+  if (as === "background") moveBlockTo(block.id, 0);
 }
 
 /* ---------------------------------------------------------------- Audio --- */

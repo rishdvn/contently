@@ -5,8 +5,9 @@ import { useMemo, useState } from "react";
 
 import { Chip, ChipRow } from "@/components/ui/chip";
 import { Tooltip } from "@/components/ui/tooltip";
+import { aspectRatioOf, BLOCK_CATEGORIES, listBlocks, placementFor, type AnyBlockDefinition } from "@/lib/blocks";
 import { cn } from "@/lib/cn";
-import { textBlock } from "@/lib/editor/factory";
+import { componentBlock, textBlock } from "@/lib/editor/factory";
 import {
   SHAPES,
   TEMPLATE_CATEGORIES,
@@ -21,7 +22,7 @@ import { useEditor } from "@/lib/editor/store";
 import { highlightStyle, textStyle } from "@/lib/editor/style";
 import type { ShapeKind } from "@/lib/editor/types";
 
-import { CategoryList, PanelBody, PanelHeader, PanelPrimary, PanelSearch } from "../LeftPanel";
+import { CategoryList, LEFT_PANEL_WIDTH, PanelBody, PanelHeader, PanelPrimary, PanelSearch } from "../LeftPanel";
 
 /* ------------------------------------------------------------ Templates --- */
 
@@ -125,6 +126,8 @@ export function BlocksPanel() {
         ))}
       </div>
       <PanelBody>
+        <CatalogBlocks />
+        <div className="mb-1.5 text-cap text-ink-secondary">Shapes</div>
         <div className="grid grid-cols-3 gap-2">
           {SHAPES.map((s) => (
             <button
@@ -143,9 +146,62 @@ export function BlocksPanel() {
             </button>
           ))}
         </div>
-        {tab === "butter" ? <Empty className="mt-4">Code-built motion blocks aren&rsquo;t available in this build.</Empty> : null}
       </PanelBody>
     </>
+  );
+}
+
+/*
+  The registered catalog, by category. A skeleton until the Blocks panel ticket
+  gives it search, chips and animated previews: each tile paints the block's
+  poster frame live, through the same renderer as the canvas.
+*/
+function CatalogBlocks() {
+  const addBlock = useEditor((s) => s.addBlock);
+  const width = useEditor((s) => s.project.width);
+  const height = useEditor((s) => s.project.height);
+  const add = (def: AnyBlockDefinition) => addBlock(componentBlock(def.id, def.defaults, { ...placementFor(def, width, height), end: def.defaultDuration }));
+
+  return (
+    <>
+      {BLOCK_CATEGORIES.map((cat) => {
+        const defs = listBlocks(cat);
+        if (!defs.length) return null;
+        return (
+          <section key={cat} className="mb-4">
+            <div className="mb-1.5 text-cap text-ink-secondary">{cat}</div>
+            <div className="grid grid-cols-2 gap-2">
+              {defs.map((def) => (
+                <button key={def.id} type="button" aria-label={`Add ${def.name}`} className="group flex flex-col gap-1.5 text-left" onClick={() => add(def)}>
+                  <BlockThumb def={def} />
+                  <span className="px-0.5 text-cap text-ink-secondary transition-colors group-hover:text-ink">{def.name}</span>
+                </button>
+              ))}
+            </div>
+          </section>
+        );
+      })}
+    </>
+  );
+}
+
+/* A block's poster at tile size: laid out at phone width, then scaled down to fit. */
+function BlockThumb({ def }: { def: AnyBlockDefinition }) {
+  /* Two columns across the panel's padded width. Computed here, not at module scope: LeftPanel imports this file. */
+  const tile = (LEFT_PANEL_WIDTH - 24 - 8) / 2;
+  const box = { w: tile, h: tile };
+  const w = 390;
+  const h = w / aspectRatioOf(def);
+  const scale = Math.min((box.w - 24) / w, (box.h - 24) / h);
+  const progress = def.poster?.progress ?? 1;
+  return (
+    <div className="relative flex items-center justify-center overflow-hidden rounded-[12px] bg-card ring-1 ring-transparent transition-shadow group-hover:ring-line-strong" style={{ width: box.w, height: box.h }}>
+      <div className="pointer-events-none shrink-0" style={{ width: w * scale, height: h * scale }}>
+        <div style={{ width: w, height: h, transform: `scale(${scale})`, transformOrigin: "top left" }}>
+          {def.render(def.defaults, { mode: "static", progress, time: progress * def.defaultDuration, duration: def.defaultDuration, width: w, height: h })}
+        </div>
+      </div>
+    </div>
   );
 }
 

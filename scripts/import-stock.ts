@@ -1,10 +1,12 @@
 #!/usr/bin/env node
 /*
-  Import the stock library into Convex, then give every video a poster.
+  Import the stock library into Convex, then make every video an H.264 master
+  with a hover preview and a poster.
 
       node scripts/import-stock.ts                                # the trial set
       node scripts/import-stock.ts --categories cafe,gym --photos 10 --videos 3
-      node scripts/import-stock.ts --posters-only
+      node scripts/import-stock.ts --transcode                    # videos only, no import
+      node scripts/import-stock.ts --transcode --categories cafe --limit 3
       node scripts/import-stock.ts -- --prod                      # flags after -- go to `npx convex run`
 
   Which deployment it writes to is whatever `npx convex run` would pick: the
@@ -16,13 +18,17 @@
   says so. If the provider answers 429 or 5xx the run stops, prints how far it
   got, and exits non-zero — run it again later and it carries on.
 
-  Posters need ffmpeg and ffprobe on PATH (`.conductor/setup.sh` installs them
-  into ~/.local/bin). They read each video straight from its Convex URL, so the
-  provider is not contacted again.
+  The video pass needs ffmpeg (with libx264 and zscale) and ffprobe on PATH;
+  `.conductor/setup.sh` installs a static build into ~/.local/bin. It downloads
+  each video from its Convex URL, so the provider is not contacted again, and
+  it runs one video at a time: a pending video is one not yet H.264, or missing
+  its preview or poster, so a stopped run carries on where it left off and a
+  finished library is a no-op. `--transcode` (or the older `--posters-only`)
+  skips the import; `--skip-videos` skips the pass.
 */
 
 import { execFileSync, spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -33,6 +39,8 @@ type Counts = {
   images: number;
   videos: number;
   videosWithoutPoster: number;
+  videosNotH264: number;
+  videosWithoutPreview: number;
   byCategory: Record<string, { image: number; video: number }>;
   byLicense: Record<string, number>;
 };
@@ -73,8 +81,10 @@ const targets: Record<Kind, number> = { image: count("photos", 40), video: count
    this many a category is as full as the provider can make it. */
 const maxPages = count("max-pages", 10);
 const provider = option("provider") ?? "dupe";
-const postersOnly = flag("posters-only");
-const skipPosters = flag("skip-posters");
+const videosOnly = flag("transcode") || flag("posters-only");
+const skipVideos = flag("skip-videos") || flag("skip-posters");
+/* At most this many videos in the pass, for a trial on a handful. */
+const limit = option("limit") === undefined ? undefined : count("limit", 0);
 
 /* ── Convex ────────────────────────────────────────────────────────────── */
 
@@ -135,94 +145,273 @@ function importAll(): boolean {
   return true;
 }
 
-/* ── Posters ───────────────────────────────────────────────────────────── */
+/* ── Videos ────────────────────────────────────────────────────────────── */
 
-type Probe = {
-  streams?: { width?: number; height?: number; side_data_list?: { rotation?: number }[] }[];
-  format?: { duration?: string };
+/*
+  Every stock video ends up as three files on its own row:
+
+  - The master: H.264 High, yuv420p, +faststart. Chrome plays H.264 everywhere;
+    HEVC it plays only with hardware support, which Linux, many Windows
+    machines and the render worker's headless Chrome lack. Sized to just cover
+    a 1080×1920 frame (`masterSize`), because that is the largest thing we
+    export. HDR (the HLG an iPhone records) is tone-mapped to SDR, or it comes
+    out washed out.
+  - The hover preview: 360 px on the short edge, ~800 kbps, muted, six seconds
+    at most. Library grids play it instead of streaming the master.
+  - The poster, cut from the master.
+
+  A master that is already H.264, SDR and no larger than the rule allows is
+  kept as it is and only gains what it lacks.
+*/
+
+const FRAME = { width: 1080, height: 1920 };
+const PREVIEW = { shortEdge: 360, seconds: 6, bitrate: "800k", maxrate: "1000k", bufsize: "1600k", fps: 30 };
+const PLAYABLE_PIXELS = ["yuv420p", "yuvj420p"];
+const HDR_TRANSFERS = ["arib-std-b67", "smpte2084"];
+
+type Pending = {
+  id: string;
+  name: string;
+  storageId: string;
+  codec: string | null;
+  hasPoster: boolean;
+  hasPreview: boolean;
+  url: string | null;
 };
+
+type Stream = {
+  codec_type?: string;
+  codec_name?: string;
+  width?: number;
+  height?: number;
+  pix_fmt?: string;
+  color_transfer?: string;
+  side_data_list?: { rotation?: number }[];
+};
+
+type Probe = { streams?: Stream[]; format?: { duration?: string } };
 
 const hasTool = (tool: string) => spawnSync(tool, ["-version"], { stdio: "ignore" }).status === 0;
 
-/* Duration and the dimensions a browser will paint, which differ from the
-   stored ones when a phone recorded the video sideways. */
-function probe(url: string) {
+/* The codec, the duration and the dimensions a browser will paint, which differ
+   from the coded ones when a phone recorded the video sideways. */
+function probe(file: string) {
   const json = execFileSync(
     "ffprobe",
-    ["-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height:stream_side_data=rotation:format=duration", "-of", "json", url],
+    ["-v", "error", "-show_entries", "stream=codec_type,codec_name,width,height,pix_fmt,color_transfer:stream_side_data=rotation:format=duration", "-of", "json", file],
     { encoding: "utf8" },
   );
   const info = JSON.parse(json) as Probe;
-  const stream = info.streams?.[0];
-  const rotation = Math.abs(stream?.side_data_list?.find((entry) => entry.rotation !== undefined)?.rotation ?? 0);
+  const video = info.streams?.find((stream) => stream.codec_type === "video");
+  if (!video?.width || !video.height) throw new Error("no video stream");
+  const rotation = Math.abs(video.side_data_list?.find((entry) => entry.rotation !== undefined)?.rotation ?? 0);
   const sideways = rotation === 90 || rotation === 270;
   const duration = Number(info.format?.duration);
   return {
+    codec: video.codec_name ?? "unknown",
+    pixels: video.pix_fmt ?? "unknown",
+    hdr: HDR_TRANSFERS.includes(video.color_transfer ?? ""),
+    audio: Boolean(info.streams?.some((stream) => stream.codec_type === "audio")),
     duration: Number.isFinite(duration) && duration > 0 ? Math.round(duration * 1000) / 1000 : undefined,
-    width: sideways ? stream?.height : stream?.width,
-    height: sideways ? stream?.width : stream?.height,
+    width: sideways ? video.height : video.width,
+    height: sideways ? video.width : video.height,
   };
 }
 
-async function posters() {
+/* Even, because yuv420p is; rounded up so the cover is never a pixel short. */
+const even = (n: number) => 2 * Math.ceil(n / 2 - 1e-6);
+
+/*
+  Just big enough to fill a 1080×1920 frame at 1:1: scale by
+  max(1080 / w, 1920 / h) when that is below 1, never up. Landscape keeps its
+  width (3840×2160 → 3414×1920) because a 16:9 clip filling a 9:16 artboard is
+  cropped to its middle, and a flat long-edge cap would make that crop soft.
+*/
+function masterSize(width: number, height: number) {
+  const scale = Math.min(1, Math.max(FRAME.width / width, FRAME.height / height));
+  return { width: even(width * scale), height: even(height * scale) };
+}
+
+const mb = (bytes: number) => `${(bytes / 1e6).toFixed(1)} MB`;
+
+function ffmpeg(args: string[]) {
+  execFileSync("ffmpeg", ["-v", "error", "-y", ...args], { stdio: ["ignore", "ignore", "pipe"] });
+}
+
+function encodeMaster(source: string, out: string, info: ReturnType<typeof probe>, size: { width: number; height: number }) {
+  const filters = [];
+  /* ffmpeg rotates sideways phone footage before these run, so the size is in
+     painted dimensions. */
+  if (size.width !== info.width || size.height !== info.height) filters.push(`scale=${size.width}:${size.height}:flags=lanczos`);
+  if (info.hdr) {
+    filters.push(
+      "zscale=t=linear:npl=100",
+      "format=gbrpf32le",
+      "zscale=p=bt709",
+      "tonemap=mobius:desat=0",
+      "zscale=t=bt709:m=bt709:r=tv",
+    );
+  }
+  filters.push("format=yuv420p");
+  ffmpeg([
+    "-i", source,
+    "-map", "0:v:0", "-map", "0:a:0?",
+    "-vf", filters.join(","),
+    "-c:v", "libx264", "-profile:v", "high", "-preset", "medium", "-crf", "20",
+    ...(info.hdr ? ["-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709"] : []),
+    ...(info.audio ? ["-c:a", "aac", "-b:a", "128k"] : []),
+    /* Camera metadata (location among it) has no business in a stock file. */
+    "-map_metadata", "-1",
+    "-movflags", "+faststart",
+    out,
+  ]);
+}
+
+function encodePreview(master: string, out: string, info: ReturnType<typeof probe>) {
+  const scale = Math.min(1, PREVIEW.shortEdge / Math.min(info.width, info.height));
+  ffmpeg([
+    "-t", String(PREVIEW.seconds),
+    "-i", master,
+    "-map", "0:v:0", "-an",
+    "-vf", `scale=${even(info.width * scale)}:${even(info.height * scale)},format=yuv420p`,
+    "-fpsmax", String(PREVIEW.fps),
+    "-c:v", "libx264", "-profile:v", "high", "-preset", "medium",
+    "-b:v", PREVIEW.bitrate, "-maxrate", PREVIEW.maxrate, "-bufsize", PREVIEW.bufsize,
+    "-map_metadata", "-1",
+    "-movflags", "+faststart",
+    out,
+  ]);
+}
+
+/* A second in, or a quarter of the way through a shorter clip: the first frame
+   is often black or mid-fade. Long edge capped at 1920, which is as large as
+   any artboard paints it. */
+function cutPoster(master: string, out: string, duration: number | undefined) {
+  const at = duration ? Math.min(1, duration / 4) : 0;
+  ffmpeg([
+    "-ss", String(at),
+    "-i", master,
+    "-frames:v", "1",
+    "-vf", "scale='if(gt(iw,ih),min(1920,iw),-2)':'if(gt(iw,ih),-2,min(1920,ih))'",
+    "-q:v", "3",
+    out,
+  ]);
+}
+
+async function download(url: string, file: string) {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`download answered ${response.status}`);
+  writeFileSync(file, Buffer.from(await response.arrayBuffer()));
+}
+
+async function upload(url: string, file: string, type: string) {
+  const response = await fetch(url, { method: "POST", headers: { "Content-Type": type }, body: readFileSync(file) });
+  if (!response.ok) throw new Error(`upload answered ${response.status}`);
+  return ((await response.json()) as { storageId: string }).storageId;
+}
+
+type Totals = { processed: number; transcoded: number; before: number; after: number; previews: number };
+
+async function processVideo(video: Pending & { url: string }, dir: string, totals: Totals) {
+  const source = join(dir, `${video.id}.source`);
+  await download(video.url, source);
+  const info = probe(source);
+  const size = masterSize(info.width, info.height);
+  const transcode =
+    info.codec !== "h264" || !PLAYABLE_PIXELS.includes(info.pixels) || info.hdr || size.width !== info.width || size.height !== info.height;
+
+  let master = source;
+  if (transcode) {
+    master = join(dir, `${video.id}.mp4`);
+    encodeMaster(source, master, info, size);
+  }
+  const final = transcode ? probe(master) : info;
+  /* A new master wants a new preview and poster; otherwise only what is missing. */
+  const preview = transcode || !video.hasPreview ? join(dir, `${video.id}.preview.mp4`) : undefined;
+  const poster = transcode || !video.hasPoster ? join(dir, `${video.id}.jpg`) : undefined;
+  if (preview) encodePreview(master, preview, final);
+  if (poster) cutPoster(master, poster, final.duration);
+
+  /* Upload last and swap straight after, so a stop between the two leaves as
+     little behind as possible. */
+  const files = [transcode ? master : undefined, poster, preview];
+  const urls = run<string[]>("stock/import:uploadUrls", { count: files.filter(Boolean).length });
+  const [storageId, posterStorageId, previewStorageId] = await Promise.all(
+    files.map((file, index) =>
+      file ? upload(urls.shift()!, file, index === 1 ? "image/jpeg" : "video/mp4") : Promise.resolve(undefined),
+    ),
+  );
+  const swapped = run<boolean>("media:replaceFiles", {
+    id: video.id,
+    from: video.storageId,
+    storageId,
+    posterStorageId,
+    previewStorageId,
+    codec: final.codec,
+    width: final.width,
+    height: final.height,
+    duration: final.duration,
+  });
+
+  const before = statSync(source).size;
+  const after = statSync(master).size;
+  const previewBytes = preview ? statSync(preview).size : 0;
+  for (const file of new Set([source, master, preview, poster])) if (file) rmSync(file, { force: true });
+  if (!swapped) return "changed while it was processed; left for the next run";
+
+  totals.processed += 1;
+  if (transcode) totals.transcoded += 1;
+  totals.before += before;
+  totals.after += after;
+  totals.previews += previewBytes;
+  const from = `${info.codec} ${info.width}×${info.height} ${mb(before)}`;
+  const to = transcode ? `h264 ${final.width}×${final.height} ${mb(after)}` : "kept";
+  return `${from} → ${to}${preview ? `, preview ${mb(previewBytes)}` : ""}${info.hdr ? " (HDR tone-mapped)" : ""}`;
+}
+
+async function videos() {
   if (!hasTool("ffmpeg") || !hasTool("ffprobe")) {
-    console.warn("Skipping posters: ffmpeg and ffprobe are not on PATH. Install them and run with --posters-only.");
-    return;
+    console.warn("Skipping videos: ffmpeg and ffprobe are not on PATH. Install them and run with --transcode.");
+    return true;
   }
 
-  const pending = run<{ id: string; name: string; url: string | null }[]>("stock/import:pendingPosters");
+  const categories = option("categories")?.split(",").map((slug) => slug.trim());
+  const all = run<Pending[]>("stock/import:pendingVideos", categories ? { categories } : {});
+  const pending = limit === undefined ? all : all.slice(0, limit);
   if (pending.length === 0) {
-    console.log("posters: every video has one");
-    return;
+    console.log("videos: every one is H.264 with a preview and a poster");
+    return true;
   }
 
-  const dir = mkdtempSync(join(tmpdir(), "stock-posters-"));
-  let made = 0;
+  const dir = mkdtempSync(join(tmpdir(), "stock-videos-"));
+  const totals: Totals = { processed: 0, transcoded: 0, before: 0, after: 0, previews: 0 };
+  let failed = 0;
   try {
     for (const [index, video] of pending.entries()) {
-      const progress = `poster ${index + 1}/${pending.length} ${video.name}`;
+      const progress = `video ${index + 1}/${pending.length} ${video.id} ${video.name}`;
       if (!video.url) {
         console.warn(`${progress}: file missing from storage, skipped`);
+        failed += 1;
         continue;
       }
       try {
-        const { duration, width, height } = probe(video.url);
-        const file = join(dir, `${video.id}.jpg`);
-        /* A second in, or a quarter of the way through a shorter clip: the
-           first frame is often black or mid-fade. Long edge capped at 1920,
-           which is as large as any artboard paints it. */
-        const at = duration ? Math.min(1, duration / 4) : 0;
-        execFileSync("ffmpeg", [
-          "-v", "error", "-y",
-          "-ss", String(at),
-          "-i", video.url,
-          "-frames:v", "1",
-          "-vf", "scale='if(gt(iw,ih),min(1920,iw),-2)':'if(gt(iw,ih),-2,min(1920,ih))'",
-          "-q:v", "3",
-          file,
-        ]);
-
-        const uploadUrl = run<string>("stock/import:posterUploadUrl");
-        const response = await fetch(uploadUrl, {
-          method: "POST",
-          headers: { "Content-Type": "image/jpeg" },
-          body: readFileSync(file),
-        });
-        if (!response.ok) throw new Error(`upload answered ${response.status}`);
-        const { storageId } = (await response.json()) as { storageId: string };
-
-        run("stock/import:setPoster", { id: video.id, posterStorageId: storageId, duration, width, height });
-        made += 1;
-        console.log(`${progress}: ${duration ?? "?"}s, ${width}×${height}`);
+        console.log(`${progress}: ${await processVideo({ ...video, url: video.url }, dir, totals)}`);
       } catch (error) {
         /* One bad file should not cost the rest; the next run retries it. */
-        console.warn(`${progress}: ${error instanceof Error ? error.message.split("\n")[0] : error}`);
+        failed += 1;
+        const message = error instanceof Error ? (error as Error & { stderr?: Buffer }).stderr?.toString() || error.message : String(error);
+        console.warn(`${progress}: ${message.trim().split("\n")[0]}`);
       }
     }
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
-  console.log(`posters: ${made} of ${pending.length} made`);
+  console.log(
+    `videos: ${totals.processed} of ${pending.length} done (${totals.transcoded} transcoded), ` +
+      `masters ${mb(totals.before)} → ${mb(totals.after)}, previews ${mb(totals.previews)}` +
+      (all.length > pending.length ? `; ${all.length - pending.length} more pending` : ""),
+  );
+  return failed === 0;
 }
 
 /* ── Report ────────────────────────────────────────────────────────────── */
@@ -237,9 +426,12 @@ function report() {
   );
   console.log("by licence:", counts.byLicense);
   if (counts.videosWithoutPoster) console.log(`videos still without a poster: ${counts.videosWithoutPoster}`);
+  if (counts.videosNotH264) console.log(`videos not yet H.264: ${counts.videosNotH264}`);
+  if (counts.videosWithoutPreview) console.log(`videos still without a preview: ${counts.videosWithoutPreview}`);
 }
 
-const finished = postersOnly ? true : importAll();
-if (!skipPosters) await posters();
+const imported = videosOnly ? true : importAll();
+const processed = skipVideos ? true : await videos();
 report();
-if (!finished) process.exit(2);
+if (!imported) process.exit(2);
+if (!processed) process.exit(1);

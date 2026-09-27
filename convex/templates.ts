@@ -6,13 +6,15 @@ import type { Doc, Id } from "./_generated/dataModel";
 import { internalMutation, internalQuery, mutation, query, type QueryCtx } from "./_generated/server";
 import { requireOrg, tryUser } from "./lib/auth";
 import { withResolvedMedia } from "./lib/documentMedia";
+import { insertProject } from "./projects";
 
 /*
   Templates: a project document frozen as a starting point, shared by every
   organisation. What a template is and how to author one is `docs/templates.md`;
   this file is the storage and the rules.
 
-  - Anyone signed in reads published templates (`list`, `get`).
+  - Anyone signed in reads published templates (`list`, `get`), and makes a
+    project from one in their organisation (`createProjectFrom`).
   - A template is made from a project (`createFromProject`) by an admin of the
     project's organisation, and only that organisation's admins update it.
     Unpublished, it is visible to that organisation alone: any organisation
@@ -127,6 +129,30 @@ export const get = query({
 
     const document = (row.orgId ? await withResolvedMedia(ctx, row.orgId, row.document) : row.document) as Project;
     return { ...(await summary(ctx, row)), document, slots: slotsOf(document) };
+  },
+});
+
+/*
+  A new project in the caller's organisation, a copy of the template's
+  document, roles included: the Templates page's Create. Any member may, of
+  any template they can see.
+
+  Stock media and the caller's own organisation's media keep their ids, so the
+  project's library and "Used in" still know them. Media from the template's
+  organisation, which the caller cannot resolve, comes as the URL it resolves
+  to now, as `get` hands it out.
+*/
+export const createProjectFrom = mutation({
+  args: { orgId: v.string(), id: v.string() },
+  handler: async (ctx, { orgId, id }) => {
+    const { org, user } = await requireOrg(ctx, orgId);
+    const templateId = ctx.db.normalizeId("templates", id);
+    const row = templateId ? await ctx.db.get(templateId) : null;
+    if (!row || !visible(row, await memberOrgIds(ctx))) fail("missing", "No such template");
+
+    const document = row.orgId ? await withResolvedMedia(ctx, row.orgId, row.document, (media) => !media.orgId || media.orgId === org._id) : row.document;
+    const now = Date.now();
+    return await insertProject(ctx, org._id, user._id, { ...(document as object), name: row.name, createdAt: now, updatedAt: now }, { updatedAt: now });
   },
 });
 

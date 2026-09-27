@@ -45,48 +45,10 @@ export function PreviewModal({
   shareUrl?: string;
   downloads?: PreviewDownload[];
 }) {
-  const [playing, setPlaying] = useState(true);
-  const [muted, setMuted] = useState(false);
-  const clock = useProjectClock(project, playing, { resetOnStop: false });
-  const stageRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === " ") {
-        e.preventDefault();
-        setPlaying((p) => !p);
-      }
-      if (project.kind === "carousel" && (e.key === "ArrowRight" || e.key === "ArrowLeft")) {
-        clock.goTo(clock.index + (e.key === "ArrowRight" ? 1 : -1));
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [project.kind, clock]);
+  const playback = usePreviewPlayback(project);
 
   return (
-    <PreviewShell
-      label={`${project.name} preview`}
-      onClose={onClose}
-      stage={(area) => {
-        /* Fit the document inside the area with breathing room, never upscaling past its export size. */
-        const pad = 24;
-        const stageW = Math.max(0, Math.min(area.w - pad * 2, ((area.h - pad * 2) * project.width) / project.height, project.width));
-        return stageW > 0 ? (
-          <Stage
-            ref={stageRef}
-            project={project}
-            clock={clock}
-            width={stageW}
-            playing={playing}
-            muted={muted}
-            onTogglePlay={() => setPlaying((p) => !p)}
-            onToggleMute={() => setMuted((m) => !m)}
-            onFullscreen={() => stageRef.current?.requestFullscreen?.().catch(() => {})}
-          />
-        ) : null;
-      }}
-    >
+    <PreviewShell label={`${project.name} preview`} onClose={onClose} stage={(area) => <ProjectPreviewStage project={project} area={area} playback={playback} />}>
       <div className="flex shrink-0 gap-2">
         <ShareButton url={shareUrl} id={project.id} />
         {onClose ? <PreviewCloseButton onClose={onClose} /> : null}
@@ -145,6 +107,56 @@ export function PreviewModal({
       ) : null}
     </PreviewShell>
   );
+}
+
+/*
+  A project playing in an enlarged preview: from the start, with sound. Space
+  plays and pauses; the arrow keys step through a carousel.
+*/
+export function usePreviewPlayback(project: Project) {
+  const [playing, setPlaying] = useState(true);
+  const [muted, setMuted] = useState(false);
+  const clock = useProjectClock(project, playing, { resetOnStop: false });
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === " ") {
+        e.preventDefault();
+        setPlaying((p) => !p);
+      }
+      if (project.kind === "carousel" && (e.key === "ArrowRight" || e.key === "ArrowLeft")) {
+        clock.goTo(clock.index + (e.key === "ArrowRight" ? 1 : -1));
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [project.kind, clock]);
+
+  return { playing, setPlaying, muted, setMuted, clock };
+}
+
+export type PreviewPlayback = ReturnType<typeof usePreviewPlayback>;
+
+/* The project as large as the preview's area allows, under its transport. */
+export function ProjectPreviewStage({ project, area, playback }: { project: Project; area: { w: number; h: number }; playback: PreviewPlayback }) {
+  const stageRef = useRef<HTMLDivElement>(null);
+  const { playing, setPlaying, muted, setMuted, clock } = playback;
+  /* Fit the document inside the area with breathing room, never upscaling past its export size. */
+  const pad = 24;
+  const stageW = Math.max(0, Math.min(area.w - pad * 2, ((area.h - pad * 2) * project.width) / project.height, project.width));
+  return stageW > 0 ? (
+    <Stage
+      ref={stageRef}
+      project={project}
+      clock={clock}
+      width={stageW}
+      playing={playing}
+      muted={muted}
+      onTogglePlay={() => setPlaying((p) => !p)}
+      onToggleMute={() => setMuted((m) => !m)}
+      onFullscreen={() => stageRef.current?.requestFullscreen?.().catch(() => {})}
+    />
+  ) : null;
 }
 
 /*
@@ -298,7 +310,7 @@ function tags(p: Project) {
   return [KIND_LABEL[p.kind], ASPECTS[p.aspect].label.split(" · ")[0], ...(motion ? ["Animated"] : []), ...Array.from(fonts).slice(0, 4)];
 }
 
-function ShareButton({ id, url }: { id: string; url?: string }) {
+export function ShareButton({ id, url }: { id: string; url?: string }) {
   const [done, setDone] = useState(false);
   return (
     <button

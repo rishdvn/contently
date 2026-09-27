@@ -1,4 +1,4 @@
-import type { Id } from "../_generated/dataModel";
+import type { Doc, Id } from "../_generated/dataModel";
 import type { QueryCtx } from "../_generated/server";
 
 /*
@@ -63,9 +63,20 @@ function mediaRefs(document: unknown): Map<string, MediaRef[]> {
   return found;
 }
 
-export async function withResolvedMedia(ctx: QueryCtx, orgId: Id<"organizations">, document: unknown): Promise<unknown> {
+/*
+  `keep` leaves a row's id in place, for a reader who can resolve it themselves:
+  a project made from a template keeps the ids of stock and of its own org's
+  media, so they stay in its library, and gets URLs for the rest.
+*/
+export async function withResolvedMedia(
+  ctx: QueryCtx,
+  orgId: Id<"organizations">,
+  document: unknown,
+  keep?: (row: Doc<"media">) => boolean,
+): Promise<unknown> {
   const refs = mediaRefs(document);
   const urls = new Map<string, string>();
+  const kept = new Set<string>();
 
   for (const id of refs.keys()) {
     const mediaId = ctx.db.normalizeId("media", id);
@@ -73,12 +84,17 @@ export async function withResolvedMedia(ctx: QueryCtx, orgId: Id<"organizations"
     /* Stock is shared (no `orgId`); anything owned is owned by this project's
        org or it is not ours to hand out. */
     if (!row || (row.orgId && row.orgId !== orgId)) continue;
+    if (keep?.(row)) {
+      kept.add(id);
+      continue;
+    }
     const url = await ctx.storage.getUrl(row.storageId);
     if (url) urls.set(id, url);
   }
 
   const copy = JSON.parse(JSON.stringify(document)) as DocumentLike;
   for (const [id, places] of refs) {
+    if (kept.has(id)) continue;
     const url = urls.get(id) ?? "";
     for (const place of places) {
       const slide = copy.slides?.[place.slide];

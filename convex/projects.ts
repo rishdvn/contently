@@ -100,8 +100,9 @@ async function owned(ctx: MutationCtx, clerkOrgId: string, id: Id<"projects">) {
   return { org, user, project };
 }
 
-/* Insert, then write the row id into the document so the two agree. */
-async function insertProject(
+/* Insert, then write the row id into the document so the two agree. Also how
+   `templates.createProjectFrom` makes a project. */
+export async function insertProject(
   ctx: MutationCtx,
   orgId: Id<"organizations">,
   createdBy: Id<"users">,

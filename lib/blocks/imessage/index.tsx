@@ -60,5 +60,4 @@ registerBlock({
   defaultDuration: 6,
   aspectHint: "portrait",
   render: (props, ctx) => <Thread props={props} ctx={ctx} />,
-  preview: "",
 });

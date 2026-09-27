@@ -21,6 +21,7 @@ return different images" is not a bug anyone can act on.
 | `app/render/[projectId]/page.tsx`, `components/render/RenderStage.tsx` | The page Chrome opens: one artboard at 1:1, no chrome, no session |
 | `workers/render/` | The Node service with the browser |
 | `proxy.ts` | `/render` is public, because the worker has no Clerk session |
+| `app/render/stage/page.tsx`, `components/render/Stage.tsx` | The same bridge with no project of its own: scripts put a document or a block on it (`scripts/block-previews.ts`, `docs/blocks.md`) |
 
 ## The flow
 

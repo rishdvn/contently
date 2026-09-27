@@ -32,7 +32,8 @@ export type RenderedFile = { name: string; contentType: string; bytes: Uint8Arra
    whole video would be tens of megabytes of JSON. */
 const CHUNK = 512 * 1024;
 
-export async function launch(cfg: Config): Promise<Browser> {
+/* Also used by `scripts/block-previews.ts`, which only has a Chrome path. */
+export async function launch(cfg: Pick<Config, "chromePath">): Promise<Browser> {
   return await chromium.launch({
     executablePath: cfg.chromePath,
     args: [
@@ -56,8 +57,9 @@ const safeName = (s: string) => s.replace(/[^\w\- ]+/g, "").trim().replace(/\s+/
 
 const pad = (n: number) => String(n).padStart(2, "0");
 
-/* The page stages a file and hands back its length; this walks it out. */
-async function drain(page: Page, length: number): Promise<Uint8Array> {
+/* The page stages a file and hands back its length; this walks it out. Any
+   page publishing a `RenderBridge` works — `/render/stage` does too. */
+export async function drain(page: Page, length: number): Promise<Uint8Array> {
   const bytes = new Uint8Array(length);
   for (let offset = 0; offset < length; offset += CHUNK) {
     const slice = await page.evaluate(

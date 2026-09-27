@@ -22,7 +22,7 @@ export type RenderBridge = {
   project: RenderProject | null;
   progress: number;
   png(scene: number, scale?: number): Promise<number>;
-  mp4(options?: { fps?: number; quality?: "medium" | "high" | "best" }): Promise<number>;
+  mp4(options?: { fps?: number; quality?: "medium" | "high" | "best"; scale?: number }): Promise<number>;
   read(offset: number, length: number): string;
   clear(): void;
 };

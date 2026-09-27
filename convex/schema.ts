@@ -174,6 +174,26 @@ export default defineSchema({
     .index("by_published", ["published"])
     .index("by_published_kind", ["published", "kind"]),
 
+  /* The Blocks panel's pictures of each catalog block, written by
+     `scripts/block-previews.ts`. The block itself is code (`lib/blocks/<id>/`);
+     this is only what it looks like, rendered by the studio's own exporter. */
+  blockAssets: defineTable({
+    /* The registered `BlockDefinition.id`. One row per block. */
+    blockId: v.string(),
+    /* SHA-256 of the block's source and the preview spec. A re-run skips a
+       block whose hash has not changed. */
+    hash: v.string(),
+    /* A few seconds of the block animating, H.264 MP4. */
+    previewStorageId: v.id("_storage"),
+    /* The static-mode frame, PNG. */
+    posterStorageId: v.id("_storage"),
+    width: v.number(),
+    height: v.number(),
+    /* Seconds. */
+    duration: v.number(),
+    updatedAt: v.number(),
+  }).index("by_blockId", ["blockId"]),
+
   /* Cache of a stock provider's catalog. Assets we keep are copied into `media`
      with `source: "stock"`; this table only records what the provider returned. */
   stockAssets: defineTable({

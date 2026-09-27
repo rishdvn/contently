@@ -285,13 +285,24 @@ async function encodeAudio(mix: AudioBuffer, config: AudioEncoderConfig, muxer: 
 */
 export async function renderVideo(
   project: Project,
-  opts: { fps: number; quality: VideoQuality; onProgress?: (p: number) => void; signal?: AbortSignal; audioUrl?: AudioUrlResolver },
+  opts: {
+    fps: number;
+    quality: VideoQuality;
+    onProgress?: (p: number) => void;
+    signal?: AbortSignal;
+    audioUrl?: AudioUrlResolver;
+    /* Output size as a multiple of the artboard, as for stills. The block
+       previews encode at half size; the studio always exports at 1. */
+    scale?: number;
+  },
 ): Promise<Blob> {
   if (!canEncodeVideo()) throw new Error("This browser cannot encode video. Try Chrome or Edge.");
   /* As in `renderSlide`: no frame is painted before its media has a URL. */
   await waitForMedia(project);
-  const width = project.width - (project.width % 2);
-  const height = project.height - (project.height % 2);
+  /* H.264 wants even dimensions. */
+  const even = (n: number) => Math.max(2, Math.round(n) - (Math.round(n) % 2));
+  const width = even(project.width * (opts.scale ?? 1));
+  const height = even(project.height * (opts.scale ?? 1));
 
   const codecs = ["avc1.640033", "avc1.64002a", "avc1.640028", "avc1.4d0028", "avc1.42e01f"];
   let codec: string | null = null;

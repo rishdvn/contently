@@ -31,6 +31,9 @@ export type MediaItem = {
   posterUrl: string | null;
   tags: string[];
   source: "upload" | "stock";
+  /* Stock only: our taxonomy slugs, and who to credit. */
+  categories: string[];
+  credit?: { name?: string; handle?: string };
   createdAt: number;
 };
 
@@ -50,6 +53,8 @@ async function withUrls(ctx: QueryCtx, row: Doc<"media">): Promise<MediaItem> {
     posterUrl,
     tags: row.tags,
     source: row.source,
+    categories: row.categories ?? [],
+    credit: row.credit,
     createdAt: row._creationTime,
   };
 }
@@ -132,6 +137,31 @@ export const list = query({
 });
 
 /*
+  "Our media": the stock library every organisation shares, imported by
+  `convex/stock/import.ts`. Filtered by one of our categories
+  (`STOCK_CATEGORIES`), newest first within a kind.
+
+  Convex cannot index into an array, so a category filter scans the kind; the
+  trial library is under a thousand rows. `limit` bounds the URLs minted, which
+  are the expensive part.
+*/
+export const listStock = query({
+  args: { kind: v.optional(mediaKind), category: v.optional(v.string()), limit: v.optional(v.number()) },
+  handler: async (ctx, { kind, category, limit = 60 }) => {
+    if (!(await tryUser(ctx))) return [];
+
+    const rows = await ctx.db
+      .query("media")
+      .withIndex("by_source_kind", (q) => (kind ? q.eq("source", "stock").eq("kind", kind) : q.eq("source", "stock")))
+      .order("desc")
+      .collect();
+    const matching = category ? rows.filter((row) => row.categories?.includes(category)) : rows;
+
+    return await Promise.all(matching.slice(0, Math.min(limit, 200)).map((row) => withUrls(ctx, row)));
+  },
+});
+
+/*
   The batched resolver behind `useMediaUrl`: one subscription per page resolves
   every id the rendered documents mention. Per-id queries would mean a
   subscription per block, and a carousel of stock photos is a lot of blocks.
@@ -154,6 +184,7 @@ export const resolve = query({
       posterUrl: null,
       tags: [],
       source: "upload",
+      categories: [],
       createdAt: 0,
     });
 

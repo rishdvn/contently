@@ -2,7 +2,7 @@
 
 import { useConvex, useMutation, useQuery } from "convex/react";
 import type { FunctionArgs } from "convex/server";
-import { AudioLines, ChevronDown, CircleAlert, LoaderCircle, Music, Pause, Play, Plus, Trash2, Upload, X } from "lucide-react";
+import { AudioLines, ChevronDown, CircleAlert, LoaderCircle, Music, Pause, Play, Trash2, Upload, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
@@ -68,7 +68,8 @@ export function StockPanel() {
 
 /*
   The audio library: Music and Sound effects, each filtered by its own facets
-  and searchable, with an inline preview and "Add to timeline". The catalog is
+  and searchable. Clicking a row adds it to the timeline; its artwork previews
+  it. The catalog is
   the Convex index of Soundstripe plus the seeded CC0 set (`convex/audio/*`);
   playback, preview and the lane alike, goes through `lib/editor/audio.ts`.
 */
@@ -143,6 +144,11 @@ function AudioLibrary() {
     <>
       <PanelHeader>
         <PanelSearch value={q} onChange={search} placeholder={tab === "music" ? "Search music" : "Search sound effects"} />
+        {/* The catalog is Soundstripe's, credited where Butter credits it. */}
+        <a href="https://www.soundstripe.com/" target="_blank" rel="noreferrer" aria-label="Music by Soundstripe" className="shrink-0 opacity-80 transition-opacity hover:opacity-100">
+          {/* eslint-disable-next-line @next/next/no-img-element -- a static wordmark, no optimisation to gain */}
+          <img src="/thirdparty/soundstripe-logo.svg" alt="Soundstripe" width={72} height={11} className="h-[11px] w-[72px]" />
+        </a>
       </PanelHeader>
       <PanelTabs
         value={tab}
@@ -261,15 +267,21 @@ function LoadMore({ onVisible }: { onVisible: () => void }) {
 }
 
 /*
-  One track. Clicking the row (or its artwork) previews it; the plus adds it at
-  the playhead. Hover is tracked from pointer events as well as `:hover`,
-  because the VNC desktop reports no hover capability.
+  One track, as Butter lays it out: clicking the row adds it to the timeline,
+  clicking the artwork previews it. Outside a video project there is no
+  timeline to add to, so the row previews instead. Hover is tracked from
+  pointer events as well as `:hover`, because the VNC desktop reports no hover
+  capability.
 */
 function AudioRow({ track, canAdd }: { track: LibraryTrack; canAdd: boolean }) {
   const convex = useConvex();
   const preview = usePreview();
   const addAudio = useEditor((s) => s.addAudio);
   const [hover, setHover] = useState(false);
+  /* Nothing else on screen changes when a track lands on a collapsed or
+     scrolled-away timeline, so the row says so itself for a moment. */
+  const [added, setAdded] = useState(false);
+  const addedTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const status = preview.trackId === track.id ? preview.status : "idle";
   const live = status === "playing" || status === "paused" || status === "loading";
@@ -286,7 +298,8 @@ function AudioRow({ track, canAdd }: { track: LibraryTrack; canAdd: boolean }) {
 
   /* At the playhead, for the whole track or as much of it as the project has
      room for. A playhead parked at the very end leaves no room, so the track
-     starts from the top instead. */
+     starts from the top instead. (Butter always starts at 0; the ticket asks
+     for the playhead.) */
   const add = () => {
     const { project, activeSlideId, time } = useEditor.getState();
     const total = totalDuration(project);
@@ -303,26 +316,25 @@ function AudioRow({ track, canAdd }: { track: LibraryTrack; canAdd: boolean }) {
       duration: Math.max(MIN_AUDIO, Math.min(track.duration ?? room, room)),
       volume: 80,
     });
+    setAdded(true);
+    clearTimeout(addedTimer.current);
+    addedTimer.current = setTimeout(() => setAdded(false), 1200);
   };
 
   return (
     <div
       role="listitem"
-      className={cn("group relative flex cursor-pointer items-center gap-3 rounded-[10px] px-2 py-2 hover:bg-card", status !== "idle" && "bg-card")}
+      className={cn("group relative flex items-center gap-3 rounded-[10px] px-2 py-2 hover:bg-card", (status !== "idle" || hover) && "bg-card")}
       onPointerEnter={() => setHover(true)}
       onPointerLeave={() => setHover(false)}
-      onClick={toggle}
     >
       <button
         type="button"
         aria-label={`${status === "playing" ? "Pause" : "Play"} ${track.title}`}
         aria-pressed={status === "playing"}
         disabled={!playable}
-        className="relative size-11 shrink-0 overflow-hidden rounded-[8px] bg-raised disabled:cursor-not-allowed"
-        onClick={(e) => {
-          e.stopPropagation();
-          toggle();
-        }}
+        className="relative z-10 size-11 shrink-0 overflow-hidden rounded-[8px] bg-raised disabled:cursor-not-allowed"
+        onClick={toggle}
       >
         {track.artworkUrl ? (
           // eslint-disable-next-line @next/next/no-img-element -- remote album artwork, sized by the row
@@ -333,43 +345,42 @@ function AudioRow({ track, canAdd }: { track: LibraryTrack; canAdd: boolean }) {
           </span>
         )}
         {playable ? (
-          <span className={cn("absolute inset-0 flex items-center justify-center bg-black/45 text-white transition-opacity", shown ? "opacity-100" : "opacity-0 group-hover:opacity-100")}>
-            {status === "loading" ? (
-              <LoaderCircle className="size-4 animate-spin" />
-            ) : status === "playing" ? (
-              <Pause className="size-4 fill-current" />
-            ) : status === "error" ? (
-              <CircleAlert className="size-4" />
-            ) : (
-              <Play className="size-4 fill-current" />
-            )}
+          <span className={cn("absolute inset-0 flex items-center justify-center transition-opacity", shown ? "opacity-100" : "opacity-0 group-hover:opacity-100")}>
+            <span className="flex size-7 items-center justify-center rounded-full bg-white/90 text-black shadow-sm">
+              {status === "loading" ? (
+                <LoaderCircle className="size-3.5 animate-spin" />
+              ) : status === "playing" ? (
+                <Pause className="size-3.5 fill-current" />
+              ) : status === "error" ? (
+                <CircleAlert className="size-3.5" />
+              ) : (
+                <Play className="ml-0.5 size-3.5 fill-current" />
+              )}
+            </span>
           </span>
         ) : null}
       </button>
-      <div className="min-w-0 flex-1">
-        <div className="truncate text-ui text-ink">{track.title}</div>
-        <div className={cn("truncate text-cap", status === "error" ? "text-critical" : "text-ink-secondary")}>
-          {status === "error" ? "Couldn't play this track" : !playable ? "No audio file" : subtitle}
-        </div>
-      </div>
-      <PreviewClock key={live ? "live" : "idle"} live={live} duration={track.duration} />
-      {canAdd ? (
-        <button
-          type="button"
-          aria-label={`Add ${track.title} to timeline`}
-          title="Add to timeline"
-          className={cn(
-            "flex size-7 shrink-0 items-center justify-center rounded-full bg-raised text-ink transition-opacity hover:bg-line-strong focus-visible:opacity-100",
-            shown ? "opacity-100" : "opacity-0 group-hover:opacity-100",
-          )}
-          onClick={(e) => {
-            e.stopPropagation();
-            add();
-          }}
-        >
-          <Plus className="size-3.5" />
-        </button>
-      ) : null}
+      {/* The whole row is this button's target (its ::before covers the row);
+          the artwork and the scrubber sit above it. */}
+      <button
+        type="button"
+        aria-label={canAdd ? `Add ${track.title} to timeline` : `${status === "playing" ? "Pause" : "Play"} ${track.title}`}
+        title={canAdd ? "Add to timeline" : undefined}
+        className="flex min-w-0 flex-1 items-center gap-3 text-left outline-none before:absolute before:inset-0 before:rounded-[10px] before:content-[''] focus-visible:before:ring-1 focus-visible:before:ring-line-strong"
+        onClick={canAdd ? add : toggle}
+      >
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-ui text-ink">{track.title}</span>
+          <span className={cn("block truncate text-cap", status === "error" ? "text-critical" : "text-ink-secondary")}>
+            {status === "error" ? "Couldn't play this track" : !playable ? "No audio file" : subtitle}
+          </span>
+        </span>
+        {added ? (
+          <span className="w-10 shrink-0 text-right text-cap text-ink">Added</span>
+        ) : (
+          <PreviewClock key={live ? "live" : "idle"} live={live} duration={track.duration} />
+        )}
+      </button>
       {live ? <PreviewScrubber /> : null}
     </div>
   );
@@ -420,7 +431,7 @@ function PreviewScrubber() {
   return (
     <div
       aria-label="Preview position"
-      className="absolute right-2 bottom-0 left-[64px] flex h-2.5 cursor-pointer items-center"
+      className="absolute right-2 bottom-0 left-[64px] z-10 flex h-2.5 cursor-pointer items-center"
       onClick={(e) => e.stopPropagation()}
       onPointerDown={(e) => {
         e.stopPropagation();

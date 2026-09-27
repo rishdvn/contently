@@ -28,6 +28,10 @@ import { TemplatePreview } from "./TemplatePreview";
 /* Static is everything that isn't a video: images and carousels. */
 type Family = "video" | "static";
 const familyOf = (kind: string): Family => (kind === "video" ? "video" : "static");
+const FAMILIES: { value: Family; label: string }[] = [
+  { value: "video", label: "Video" },
+  { value: "static", label: "Static" },
+];
 
 export function TemplateLibrary() {
   const all = useQuery(api.templates.list, { drafts: true });
@@ -93,12 +97,13 @@ export function TemplateLibrary() {
           </div>
 
           <nav aria-label="Format" className="mt-4 flex items-center gap-4">
-            <TextTab active={family === "video"} onClick={() => setFamily("video")}>
-              Video
-            </TextTab>
-            <TextTab active={family === "static"} onClick={() => setFamily("static")}>
-              Static
-            </TextTab>
+            {FAMILIES.map((f) => (
+              <TextTab key={f.value} active={family === f.value} onClick={() => setFamily(f.value)}>
+                {f.label}
+                {/* While filtering, how many match in each, so a match in the other format isn't hidden. */}
+                {filtered && all ? <span className="ml-1.5 text-default tabular-nums">{matching.filter((t) => familyOf(t.kind) === f.value).length}</span> : null}
+              </TextTab>
+            ))}
           </nav>
 
           <div className="mt-5">

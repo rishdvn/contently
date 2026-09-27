@@ -157,7 +157,6 @@ export const createFromProject = mutation({
     if (!slides.length) fail("invalid", "The project has no scenes");
 
     const fields = {
-      name: name?.trim() || project.name,
       kind: project.kind,
       aspect: project.aspect,
       document: project.document,
@@ -171,6 +170,7 @@ export const createFromProject = mutation({
       if (!existing || existing.orgId !== org._id) fail("missing", "No such template in this organisation");
       await ctx.db.patch(existing._id, {
         ...fields,
+        name: name?.trim() || existing.name,
         ...(categories ? { categories } : {}),
         ...(tags ? { tags } : {}),
       });
@@ -179,6 +179,7 @@ export const createFromProject = mutation({
 
     return await ctx.db.insert("templates", {
       ...fields,
+      name: name?.trim() || project.name,
       categories: categories ?? [],
       tags: tags ?? [],
       scenePosters: [],

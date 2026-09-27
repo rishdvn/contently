@@ -43,9 +43,9 @@ optional `role` on any block, from a closed list. The inspector shows it as a
 label beside the block's title and sets it from the **Role** menu at the
 bottom of the Design tab.
 
-Roles are guidance, not a cage. The API replaces content by `blockId` or by
-`role`; a role makes the second possible and tells the writer what kind of
-text to write.
+Roles are guidance, not a cage. The public API (Phase 8) will replace content
+by `blockId` or by `role`; a role makes the second possible and tells the
+writer what kind of text to write.
 
 | Role | On | What goes there | Writing for it |
 |---|---|---|---|
@@ -58,7 +58,7 @@ text to write.
 | `brand` | text, block | The brand's name, or a block that stands for it (a logo strip) | Exactly as the brand writes it |
 | `quote` | text | A testimonial or pull quote | Real words from a real person; no quotation marks if the design adds them |
 | `author` | text | Who said the quote, or who a chat is with | Name, optionally "· role" |
-| `hook` | text | The first words of a video, meant to stop the scroll | A question or a claim; under ~8 words. Scene 1 only |
+| `hook` | text | The first words of a video, meant to stop the scroll | A question or a claim; under ~8 words. Scene 1 only — the video's opening line is the `hook`, not a `heading` |
 | `logo` | image | The brand's logo | A transparent PNG or SVG from the org's media |
 | `image:product` | image | The thing being sold, on its own | A cut-out or clean shot of the product |
 | `image:lifestyle` | image | The product, or the feeling, in use | People, places, context |
@@ -74,7 +74,9 @@ any role, and that role describes the whole block.
 content fields to roles (`roles` in `registry.ts`; `docs/blocks.md`). iMessage
 says `contactName` is the `author` and each `messages[].text` is `body`. The
 inspector lists these under the Role menu. They belong to the block, not to
-the template, and the author doesn't set them.
+the template, and the author doesn't set them. They live in the block's code,
+so the server does not see them yet: a template's `roles[]` and `slots` carry
+block-level roles only, and a catalog block's slot names its `componentId`.
 
 ## Slots, and what makes one replaceable
 
@@ -106,7 +108,7 @@ anything:
 ## Aspect targets
 
 Author at the size the template will mostly be used at. The scene picker
-rescales scenes into a project of another aspect (fit width, centre, text
+(the studio's Templates flyout) rescales scenes into a project of another aspect (fit width, centre, text
 sizes proportional), and a template designed at its native aspect survives
 that best.
 
@@ -128,21 +130,30 @@ crop keeps them.
 - **Most scenes are 3–6 s.** Longer scenes want something moving: a catalog
   block's animation, a video background, a text entrance.
 - **Blocks in a scene overlap in time** unless the design says otherwise. The
-  poster script draws a video scene at the latest moment the most blocks are
-  on screen, and so do people skimming.
+  poster script draws a video scene one frame before the first block leaves,
+  choosing the earliest such moment with the most blocks on screen — for a
+  scene whose blocks all run to its end, the last frame. Entrances are over by
+  then, and a catalog block has settled if it runs at least that long; so let
+  the blocks that matter share the scene's final moment.
 - **End on the `cta`**, held for at least a second after it lands.
 - Durations differ per scene. That's what makes "add one scene" in the picker
   useful.
 
 ## Building one
 
-1. **Build it as a project** in an organisation where you're an admin, with
-   stock media or the org's own media, never a pasted URL (it will not
-   survive).
+1. **Build it as a project** in an organisation where you're an admin (Clerk
+   role `org:admin`): Projects → Create → Video (9:16), Image or Carousel (4:5). Use
+   stock media or the org's own uploads: they resolve for every reader,
+   whereas a pasted URL depends on someone else's server staying up.
 2. **Set the roles.** Select each content block → Role. Everything a
-   replacement should touch gets one; layout gets none.
-3. **Make it a template.** `createFromProject` as yourself. On the dev
-   deployment the CLI can act as you:
+   replacement should touch gets one; layout gets none. Give autosave a
+   second after the last change (it runs about half a second later, with no
+   indicator): the next step copies what is stored, not what is on screen.
+3. **Make it a template.** `createFromProject` as yourself. You need two ids,
+   both from the browser console on any signed-in page:
+   `window.Clerk.organization.id` (the `org_…` id every call here takes) and
+   `window.Clerk.user.id` (the `user_…` id to act as); the project id is the
+   last part of the studio URL. On the dev deployment the CLI can act as you:
 
    ```bash
    npx convex run templates:createFromProject \
@@ -151,21 +162,37 @@ crop keeps them.
    # → the template id; it starts unpublished
    ```
 
-   From the app, it is the same mutation (`api.templates.createFromProject`)
-   with the same arguments. To update a template after editing the project,
-   pass its `templateId`. The document is replaced; the id, the published state
-   and anything else you leave out are kept.
-4. **Render the posters.** `npm run template-posters` (needs the app running
-   and `npm --prefix workers/render install` once; see `docs/blocks.md` →
-   "Previews" for the machinery). It renders a PNG per scene, 540 px wide, and
-   uses the first as the template's poster. It skips templates whose document
-   hasn't changed; pass `--id <templateId>` for one, `--force` to redo, and
-   `-- --prod` for production.
+   There is no button for this in the app yet, and `--identity` works on dev
+   deployments only; on production, call the same mutation
+   (`api.templates.createFromProject`) from code running as an org admin.
+
+   **After every edit to the project**, run it again with `"templateId"` —
+   the template is a copy, not a link. The document is replaced; the id, the
+   name, the published state and anything else you leave out are kept. Then
+   re-render the posters.
+4. **Render the posters.** Needs the app running (`npm run dev`), the Convex
+   functions deployed to the same deployment, and
+   `npm --prefix workers/render install` once (`docs/blocks.md` → "Previews"
+   has the machinery). It renders a PNG per scene, 540 px wide, and uses the
+   first as the template's poster.
+
+   ```bash
+   npm run template-posters                          # every template whose document changed
+   npm run template-posters -- --id k57…,k58…        # some templates
+   npm run template-posters -- --force               # redraw regardless
+   npm run template-posters -- --out /tmp/posters    # keep local copies
+   npm run template-posters -- -- --prod             # the second -- passes --prod to `npx convex run`
+   ```
+
+   A template is skipped while its stored document, the poster width and the
+   stage page are unchanged. A change to block code or the exporter does not
+   count: use `--force` after one.
 5. **Check it.** `templates:get` shows the slots. Every content block should
    be there, with the role you meant. Open the posters: every scene should
    look finished, nothing half-animated.
+   Your unpublished templates are in `templates:list` with `{ "drafts": true }`.
 6. **Publish.** `templates:publish` with `{ orgId, id }` (`published: false`
-   takes it back).
+   takes it back), the same way as step 3.
 
 A checklist before publishing:
 
@@ -175,7 +202,9 @@ A checklist before publishing:
 - [ ] Text boxes have slack for longer copy
 - [ ] Posters are rendered and show every scene settled
 - [ ] Video: scene names, a hook in scene 1, the CTA held at the end
-- [ ] Categories set (they are the Templates page's chips)
+- [ ] Categories set: lowercase words, reusing ones other templates already
+      use (`templates:list` shows them) — they will be the Templates page's
+      chips. There is no fixed list yet
 
 ## Reading templates from code
 

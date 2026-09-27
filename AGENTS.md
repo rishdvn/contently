@@ -78,7 +78,8 @@ Keep throwaway scripts outside the repo (`/tmp`). `playwright-core` driving the 
 
 ```js
 import { chromium } from "playwright-core";
-const browser = await chromium.launch({ executablePath: "/usr/local/bin/google-chrome", headless: true, args: ["--no-sandbox"] });
+// channel "chrome" finds the installed Chrome wherever the OS put it (/opt/google/chrome on the sandbox)
+const browser = await chromium.launch({ channel: "chrome", headless: true, args: ["--no-sandbox"] });
 const page = await browser.newPage({ viewport: { width: 1400, height: 900 } });
 // Sign in first: every route is behind Clerk, and a project belongs to an organisation.
 await page.goto("http://localhost:3000/editor/new?kind=video"); // creates one and redirects to its id

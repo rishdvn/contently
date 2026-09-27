@@ -59,7 +59,7 @@ export type PlayableTrack = {
 /* `cc0` rows play from Convex storage, Soundstripe rows from a signed CDN URL.
    The storage URL is resolved here rather than stored, because it belongs to a
    deployment and the row does not. */
-async function serialise(ctx: QueryCtx, track: Doc<"audioTracks">): Promise<PlayableTrack> {
+export async function serialise(ctx: QueryCtx, track: Doc<"audioTracks">): Promise<PlayableTrack> {
   const previewUrl = track.storageId ? await ctx.storage.getUrl(track.storageId) : (track.previewUrl ?? null);
   return {
     id: track._id,

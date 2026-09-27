@@ -14,7 +14,7 @@ import type { MediaItem } from "@/convex/media";
 import { useActiveOrg } from "@/lib/auth/useActiveOrg";
 import { cn } from "@/lib/cn";
 import { previewPosition, seekPreview, stopPreview, togglePreview, usePreview } from "@/lib/editor/audio";
-import { rememberTrack, useRecentTracks, type RecentTrack } from "@/lib/editor/recentAudio";
+import { rememberWith, useImportLocalRecent, useRecentTracks, useRememberTrack, type RecentTrack } from "@/lib/editor/recentAudio";
 import { imageBlock, uid, videoBlock } from "@/lib/editor/factory";
 import { primeMedia } from "@/lib/editor/media";
 import { STOCK_PHOTOS, STOCK_VIDEOS, type StockItem } from "@/lib/editor/presets";
@@ -124,6 +124,7 @@ function AudioLibrary() {
   /* "See more" on Recently used: the whole list in place of the sections. */
   const [allRecent, setAllRecent] = useState(false);
   const kind = useEditor((s) => s.project.kind);
+  useImportLocalRecent();
 
   const moods = useQuery(api.audio.library.moods, tab === "music" ? {} : "skip");
   const genres = useQuery(api.audio.library.genres, tab === "music" ? {} : "skip");
@@ -447,6 +448,7 @@ function AudioRow({ track, canAdd }: { track: RecentTrack; canAdd: boolean }) {
   const convex = useConvex();
   const preview = usePreview();
   const addAudio = useEditor((s) => s.addAudio);
+  const remember = useRememberTrack();
   const [hover, setHover] = useState(false);
   /* Nothing else on screen changes when a track lands on a collapsed or
      scrolled-away timeline, so the row says so itself for a moment. */
@@ -465,7 +467,7 @@ function AudioRow({ track, canAdd }: { track: RecentTrack; canAdd: boolean }) {
   /* Starting a preview (not pausing one) counts as using the track. */
   const toggle = () => {
     if (!playable) return;
-    if (status !== "playing" && status !== "loading") rememberTrack(track);
+    if (status !== "playing" && status !== "loading") rememberWith(remember, track);
     togglePreview(convex, track);
   };
 
@@ -490,7 +492,7 @@ function AudioRow({ track, canAdd }: { track: RecentTrack; canAdd: boolean }) {
       sourceDuration: track.duration,
       volume: 80,
     });
-    rememberTrack(track);
+    rememberWith(remember, track);
     setAdded(true);
     clearTimeout(addedTimer.current);
     addedTimer.current = setTimeout(() => setAdded(false), 1200);

@@ -2,7 +2,7 @@
 
 import { Clapperboard, GalleryHorizontalEnd, Image as ImageIcon, MoreHorizontal, Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useCallback, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import { createContext, use, useMemo, useState, type ReactNode } from "react";
 
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,7 @@ import type { Project, ProjectKind } from "@/lib/editor/types";
 
 import { HubNav } from "./HubNav";
 import { ImportLocalProjects } from "./ImportLocalProjects";
+import { CardCaption, LibraryGrid, usePreviewRoute, type LibraryAdapter } from "./LibraryGrid";
 import { PreviewModal } from "./PreviewModal";
 import { projectMeta, ProjectStage, relativeTime, useProjectClock } from "./ProjectPreview";
 
@@ -88,19 +89,17 @@ export function Hub() {
             <p className="text-default text-ink-secondary">{projects?.length ? `${projects.length} project${projects.length > 1 ? "s" : ""}` : "Everything you make lands here"}</p>
           </div>
           {projects === null ? null : projects.length ? (
-            <div className="mt-5 columns-4 gap-4 xl:columns-5">
-              {projects.map((p) => (
-                <ProjectCard
-                  key={p.id}
-                  p={p}
-                  onPreview={() => preview.open(p.id)}
-                  onOpen={() => router.push(`/editor/${p.id}`)}
-                  onDelete={() => void deleteProject(p.id)}
-                  onDuplicate={() => void duplicateProject(p.id)}
-                  onRename={(name) => void renameProject(p.id, name)}
-                />
-              ))}
-            </div>
+            <ProjectCardActions
+              value={{
+                preview: (p) => preview.open(p.id),
+                open: (p) => router.push(`/editor/${p.id}`),
+                remove: (p) => void deleteProject(p.id),
+                duplicate: (p) => void duplicateProject(p.id),
+                rename: (p, name) => void renameProject(p.id, name),
+              }}
+            >
+              <LibraryGrid className="mt-5" items={projects} adapter={PROJECTS} onPreview={(p) => preview.open(p.id)} />
+            </ProjectCardActions>
           ) : (
             <div className="mt-5 flex h-40 items-center justify-center rounded-card bg-panel text-default text-ink-secondary">
               {orgless ? "Choose an organisation to see its projects." : "No projects yet — pick a format above."}
@@ -131,56 +130,6 @@ export function Hub() {
       ) : null}
     </div>
   );
-}
-
-/*
-  The open preview lives in the URL as ?preview=<id>, as the reference does,
-  so it survives a refresh and Back closes it. Native history calls are used
-  because the app router keeps them in sync without a navigation.
-*/
-const routeListeners = new Set<() => void>();
-const notifyRoute = () => routeListeners.forEach((l) => l());
-const readPreview = () => new URLSearchParams(window.location.search).get("preview");
-
-function usePreviewRoute() {
-  const pushed = useRef(false);
-  const id = useSyncExternalStore(
-    (cb) => {
-      routeListeners.add(cb);
-      const onPop = () => {
-        pushed.current = false;
-        cb();
-      };
-      window.addEventListener("popstate", onPop);
-      return () => {
-        routeListeners.delete(cb);
-        window.removeEventListener("popstate", onPop);
-      };
-    },
-    readPreview,
-    () => null,
-  );
-
-  const open = useCallback((next: string) => {
-    window.history.pushState(null, "", `?preview=${encodeURIComponent(next)}`);
-    pushed.current = true;
-    notifyRoute();
-  }, []);
-  const replace = useCallback((next: string) => {
-    window.history.replaceState(null, "", `?preview=${encodeURIComponent(next)}`);
-    notifyRoute();
-  }, []);
-  const close = useCallback(() => {
-    if (pushed.current) {
-      pushed.current = false;
-      window.history.back();
-    } else {
-      window.history.replaceState(null, "", window.location.pathname);
-      notifyRoute();
-    }
-  }, []);
-
-  return { id, open, replace, close };
 }
 
 /*
@@ -231,53 +180,45 @@ function StartCard({ kind, icon, title, body, onClick, compact }: { kind: Projec
   a still stays put — and reveals the facts badge, the actions button, and a
   progress line along the bottom edge. Clicking opens the enlarged preview.
 */
-function ProjectCard({
-  p,
-  onPreview,
-  onOpen,
-  onDelete,
-  onDuplicate,
-  onRename,
-}: {
-  p: ProjectRecord;
-  onPreview: () => void;
-  onOpen: () => void;
-  onDelete: () => void;
-  onDuplicate: () => void;
-  onRename: (name: string) => void;
-}) {
+const PROJECTS: LibraryAdapter<ProjectRecord> = {
+  key: (p) => p.id,
+  label: (p) => p.name,
+  aspect: (p) => p.document.width / p.document.height,
+  Art: ({ item, playing }) => <LiveArt project={item.document} playing={playing && item.kind !== "image"} />,
+  Overlay: ProjectOverlay,
+  /* A duplicate shows its copy before the server has minted an id for it;
+     until it does, the card has nothing to open. */
+  pending: (p) => p.pending,
+};
+
+type ProjectCardCallbacks = {
+  preview: (p: ProjectRecord) => void;
+  open: (p: ProjectRecord) => void;
+  remove: (p: ProjectRecord) => void;
+  duplicate: (p: ProjectRecord) => void;
+  rename: (p: ProjectRecord, name: string) => void;
+};
+
+/* The overlay's actions come from the page by context, so the adapter can be a
+   constant and a card's rename field survives the page re-rendering. */
+const ProjectCardContext = createContext<ProjectCardCallbacks | null>(null);
+const ProjectCardActions = ProjectCardContext.Provider;
+
+function ProjectOverlay({ item: p, hover }: { item: ProjectRecord; hover: boolean }) {
+  const actions = use(ProjectCardContext);
   const doc = p.document;
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(p.name);
-  const [hover, setHover] = useState(false);
   const commit = () => {
     setEditing(false);
     const name = draft.trim();
-    if (name && name !== p.name) onRename(name);
+    if (name && name !== p.name) actions?.rename(p, name);
     else setDraft(p.name);
   };
-  const animated = p.kind !== "image";
 
   return (
-    <div
-      /* A duplicate shows its copy before the server has minted an id for it;
-         until it does, the card has nothing to open. */
-      className={cn("group relative mb-4 break-inside-avoid rounded-[12px]", p.pending && "opacity-60")}
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
-    >
-      <button
-        type="button"
-        onClick={onPreview}
-        disabled={p.pending}
-        aria-label={`Preview ${p.name}`}
-        className="relative block w-full overflow-hidden rounded-[12px] bg-card text-left outline-none focus-visible:ring-2 focus-visible:ring-ink/40 focus-visible:ring-inset"
-      >
-        <LiveArt project={doc} playing={hover && animated} />
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-2/5 scrim" />
-      </button>
-
-      <div className="pointer-events-none absolute inset-x-3 bottom-3 flex items-center gap-2">
+    <>
+      <CardCaption name={p.name} badge={hover ? projectMeta(doc) : undefined}>
         {editing ? (
           <input
             autoFocus
@@ -295,11 +236,8 @@ function ProjectCard({
               }
             }}
           />
-        ) : (
-          <span className="truncate text-ui font-medium text-white [text-shadow:0_1px_2px_rgb(0_0_0/0.6)]">{p.name}</span>
-        )}
-        {hover ? <span className="shrink-0 rounded-[6px] bg-black/60 px-1.5 py-0.5 text-tiny whitespace-nowrap text-white">{projectMeta(doc)}</span> : null}
-      </div>
+        ) : undefined}
+      </CardCaption>
 
       <div
         className={cn(
@@ -316,8 +254,8 @@ function ProjectCard({
             </button>
           )}
         >
-          <MenuItem onClick={onPreview}>Preview</MenuItem>
-          <MenuItem onClick={onOpen}>Open in editor</MenuItem>
+          <MenuItem onClick={() => actions?.preview(p)}>Preview</MenuItem>
+          <MenuItem onClick={() => actions?.open(p)}>Open in editor</MenuItem>
           <MenuItem
             onClick={() => {
               setDraft(p.name);
@@ -326,13 +264,13 @@ function ProjectCard({
           >
             Rename
           </MenuItem>
-          <MenuItem onClick={onDuplicate}>Duplicate</MenuItem>
-          <MenuItem destructive onClick={onDelete}>
+          <MenuItem onClick={() => actions?.duplicate(p)}>Duplicate</MenuItem>
+          <MenuItem destructive onClick={() => actions?.remove(p)}>
             Delete
           </MenuItem>
         </Menu>
       </div>
-    </div>
+    </>
   );
 }
 

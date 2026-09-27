@@ -57,6 +57,7 @@ registerBlock({
     theme: "light",
     showTyping: true,
   },
+  roles: { contactName: "author", "messages[].text": "body" },
   defaultDuration: 6,
   aspectHint: "portrait",
   render: (props, ctx) => <Thread props={props} ctx={ctx} />,

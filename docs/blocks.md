@@ -33,6 +33,7 @@ registerBlock({
   aspectHint: "portrait",      // square | portrait (4:5) | landscape (16:9) | free (1:1)
   render: (props, ctx) => <Thread props={props} ctx={ctx} />,
   poster: { progress: 1 },     // optional: the frame shown as a still (default 1, settled)
+  roles: { contactName: "author", "messages[].text": "body" },  // optional: see below
 });
 ```
 
@@ -195,6 +196,14 @@ Rules of thumb:
 - The inspector shows inputs in declaration order, grouping consecutive scalar
   fields into one card. Order them as a person fills them in: content first,
   styling after.
+
+**Roles.** A block that holds content says what each content field is for, in
+the template role vocabulary (`CONTENT_ROLES`, `docs/templates.md`): `roles`
+maps a field path to a role — `name` for a top-level input, `list[].field`
+for a field of every list item, `object.field` inside an object. Paths are
+checked against the schema at compile time. Leave styling fields (theme,
+colours, toggles) out. The inspector lists these roles, and the public API will use them
+to fill a template's catalog blocks.
 
 `defaults` on the definition is the sample content a freshly added block
 shows; it is typed from the schema (`PropsOf<typeof inputs>`), so a typo there

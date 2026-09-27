@@ -2,7 +2,7 @@
 
 import { useConvex, useMutation, useQueries, useQuery } from "convex/react";
 import type { FunctionArgs, FunctionReturnType } from "convex/server";
-import { AudioLines, ChevronDown, ChevronLeft, ChevronRight, CircleAlert, ImageDown, LoaderCircle, Music, Pause, Play, RefreshCw, Trash2, Upload, Video, X } from "lucide-react";
+import { AudioLines, ChevronDown, ChevronLeft, ChevronRight, CircleAlert, ImageDown, Info, LoaderCircle, Music, Pause, PictureInPicture2, Play, Plus, RefreshCw, Trash2, Upload, Video, X } from "lucide-react";
 import Image from "next/image";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -10,6 +10,7 @@ import { createPortal } from "react-dom";
 import { MediaArt } from "@/components/hub/MediaCard";
 import { Chip, ChipRow } from "@/components/ui/chip";
 import { MenuItem } from "@/components/ui/menu";
+import { Tooltip } from "@/components/ui/tooltip";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import type { MediaItem } from "@/convex/media";
@@ -18,7 +19,7 @@ import { useActiveOrg } from "@/lib/auth/useActiveOrg";
 import { cn } from "@/lib/cn";
 import { previewPosition, seekPreview, stopPreview, togglePreview, usePreview } from "@/lib/editor/audio";
 import { rememberWith, useImportLocalRecent, useRecentTracks, useRememberTrack, type RecentTrack } from "@/lib/editor/recentAudio";
-import { imageBlock, uid, videoBlock } from "@/lib/editor/factory";
+import { imageBlock, slide as makeSlide, uid, videoBlock } from "@/lib/editor/factory";
 import { primeMedia } from "@/lib/editor/media";
 import { activeMediaTarget, useEditor, useSelectedBlocks, type MediaSource } from "@/lib/editor/store";
 import { useMediaUpload, type UploadJob } from "@/lib/editor/useMediaUpload";
@@ -80,8 +81,10 @@ function ReplaceBar({ source }: { source: MediaSource }) {
   "Our media" in the studio: the stock library imported into Convex
   (`convex/stock/*`), browsed as Photos or Videos, narrowed by one of our
   categories and by search, in a two-column masonry that loads as it scrolls.
-  Clicking a tile adds it as a block covering the artboard; its second action
-  makes it the scene's background. Nothing here talks to a stock provider.
+  Clicking a tile adds it as a layer covering the artboard. On hover, as in
+  Butter, it also offers "Create new scene" (a scene of its own after the
+  active one), "Add as layer", "Set as background", and its credits under ⓘ.
+  Nothing here talks to a stock provider.
 
   Butter stacks a section per kind (Graphics, Photos, Videos…) with "See more"
   and a row of search-suggestion chips. We have two kinds and a fixed taxonomy,
@@ -322,6 +325,7 @@ function StockSkeleton() {
 function StockTile({ item }: { item: MediaItem }) {
   const [hover, setHover] = useState(false);
   const [added, setAdded] = useState<Placed | null>(null);
+  const [info, setInfo] = useState<DOMRect | null>(null);
   const addedTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const thumb = item.kind === "image" ? item.url : item.posterUrl;
   const credit = item.credit?.name ?? item.credit?.handle;
@@ -331,13 +335,16 @@ function StockTile({ item }: { item: MediaItem }) {
     const t = activeMediaTarget(s);
     return t && t.kind === item.kind ? t : null;
   });
+  /* An image project is one slide; there is no scene to add. */
+  const scenes = useEditor((s) => s.project.kind !== "image");
 
-  const act = (as: "block" | "background") => {
+  const act = (as: "block" | "background" | "scene") => {
     if (!item.url) return;
-    setAdded(placeStock(item, as));
+    setAdded(as === "scene" ? stockScene(item) : placeStock(item, as));
     clearTimeout(addedTimer.current);
     addedTimer.current = setTimeout(() => setAdded(null), 1200);
   };
+  const shown = hover || Boolean(info);
 
   return (
     <div
@@ -351,7 +358,7 @@ function StockTile({ item }: { item: MediaItem }) {
       <button
         type="button"
         aria-label={`${target ? "Use" : "Add"} ${kindLabel}${credit ? ` by ${credit}` : ""}`}
-        title={item.url ? (target ? `Use in ${target.label ?? "the selected block"}` : "Add to canvas") : undefined}
+        title={item.url ? (target ? `Use in ${target.label ?? "the selected block"}` : "Add as layer") : undefined}
         disabled={!item.url}
         className="absolute inset-0 outline-none focus-visible:ring-2 focus-visible:ring-ink/40 focus-visible:ring-inset disabled:cursor-not-allowed"
         onClick={() => act("block")}
@@ -366,28 +373,103 @@ function StockTile({ item }: { item: MediaItem }) {
         ) : null}
       </button>
 
-      <div className={cn("pointer-events-none absolute inset-x-0 bottom-0 flex items-end gap-1.5 p-1.5 transition-opacity", hover || added ? "bg-gradient-to-t from-black/60 to-transparent pt-6 opacity-100" : "opacity-0")}>
-        <span className="min-w-0 flex-1 truncate text-[10px] text-white/85">{added ? PLACED[added] : credit ? `by ${credit}` : ""}</span>
+      {/* Butter's hover: credits top right, "Create new scene" bottom left, "Add as layer" bottom right. */}
+      <button
+        type="button"
+        aria-label="Credits"
+        aria-expanded={Boolean(info)}
+        className={cn(
+          "absolute top-1.5 right-1.5 flex size-6 items-center justify-center rounded-full bg-black/45 text-white transition-opacity hover:bg-black/65 focus-visible:opacity-100",
+          shown ? "opacity-100" : "opacity-0",
+        )}
+        onClick={(e) => setInfo(info ? null : e.currentTarget.getBoundingClientRect())}
+      >
+        <Info className="size-3.5" />
+      </button>
+      {info ? <StockCredit item={item} anchor={info} onClose={() => setInfo(null)} /> : null}
+
+      <div className={cn("pointer-events-none absolute inset-x-0 bottom-0 flex items-end gap-1.5 p-1.5 transition-opacity", shown || added ? "bg-gradient-to-t from-black/60 to-transparent pt-6 opacity-100" : "opacity-0")}>
+        {item.url && !target && scenes ? (
+          <TileAction label="Create new scene" onClick={() => act("scene")}>
+            <Plus />
+          </TileAction>
+        ) : null}
+        <span className="min-w-0 flex-1 truncate text-center text-[10px] text-white/85">{added ? PLACED[added] : ""}</span>
         {item.url && !target ? (
-          <button
-            type="button"
-            aria-label="Set as background"
-            title="Set as background"
-            className="pointer-events-auto flex size-6 shrink-0 items-center justify-center rounded-[6px] bg-white/90 text-black shadow-sm transition-colors hover:bg-white focus-visible:opacity-100"
-            onClick={() => act("background")}
-          >
-            <ImageDown className="size-3.5" />
-          </button>
+          <>
+            <TileAction label="Set as background" onClick={() => act("background")}>
+              <ImageDown />
+            </TileAction>
+            <TileAction label="Add as layer" onClick={() => act("block")}>
+              <PictureInPicture2 />
+            </TileAction>
+          </>
         ) : null}
       </div>
 
-      {item.kind === "video" && item.duration && !hover && !added ? (
+      {item.kind === "video" && item.duration && !shown && !added ? (
         <span className="pointer-events-none absolute right-1.5 bottom-1.5 flex items-center gap-1 rounded-[4px] bg-black/70 px-1.5 py-0.5 text-[10px] text-white tabular-nums">
           <Video className="size-2.5" />
           {formatTime(item.duration)}
         </span>
       ) : null}
     </div>
+  );
+}
+
+/* One of a tile's hover actions: a small white square, named by a tooltip. */
+function TileAction({ label, onClick, children }: { label: string; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <Tooltip label={label} side="bottom" className="pointer-events-auto shrink-0">
+      <button
+        type="button"
+        aria-label={label}
+        className="flex size-6 items-center justify-center rounded-[6px] bg-white/90 text-black shadow-sm transition-colors hover:bg-white [&>svg]:size-3.5"
+        onClick={onClick}
+      >
+        {children}
+      </button>
+    </Tooltip>
+  );
+}
+
+/*
+  The ⓘ card: what the asset is and who made it, beside the tile as Butter
+  shows it. Portaled and placed in viewport coordinates, because the panel
+  clips its overflow; it closes on a click elsewhere, Escape or a scroll.
+*/
+function StockCredit({ item, anchor, onClose }: { item: MediaItem; anchor: DOMRect; onClose: () => void }) {
+  useEffect(() => {
+    const onPointerDown = (e: PointerEvent) => {
+      if (!(e.target as HTMLElement).closest(".stock-credit, [aria-label='Credits']")) onClose();
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.stopPropagation();
+      onClose();
+    };
+    document.addEventListener("pointerdown", onPointerDown, true);
+    window.addEventListener("keydown", onKey, true);
+    window.addEventListener("scroll", onClose, true);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown, true);
+      window.removeEventListener("keydown", onKey, true);
+      window.removeEventListener("scroll", onClose, true);
+    };
+  }, [onClose]);
+
+  const by = item.credit?.name ?? item.credit?.handle;
+  return createPortal(
+    <div
+      role="dialog"
+      aria-label="Credits"
+      className="stock-credit fixed w-[200px] rounded-control bg-panel px-3 py-2.5 shadow-overlay animate-pop"
+      style={{ left: Math.min(anchor.right + 8, window.innerWidth - 208), top: Math.min(anchor.top, window.innerHeight - 80), zIndex: "var(--z-floating-bar)" }}
+    >
+      <div className="text-ui text-ink">{item.kind === "image" ? "Photo" : "Video"}</div>
+      <div className="mt-0.5 truncate text-cap text-ink-secondary">{by ? `by ${by}` : "Stock library"}</div>
+    </div>,
+    document.body,
   );
 }
 
@@ -400,8 +482,8 @@ function StockTile({ item }: { item: MediaItem }) {
   background cannot be a video, so a video goes in as the same covering block
   sent to the back, beneath everything already there.
 */
-type Placed = "block" | "background" | "replaced";
-const PLACED: Record<Placed, string> = { block: "Added", background: "Set as background", replaced: "Replaced" };
+type Placed = "block" | "background" | "replaced" | "scene";
+const PLACED: Record<Placed, string> = { block: "Added", background: "Set as background", replaced: "Replaced", scene: "New scene" };
 
 function placeStock(item: MediaItem, as: "block" | "background"): Placed | null {
   if (!item.url) return null;
@@ -425,6 +507,32 @@ function placeStock(item: MediaItem, as: "block" | "background"): Placed | null 
   /* Inside the history's coalescing window, so one undo takes back both. */
   if (as === "background") moveBlockTo(block.id, 0);
   return as;
+}
+
+/*
+  "Create new scene", as Butter's Stock tiles offer it: a scene straight after
+  the active one, made of the asset. A photo becomes the scene's background; a
+  clip, which a background cannot be, is the same covering block sent to the
+  back, and in a video the scene runs exactly as long as the clip. One undo
+  step, and the new scene becomes the active one with the playhead at its start.
+*/
+function stockScene(item: MediaItem): Placed | null {
+  if (!item.url) return null;
+  const { project, activeSlideId, insertScenes } = useEditor.getState();
+  primeMedia([item]);
+  const at = project.slides.findIndex((s) => s.id === activeSlideId) + 1;
+  const name = `${project.kind === "video" ? "Scene" : "Slide"} ${project.slides.length + 1}`;
+  const scene =
+    item.kind === "image"
+      ? makeSlide({ name, background: { type: "image", mediaId: item.id, src: item.url, focalX: 50, focalY: 50, adjustments: { ...NEUTRAL_ADJUSTMENTS } } })
+      : makeSlide({ name, ...(project.kind === "video" && item.duration ? { duration: item.duration } : {}) });
+  if (item.kind === "video") {
+    scene.blocks = [
+      videoBlock({ mediaId: item.id, src: item.url, x: 0, y: 0, w: project.width, h: project.height, sourceDuration: item.duration, name: "Background video", start: 0, end: scene.duration }),
+    ];
+  }
+  insertScenes([scene], at);
+  return "scene";
 }
 
 /* ---------------------------------------------------------------- Audio --- */

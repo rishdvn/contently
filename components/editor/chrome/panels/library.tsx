@@ -5,7 +5,7 @@ import { useMemo, useState } from "react";
 
 import { Chip, ChipRow } from "@/components/ui/chip";
 import { Tooltip } from "@/components/ui/tooltip";
-import { aspectRatioOf, BLOCK_CATEGORIES, listBlocks, placementFor, type AnyBlockDefinition } from "@/lib/blocks";
+import { aspectRatioOf, BLOCK_CATEGORIES, listBlocks, placementFor, useBlockPreview, type AnyBlockDefinition } from "@/lib/blocks";
 import { cn } from "@/lib/cn";
 import { componentBlock, textBlock } from "@/lib/editor/factory";
 import {
@@ -185,11 +185,33 @@ function CatalogBlocks() {
   );
 }
 
-/* A block's poster at tile size: laid out at phone width, then scaled down to fit. */
+/*
+  A block at tile size. With generated previews (`scripts/block-previews.ts`)
+  the tile shows the poster and plays the preview while the pointer is over it
+  — pointer state rather than `:hover`, which does not fire for every pointer.
+  Without them it paints the poster frame live: laid out at phone width, then
+  scaled down to fit.
+*/
 function BlockThumb({ def }: { def: AnyBlockDefinition }) {
   /* Two columns across the panel's padded width. Computed here, not at module scope: LeftPanel imports this file. */
   const tile = (LEFT_PANEL_WIDTH - 24 - 8) / 2;
   const box = { w: tile, h: tile };
+  const preview = useBlockPreview(def.id);
+  const [hover, setHover] = useState(false);
+  if (preview.poster) {
+    return (
+      <div
+        className="relative overflow-hidden rounded-[12px] bg-card ring-1 ring-transparent transition-shadow group-hover:ring-line-strong"
+        style={{ width: box.w, height: box.h }}
+        onPointerEnter={() => setHover(true)}
+        onPointerLeave={() => setHover(false)}
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element -- a Convex storage URL at tile size */}
+        <img src={preview.poster} alt="" draggable={false} className="absolute inset-0 size-full object-cover" />
+        {hover && preview.video ? <video src={preview.video} autoPlay muted loop playsInline className="absolute inset-0 size-full object-cover" /> : null}
+      </div>
+    );
+  }
   const w = 390;
   const h = w / aspectRatioOf(def);
   const scale = Math.min((box.w - 24) / w, (box.h - 24) / h);

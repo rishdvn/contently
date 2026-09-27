@@ -611,15 +611,6 @@ export const STOCK_VIDEOS: StockItem[] = [
   pexels(5532771, 25, "506_960", "Cold cans", 9, "pexels-photo-5532771.jpeg"),
 ];
 
-export const AUDIO_TRACKS = [
-  { id: "a1", title: "Golden Hour", mood: ["Calm", "Warm"], duration: 128 },
-  { id: "a2", title: "Sunday Drive", mood: ["Chill", "Lo-fi"], duration: 96 },
-  { id: "a3", title: "Confetti", mood: ["Fun", "Upbeat"], duration: 74 },
-  { id: "a4", title: "Bright Side", mood: ["Happy", "Pop"], duration: 112 },
-  { id: "a5", title: "Slow Bloom", mood: ["Calm", "Ambient"], duration: 150 },
-  { id: "a6", title: "Neon Nights", mood: ["Chill", "Synth"], duration: 88 },
-];
-
 /* ------------------------------------------------------------------------ */
 /* Backgrounds                                                               */
 /* ------------------------------------------------------------------------ */

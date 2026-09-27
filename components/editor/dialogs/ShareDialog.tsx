@@ -66,7 +66,7 @@ export function ShareDialog() {
         <span className="flex size-8 items-center justify-center rounded-[8px] bg-raised text-ink-secondary">{publicLink ? <Globe className="size-4" /> : <Lock className="size-4" />}</span>
         <div className="min-w-0 flex-1">
           <div className="text-ui text-ink">{publicLink ? "Anyone with the link" : "Only your organisation"}</div>
-          <div className="text-cap text-ink-secondary">{publicLink ? "Can view, no sign-in needed" : "Members can view the link"}</div>
+          <div className="text-cap text-ink-secondary">{publicLink ? "No sign-in needed" : "Members can view"}</div>
         </div>
         <Switch checked={publicLink} onCheckedChange={setPublic} disabled={sharing.token === undefined} />
       </Card>

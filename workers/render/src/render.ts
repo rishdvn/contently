@@ -160,7 +160,7 @@ export async function renderJob(
     const scale = job.scale && job.scale > 0 ? Math.min(4, job.scale) : 1;
 
     if (job.format === "mp4") {
-      if (project.kind !== "video") throw new RenderFailure(`A ${project.kind} project has no video to render`, false);
+      if (project.kind !== "video") throw new RenderFailure(`Only a video project renders as MP4; this one is ${project.kind}`, false);
       log(`rendering ${project.slides.length} scene(s) as MP4`);
       const bytes = await mp4(page, job.fps && job.fps > 0 ? Math.min(60, job.fps) : 30, log);
       return [{ name: `${base}.mp4`, contentType: "video/mp4", bytes }];

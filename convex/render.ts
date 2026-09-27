@@ -290,8 +290,8 @@ export const enqueue = mutation({
     const project = id ? await ctx.db.get(id) : null;
     if (!project || project.orgId !== org._id) fail("missing", "No such project in this organisation");
 
-    if (wanted === "mp4" && project.kind !== "video") fail("invalid", `A ${project.kind} project cannot be rendered as MP4`);
-    if (wanted === "carousel-zip" && project.kind !== "carousel") fail("invalid", `A ${project.kind} project cannot be rendered as a carousel zip`);
+    if (wanted === "mp4" && project.kind !== "video") fail("invalid", `Only a video project renders as MP4; this one is ${project.kind}`);
+    if (wanted === "carousel-zip" && project.kind !== "carousel") fail("invalid", `Only a carousel project renders as a carousel zip; this one is ${project.kind}`);
 
     const slides = ((project.document as DocumentLike)?.slides ?? []).length;
     if (scene !== undefined && (!Number.isInteger(scene) || scene < 0 || scene >= slides)) {

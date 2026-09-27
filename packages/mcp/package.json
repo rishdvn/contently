@@ -1,0 +1,36 @@
+{
+  "name": "@contently/mcp",
+  "version": "0.1.0",
+  "description": "MCP server for Contently: make on-brand images, carousels and videos from templates through the Contently API.",
+  "type": "module",
+  "license": "UNLICENSED",
+  "bin": {
+    "contently-mcp": "dist/index.js"
+  },
+  "main": "dist/index.js",
+  "files": [
+    "dist",
+    "skills",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node dist/index.js",
+    "dev": "tsx src/index.ts",
+    "check": "tsc --noEmit -p .",
+    "test": "tsx --test \"test/**/*.test.ts\"",
+    "prepublishOnly": "npm run check && npm test && npm run build"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.1",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "tsx": "^4.20.6",
+    "typescript": "^5.7.2"
+  }
+}

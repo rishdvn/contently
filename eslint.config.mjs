@@ -53,6 +53,8 @@ const eslintConfig = defineConfig([
     // (`workers/render && npm run check`). The Next config here describes a
     // React app and has nothing true to say about it.
     "workers/**",
+    // Standalone npm packages (the MCP server), checked the same way.
+    "packages/**",
   ]),
 ]);
 

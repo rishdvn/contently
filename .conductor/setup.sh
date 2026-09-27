@@ -21,8 +21,43 @@ fi
 
 # Video comes out of the recorder as WebM. ffmpeg is only needed to convert it
 # to something that previews everywhere; never fail setup over it.
+#
+# Amazon Linux has no ffmpeg package, and Playwright's own is a recording-only
+# build without libx264, so on Linux fetch the static build into ~/.local/bin.
+# One && chain on purpose: set -e is ignored inside anything tested by `if`.
+install_ffmpeg() {
+  local arch
+  case "$(uname -m)" in
+    x86_64) arch=amd64 ;;
+    aarch64) arch=arm64 ;;
+    *) return 1 ;;
+  esac
+  # Keep the upstream file name: the .md5 file checks it by name.
+  local file="ffmpeg-release-$arch-static.tar.xz"
+  local url="https://johnvansickle.com/ffmpeg/releases/$file"
+  local tmp
+  tmp=$(mktemp -d) &&
+    curl -fsSL -o "$tmp/$file" "$url" &&
+    curl -fsSL -o "$tmp/$file.md5" "$url.md5" &&
+    (cd "$tmp" && md5sum -c --quiet "$file.md5") &&
+    tar -xJf "$tmp/$file" -C "$tmp" &&
+    mkdir -p "$HOME/.local/bin" &&
+    cp "$tmp"/ffmpeg-*-static/ffmpeg "$tmp"/ffmpeg-*-static/ffprobe "$HOME/.local/bin/"
+  local status=$?
+  rm -rf "$tmp"
+  return $status
+}
+
 if ! command -v ffmpeg >/dev/null 2>&1; then
-  echo "note: ffmpeg not present — attach recordings as .webm, or install it to convert to .mp4"
+  if [ "$(uname -s)" = Linux ] && install_ffmpeg; then
+    echo "installed ffmpeg into ~/.local/bin"
+    case ":$PATH:" in
+      *":$HOME/.local/bin:"*) ;;
+      *) echo "note: ~/.local/bin is not on PATH — add it to use ffmpeg" ;;
+    esac
+  else
+    echo "note: ffmpeg not present — attach recordings as .webm, or install it to convert to .mp4"
+  fi
 fi
 
 # The app cannot render without these: Clerk rejects a fake publishable key, so

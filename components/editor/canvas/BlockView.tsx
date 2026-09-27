@@ -304,7 +304,10 @@ function VideoContent({ block }: { block: VideoBlock }) {
           ref={ref}
           src={src}
           poster={poster}
-          muted={block.muted || globalMuted}
+          /* Only a video project has a soundtrack. In a still or a carousel
+             the clip loops as a moving picture, and a loop with sound would
+             play for as long as the studio is open. */
+          muted={block.muted || globalMuted || !isVideoProject}
           loop={block.loop && !isVideoProject}
           playsInline
           preload="auto"

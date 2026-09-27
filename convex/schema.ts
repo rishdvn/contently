@@ -61,6 +61,10 @@ export default defineSchema({
     height: v.number(),
     document: editorDocument,
     posterStorageId: v.optional(v.id("_storage")),
+    /* Present while "Anyone with the link" is on. The viewer at `/p/<id>` asks
+       for it alongside the id, so turning sharing off and on again mints a new
+       one and every link handed out before stops working. */
+    shareToken: v.optional(v.string()),
     /* Kept alongside `_creationTime` because the hub sorts by last edit and
        imported documents bring their own timestamp. */
     updatedAt: v.number(),

@@ -81,15 +81,16 @@ import { chromium } from "playwright-core";
 // channel "chrome" finds the installed Chrome wherever the OS put it (/opt/google/chrome on the sandbox)
 const browser = await chromium.launch({ channel: "chrome", headless: true, args: ["--no-sandbox"] });
 const page = await browser.newPage({ viewport: { width: 1400, height: 900 } });
+const base = `http://localhost:${process.env.CONDUCTOR_PORT || 3000}`;
 // Sign in first: every route is behind Clerk, and a project belongs to an organisation.
-await page.goto("http://localhost:3000/editor/new?kind=video"); // creates one and redirects to its id
+await page.goto(`${base}/editor/new?kind=video`); // creates one and redirects to its id
 await page.waitForSelector(".artboard");
 // press t / r / o on the canvas to add a heading, rectangle, ellipse
 ```
 
 Useful facts for scripts:
 - **Use `localhost`, never `127.0.0.1`.** Next 16 treats them as different origins and answers 403 to static chunks requested from a non-allowed one. Hydration then never happens and you get a blank backdrop with zero buttons — it reads exactly like an app crash. `curl` will not reproduce it, because it sends no `Origin` header.
-- **Don't hardcode port 3000.** Conductor gives each workspace its own port as `$CONDUCTOR_PORT` so parallel workspaces don't collide; read it and fall back to 3000. A hardcoded port means you may be testing a different workspace's app.
+- **Don't hardcode port 3000.** Local Conductor workspaces each get their own port as `$CONDUCTOR_PORT` so parallel workspaces don't collide; a hardcoded port means you may be testing a different workspace's app. Cloud workspaces have a VM each and no `$CONDUCTOR_PORT`, so read it and fall back to 3000, as the Run button does.
 - Scope canvas selectors to `.world .block` — the timeline filmstrip renders a second copy of each artboard.
 - Timeline rows are `.timeline-scroll .cursor-grab`; the scene end handle is `[aria-label="Scene length"]`; the timeline resize grip is `role="separator"`.
 - Projects live in Convex, autosaved ~500 ms after a change. Assert against the deployment, not the browser: `POST <NEXT_PUBLIC_CONVEX_URL>/api/query` with `{ path: "projects:get", args: { orgId, id }, format: "json" }` and `Authorization: Bearer <await window.Clerk.session.getToken()>`.

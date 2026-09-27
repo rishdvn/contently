@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="800" viewBox="0 0 800 800">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f6e7da"/>
+      <stop offset="1" stop-color="#ecd3c0"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.42" r="0.5">
+      <stop offset="0" stop-color="#fff6ee" stop-opacity="0.9"/>
+      <stop offset="1" stop-color="#fff6ee" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="glass" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#c7743f"/>
+      <stop offset="0.18" stop-color="#e59a5e"/>
+      <stop offset="0.42" stop-color="#d98547"/>
+      <stop offset="0.8" stop-color="#b3602f"/>
+      <stop offset="1" stop-color="#94481f"/>
+    </linearGradient>
+    <linearGradient id="cap" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#1c1c1c"/>
+      <stop offset="0.3" stop-color="#4a4a4a"/>
+      <stop offset="0.55" stop-color="#262626"/>
+      <stop offset="1" stop-color="#0d0d0d"/>
+    </linearGradient>
+    <linearGradient id="bulb" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#2a2a2a"/>
+      <stop offset="0.35" stop-color="#555"/>
+      <stop offset="1" stop-color="#151515"/>
+    </linearGradient>
+    <linearGradient id="podium" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#e2c3ab"/>
+      <stop offset="0.45" stop-color="#f3dccb"/>
+      <stop offset="1" stop-color="#d6b196"/>
+    </linearGradient>
+    <filter id="soft" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="18"/></filter>
+  </defs>
+  <rect width="800" height="800" fill="url(#bg)"/>
+  <rect width="800" height="800" fill="url(#glow)"/>
+  <!-- podium -->
+  <ellipse cx="400" cy="640" rx="230" ry="44" fill="#c99f82" opacity="0.55" filter="url(#soft)"/>
+  <path d="M170 600 L170 690 Q400 740 630 690 L630 600 Z" fill="url(#podium)"/>
+  <ellipse cx="400" cy="600" rx="230" ry="42" fill="#f7e6d8"/>
+  <!-- bottle shadow -->
+  <ellipse cx="410" cy="604" rx="112" ry="16" fill="#8a5a3c" opacity="0.35" filter="url(#soft)"/>
+  <!-- bulb -->
+  <path d="M362 132 Q362 86 400 86 Q438 86 438 132 L438 214 L362 214 Z" fill="url(#bulb)"/>
+  <!-- collar -->
+  <rect x="340" y="206" width="120" height="96" rx="10" fill="url(#cap)"/>
+  <rect x="340" y="206" width="120" height="10" rx="5" fill="#5a5a5a" opacity="0.5"/>
+  <!-- neck -->
+  <rect x="352" y="298" width="96" height="26" fill="#a9582a"/>
+  <!-- bottle -->
+  <path d="M312 356 Q312 322 346 322 L454 322 Q488 322 488 356 L488 574 Q488 604 458 604 L342 604 Q312 604 312 574 Z" fill="url(#glass)"/>
+  <!-- highlight -->
+  <rect x="330" y="346" width="16" height="230" rx="8" fill="#fff" opacity="0.28"/>
+  <rect x="462" y="360" width="6" height="200" rx="3" fill="#fff" opacity="0.14"/>
+  <!-- label -->
+  <rect x="336" y="408" width="128" height="132" rx="6" fill="#fbf4ec"/>
+  <text x="400" y="452" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="30" letter-spacing="3" fill="#2b1d14">GLOW</text>
+  <rect x="376" y="466" width="48" height="1.5" fill="#2b1d14" opacity="0.5"/>
+  <text x="400" y="490" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="10.5" letter-spacing="2.2" fill="#6d5343">VITAMIN C</text>
+  <text x="400" y="506" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="10.5" letter-spacing="2.2" fill="#6d5343">SERUM</text>
+  <text x="400" y="528" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="8.5" letter-spacing="1.5" fill="#9b8272">30 ML · 1 FL OZ</text>
+</svg>

@@ -23,8 +23,10 @@ import { Tooltip } from "@/components/ui/tooltip";
 import { getBlock } from "@/lib/blocks";
 import { coerceProps } from "@/lib/blocks/inputs";
 import { cn } from "@/lib/cn";
+import { MAX_FADE } from "@/lib/editor/audio";
 import { imageBlock } from "@/lib/editor/factory";
 import { FONTS, WEIGHT_LABELS, fontDef, nearestWeight } from "@/lib/editor/fonts";
+import { totalDuration } from "@/lib/editor/geometry";
 import { useMediaUrl } from "@/lib/editor/media";
 import { BG_COLORS, BG_GRADIENTS, TEXT_PRESETS, textFromPreset } from "@/lib/editor/presets";
 import { useActiveSlide, useEditor, useSelectedBlocks } from "@/lib/editor/store";
@@ -32,6 +34,7 @@ import { gradientCss } from "@/lib/editor/style";
 import {
   NEUTRAL_ADJUSTMENTS,
   type Animation,
+  type AudioTrack,
   type Block,
   type ComponentBlock,
   type Effect,
@@ -77,9 +80,12 @@ export function Inspector({ bottom }: { bottom: number }) {
   const setTab = useEditor((s) => s.setInspectorTab);
   const clearSelection = useEditor((s) => s.clearSelection);
   const slide = useActiveSlide();
+  /* A selected lane track. Looked up rather than trusted: undo can take the
+     track away while its id is still selected. */
+  const audio = useEditor((s) => (s.audioSelection ? (s.project.audio.find((a) => a.id === s.audioSelection) ?? null) : null));
 
   const one = blocks.length === 1 ? blocks[0] : null;
-  const title = one ? blockTitle(one) : blocks.length > 1 ? `${blocks.length} elements` : slide.name;
+  const title = one ? blockTitle(one) : blocks.length > 1 ? `${blocks.length} elements` : audio ? audio.title : slide.name;
 
   return (
     /*
@@ -117,7 +123,7 @@ export function Inspector({ bottom }: { bottom: number }) {
         ) : null}
       </Panel>
       {!blocks.length ? (
-        <SlideProperties />
+        audio ? <AudioProperties track={audio} /> : <SlideProperties />
       ) : tab === "effects" ? (
         <EffectsTab blocks={blocks} />
       ) : one ? (
@@ -460,6 +466,58 @@ function MediaProperties({ b }: { b: ImageBlock | VideoBlock }) {
       </Group>
 
       <ShadowGroup shadow={b.shadow} onChange={(s) => set({ shadow: s })} presets={brand} />
+    </>
+  );
+}
+
+/* --------------------------------------------------------------- audio --- */
+
+/*
+  A lane track: sound, fades and timing. The same fields the lane's handles
+  edit, as numbers, and the only place fades are set.
+*/
+function AudioProperties({ track }: { track: AudioTrack }) {
+  const updateAudio = useEditor((s) => s.updateAudio);
+  const removeAudio = useEditor((s) => s.removeAudio);
+  const total = useEditor((s) => totalDuration(s.project));
+  const set = (patch: Partial<AudioTrack>) => updateAudio(track.id, patch);
+  const offset = track.offset ?? 0;
+  const source = track.sourceDuration ?? Infinity;
+  /* A pill can run to the end of the project or of the file, whichever is first. */
+  const longest = Math.max(0.5, Math.min(total - track.start, source - offset));
+
+  return (
+    <>
+      <Section label="Sound">
+        <Segmented value={track.muted ? "muted" : "sound"} onChange={(v) => set({ muted: v === "muted" })} options={[{ value: "sound", label: "Sound" }, { value: "muted", label: "Muted" }]} />
+        {!track.muted ? <SliderField label="Volume" value={track.volume} onChange={(v) => set({ volume: v })} suffix="%" /> : null}
+      </Section>
+      <Section label="Fade">
+        <Row>
+          <NumberField label="In" value={track.fadeIn ?? 0} min={0} max={MAX_FADE} step={0.1} suffix="s" onChange={(v) => set({ fadeIn: v })} />
+          <NumberField label="Out" value={track.fadeOut ?? 0} min={0} max={MAX_FADE} step={0.1} suffix="s" onChange={(v) => set({ fadeOut: v })} />
+        </Row>
+      </Section>
+      <Section label="Timing">
+        <Row>
+          <NumberField label="Start" value={track.start} min={0} max={Math.max(0, total - track.duration)} step={0.1} suffix="s" onChange={(v) => set({ start: v })} />
+          <NumberField label="Length" value={track.duration} min={0.5} max={longest} step={0.1} suffix="s" onChange={(v) => set({ duration: v })} />
+        </Row>
+        {/* Trimming the head keeps the pill where it is and plays later into
+            the file; the length shrinks if the file would run out. */}
+        <NumberField
+          label="Trim start"
+          value={offset}
+          min={0}
+          max={Number.isFinite(source) ? Math.max(0, source - 0.5) : 3600}
+          step={0.1}
+          suffix="s"
+          onChange={(v) => set({ offset: v, duration: Math.max(0.5, Math.min(track.duration, source - v)) })}
+        />
+      </Section>
+      <CardButton onClick={() => removeAudio(track.id)}>
+        <Trash2 /> Remove audio
+      </CardButton>
     </>
   );
 }

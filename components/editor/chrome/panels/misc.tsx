@@ -314,6 +314,7 @@ function AudioRow({ track, canAdd }: { track: LibraryTrack; canAdd: boolean }) {
       src: track.previewUrl ?? undefined,
       start,
       duration: Math.max(MIN_AUDIO, Math.min(track.duration ?? room, room)),
+      sourceDuration: track.duration,
       volume: 80,
     });
     setAdded(true);

@@ -2,7 +2,7 @@
 
 import { useConvex, useMutation, useQueries, useQuery } from "convex/react";
 import type { FunctionArgs, FunctionReturnType } from "convex/server";
-import { AudioLines, ChevronDown, ChevronLeft, ChevronRight, CircleAlert, ImageDown, LoaderCircle, Music, Pause, Play, Trash2, Upload, Video, X } from "lucide-react";
+import { AudioLines, ChevronDown, ChevronLeft, ChevronRight, CircleAlert, ImageDown, LoaderCircle, Music, Pause, Play, RefreshCw, Trash2, Upload, Video, X } from "lucide-react";
 import Image from "next/image";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -19,13 +19,59 @@ import { previewPosition, seekPreview, stopPreview, togglePreview, usePreview } 
 import { rememberWith, useImportLocalRecent, useRecentTracks, useRememberTrack, type RecentTrack } from "@/lib/editor/recentAudio";
 import { imageBlock, uid, videoBlock } from "@/lib/editor/factory";
 import { primeMedia } from "@/lib/editor/media";
-import { useEditor, useSelectedBlocks } from "@/lib/editor/store";
+import { activeMediaTarget, useEditor, useSelectedBlocks, type MediaSource } from "@/lib/editor/store";
 import { mediaKindOf, probeFile, uploadToStorage } from "@/lib/editor/upload";
 import { formatTime, sceneOffsets, totalDuration } from "@/lib/editor/geometry";
 import { NEUTRAL_ADJUSTMENTS } from "@/lib/editor/types";
 
+import { Segmented } from "../../controls";
 import { Empty } from "./library";
 import { PanelBody, PanelHeader, PanelPrimary, PanelSearch, PanelTabs } from "../LeftPanel";
+
+/* ------------------------------------------------------------- Replace --- */
+
+/*
+  The slot being filled, above either media panel: what it is, a switch to the
+  other source, and a way out. Butter asks the same question in a modal with a
+  tab per source (brand kit, Uploads, Photos); ours keeps the canvas in view
+  and lets the two panels be the tabs. The Replace buttons open whichever was
+  used last (`mediaSource`).
+*/
+function ReplaceBar({ source }: { source: MediaSource }) {
+  const target = useEditor(activeMediaTarget);
+  const setLeftTab = useEditor((s) => s.setLeftTab);
+  const setMediaTarget = useEditor((s) => s.setMediaTarget);
+  if (!target) return null;
+  const noun = target.kind === "image" ? (source === "stock" ? "a photo" : "an image") : "a video";
+  return (
+    <div role="status" aria-label="Replace target" className="mx-3 mb-2 flex flex-col gap-2 rounded-[10px] bg-card p-2">
+      <div className="flex items-center gap-2 pl-1">
+        <RefreshCw className="size-3.5 shrink-0 text-ink-secondary" />
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-ui text-ink">Replacing: {target.label ?? (target.kind === "image" ? "Image" : "Video")}</div>
+          <div className="truncate text-cap text-ink-secondary">Click {noun} to use it.</div>
+        </div>
+        <button
+          type="button"
+          aria-label="Cancel replace"
+          title="Cancel"
+          className="flex size-7 shrink-0 items-center justify-center rounded-[6px] text-ink-secondary hover:bg-[var(--state-hover)] hover:text-ink"
+          onClick={() => setMediaTarget(null)}
+        >
+          <X className="size-3.5" />
+        </button>
+      </div>
+      <Segmented
+        value={source}
+        onChange={setLeftTab}
+        options={[
+          { value: "uploads", label: "Uploads" },
+          { value: "stock", label: "Stock" },
+        ]}
+      />
+    </div>
+  );
+}
 
 /* ---------------------------------------------------------------- Stock --- */
 
@@ -59,8 +105,17 @@ export function StockPanel() {
   return <StockLibrary />;
 }
 
+const tabFor = (kind: "image" | "video"): StockTab => (kind === "video" ? "videos" : "photos");
+
 function StockLibrary() {
-  const [tab, setTab] = useState<StockTab>("photos");
+  const target = useEditor(activeMediaTarget);
+  const [tab, setTab] = useState<StockTab>(target ? tabFor(target.kind) : "photos");
+  /* A slot that asks for a video opens on Videos, even with the panel already up. */
+  const [asked, setAsked] = useState(target);
+  if (target !== asked) {
+    setAsked(target);
+    if (target) setTab(tabFor(target.kind));
+  }
   const [category, setCategory] = useState<string | null>(null);
   const [q, setQ] = useState("");
   const [term, setTerm] = useState("");
@@ -79,6 +134,7 @@ function StockLibrary() {
       <PanelHeader>
         <PanelSearch value={q} onChange={search} placeholder={tab === "photos" ? "Search photos" : "Search videos"} />
       </PanelHeader>
+      <ReplaceBar source="stock" />
       <PanelTabs
         value={tab}
         onChange={setTab}
@@ -264,16 +320,20 @@ function StockSkeleton() {
 */
 function StockTile({ item }: { item: MediaItem }) {
   const [hover, setHover] = useState(false);
-  const [added, setAdded] = useState<"block" | "background" | null>(null);
+  const [added, setAdded] = useState<Placed | null>(null);
   const addedTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const thumb = item.kind === "image" ? item.url : item.posterUrl;
   const credit = item.credit?.name ?? item.credit?.handle;
   const kindLabel = item.kind === "image" ? "photo" : "video";
+  /* A slot waiting for this kind of media takes the click instead of the canvas. */
+  const target = useEditor((s) => {
+    const t = activeMediaTarget(s);
+    return t && t.kind === item.kind ? t : null;
+  });
 
   const act = (as: "block" | "background") => {
     if (!item.url) return;
-    placeStock(item, as);
-    setAdded(as);
+    setAdded(placeStock(item, as));
     clearTimeout(addedTimer.current);
     addedTimer.current = setTimeout(() => setAdded(null), 1200);
   };
@@ -289,8 +349,8 @@ function StockTile({ item }: { item: MediaItem }) {
     >
       <button
         type="button"
-        aria-label={`Add ${kindLabel}${credit ? ` by ${credit}` : ""}`}
-        title={item.url ? "Add to canvas" : undefined}
+        aria-label={`${target ? "Use" : "Add"} ${kindLabel}${credit ? ` by ${credit}` : ""}`}
+        title={item.url ? (target ? `Use in ${target.label ?? "the selected block"}` : "Add to canvas") : undefined}
         disabled={!item.url}
         className="absolute inset-0 outline-none focus-visible:ring-2 focus-visible:ring-ink/40 focus-visible:ring-inset disabled:cursor-not-allowed"
         onClick={() => act("block")}
@@ -306,8 +366,8 @@ function StockTile({ item }: { item: MediaItem }) {
       </button>
 
       <div className={cn("pointer-events-none absolute inset-x-0 bottom-0 flex items-end gap-1.5 p-1.5 transition-opacity", hover || added ? "bg-gradient-to-t from-black/60 to-transparent pt-6 opacity-100" : "opacity-0")}>
-        <span className="min-w-0 flex-1 truncate text-[10px] text-white/85">{added ? (added === "block" ? "Added" : "Set as background") : credit ? `by ${credit}` : ""}</span>
-        {item.url ? (
+        <span className="min-w-0 flex-1 truncate text-[10px] text-white/85">{added ? PLACED[added] : credit ? `by ${credit}` : ""}</span>
+        {item.url && !target ? (
           <button
             type="button"
             aria-label="Set as background"
@@ -333,28 +393,27 @@ function StockTile({ item }: { item: MediaItem }) {
 /*
   Putting a stock asset on the scene. As a block it covers the artboard, the
   way a stock shot is almost always used, cropped from its centre; a catalog
-  block's media input that asked for a file (`mediaTarget`) takes it instead.
+  block's media input, or an Image or Video block, that asked for a file
+  (`mediaTarget`) takes it instead.
   As a background a photo becomes the scene's background image. A scene
   background cannot be a video, so a video goes in as the same covering block
   sent to the back, beneath everything already there.
 */
-function placeStock(item: MediaItem, as: "block" | "background") {
-  if (!item.url) return;
+type Placed = "block" | "background" | "replaced";
+const PLACED: Record<Placed, string> = { block: "Added", background: "Set as background", replaced: "Replaced" };
+
+function placeStock(item: MediaItem, as: "block" | "background"): Placed | null {
+  if (!item.url) return null;
   /* Read at the click rather than subscribed to: a panel of tiles has no use
      for re-rendering on every edit. */
-  const { project, activeSlideId, mediaTarget, selection, addBlock, moveBlockTo, setBackground, setComponentProp, setMediaTarget } = useEditor.getState();
+  const { project, activeSlideId, addBlock, moveBlockTo, setBackground, fillMediaTarget } = useEditor.getState();
   primeMedia([item]);
 
   if (as === "background" && item.kind === "image") {
     setBackground(activeSlideId, { type: "image", mediaId: item.id, src: item.url, focalX: 50, focalY: 50, adjustments: { ...NEUTRAL_ADJUSTMENTS } });
-    return;
+    return "background";
   }
-  const target = mediaTarget && selection.length === 1 && selection[0] === mediaTarget.blockId ? mediaTarget : null;
-  if (as === "block" && target && target.kind === item.kind) {
-    setComponentProp(target.blockId, target.path, { mediaId: item.id, src: item.url });
-    setMediaTarget(null);
-    return;
-  }
+  if (as === "block" && fillMediaTarget(item)) return "replaced";
 
   const common = { mediaId: item.id, src: item.url, x: 0, y: 0, w: project.width, h: project.height };
   const block =
@@ -364,6 +423,7 @@ function placeStock(item: MediaItem, as: "block" | "background") {
   addBlock(block);
   /* Inside the history's coalescing window, so one undo takes back both. */
   if (as === "background") moveBlockTo(block.id, 0);
+  return as;
 }
 
 /* ---------------------------------------------------------------- Audio --- */
@@ -974,13 +1034,12 @@ function UploadsLibrary() {
 
   const addBlock = useEditor((s) => s.addBlock);
   const updateBlock = useEditor((s) => s.updateBlock);
-  const setComponentProp = useEditor((s) => s.setComponentProp);
-  const setMediaTarget = useEditor((s) => s.setMediaTarget);
+  const fillMediaTarget = useEditor((s) => s.fillMediaTarget);
   const selected = useSelectedBlocks();
   const width = useEditor((s) => s.project.width);
   const height = useEditor((s) => s.project.height);
-  /* An image/video input on the selected catalog block that asked for media. */
-  const target = useEditor((s) => (s.mediaTarget && s.selection.length === 1 && s.selection[0] === s.mediaTarget.blockId ? s.mediaTarget : null));
+  /* A media slot that asked for a file (see `ReplaceBar`). */
+  const target = useEditor(activeMediaTarget);
 
   /*
     Uploads run one at a time. Two large clips racing each other make the
@@ -1025,11 +1084,7 @@ function UploadsLibrary() {
   const place = (item: MediaItem) => {
     if (!item.url) return;
     primeMedia([item]);
-    if (target && target.kind === item.kind) {
-      setComponentProp(target.blockId, target.path, { mediaId: item.id, src: item.url });
-      setMediaTarget(null);
-      return;
-    }
+    if (fillMediaTarget(item)) return;
     const one = selected.length === 1 ? selected[0] : null;
     if (one && (one.type === "image" || one.type === "video") && one.type === item.kind) {
       return updateBlock(one.id, { mediaId: item.id, src: item.url });
@@ -1057,6 +1112,7 @@ function UploadsLibrary() {
       <PanelHeader>
         <PanelSearch value={q} onChange={setQ} placeholder="Search uploads" />
       </PanelHeader>
+      <ReplaceBar source="uploads" />
       <PanelPrimary onClick={() => input.current?.click()} disabled={!orgId}>
         <Upload /> Upload files
       </PanelPrimary>
@@ -1114,14 +1170,7 @@ function UploadsLibrary() {
             </div>
           )}
         </div>
-        {target ? (
-          <p className="mt-2 text-[11px] text-ink-disabled">
-            Click {target.kind === "image" ? "an image" : "a video"} to use it in the selected block.{" "}
-            <button type="button" className="underline hover:text-ink" onClick={() => setMediaTarget(null)}>
-              Cancel
-            </button>
-          </p>
-        ) : selected.length === 1 && (selected[0].type === "image" || selected[0].type === "video") ? (
+        {target ? null : selected.length === 1 && (selected[0].type === "image" || selected[0].type === "video") ? (
           <p className="mt-2 text-[11px] text-ink-disabled">Click an upload to replace the selected media.</p>
         ) : null}
       </PanelBody>

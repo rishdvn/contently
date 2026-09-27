@@ -45,7 +45,7 @@ export function SelectionToolbar({ container }: { container: HTMLDivElement | nu
   const groupBlocks = useEditor((s) => s.groupBlocks);
   const ungroupBlocks = useEditor((s) => s.ungroupBlocks);
   const setBackground = useEditor((s) => s.setBackground);
-  const setLeftTab = useEditor((s) => s.setLeftTab);
+  const pickMedia = useEditor((s) => s.pickMedia);
   const activeSlideId = useEditor((s) => s.activeSlideId);
 
   const ref = useRef<HTMLDivElement>(null);
@@ -88,7 +88,7 @@ export function SelectionToolbar({ container }: { container: HTMLDivElement | nu
     >
       {one && (one.type === "image" || one.type === "video") ? (
         <>
-          <ToolbarButton label="Replace" onClick={() => setLeftTab("uploads")}>
+          <ToolbarButton label="Replace" onClick={() => pickMedia({ blockId: one.id, path: [], kind: one.type, label: one.type === "image" ? "Image" : "Video" })}>
             <RefreshCw />
           </ToolbarButton>
           <ToolbarButton label={one.fit === "cover" ? "Fit inside" : "Fill frame"} onClick={() => updateBlock(one.id, { fit: one.fit === "cover" ? "contain" : "cover" })}>

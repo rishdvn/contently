@@ -26,11 +26,18 @@ export type LeftTab = "templates" | "blocks" | "text" | "stock" | "audio" | "upl
 export type InspectorTab = "design" | "effects";
 
 /*
-  An image or video input on a catalog block that asked the Uploads panel for
-  media. The next upload the user clicks lands at `path` in that block's props
-  instead of becoming a block of its own.
+  A media slot that asked for a file: an image or video input on a catalog
+  block (`path` into its props), or an Image or Video block's own media (an
+  empty `path`). The next upload or stock asset the user clicks fills it
+  instead of becoming a block of its own. `label` names the slot in the panel.
 */
-export type MediaTarget = { blockId: string; path: (string | number)[]; kind: "image" | "video" };
+export type MediaTarget = { blockId: string; path: (string | number)[]; kind: "image" | "video"; label?: string };
+
+/* The two panels a media slot can be filled from. */
+export type MediaSource = "uploads" | "stock";
+
+/* What filling a slot needs to know about the file, from either library. */
+type MediaPick = { id: string; url: string | null; kind: "image" | "video"; duration?: number };
 
 type Tracked = { project: Project };
 
@@ -55,6 +62,8 @@ type EditorState = Tracked & {
   muted: boolean;
   dialog: "export" | "share" | "shortcuts" | null;
   mediaTarget: MediaTarget | null;
+  /* The media panel last opened, which is where the next Replace goes. */
+  mediaSource: MediaSource;
 
   load: (p: Project) => void;
   newProject: (kind: ProjectKind) => Project;
@@ -115,6 +124,14 @@ type EditorState = Tracked & {
   setMuted: (v: boolean) => void;
   setDialog: (d: EditorState["dialog"]) => void;
   setMediaTarget: (t: MediaTarget | null) => void;
+  /* Ask for media for a slot: target it and open the last-used media panel. */
+  pickMedia: (t: MediaTarget) => void;
+  /*
+    Put a picked file into the live target, if there is one of its kind, and
+    clear the target. One undo step. False when there was nothing to fill, so
+    the caller adds the file the ordinary way.
+  */
+  fillMediaTarget: (media: MediaPick) => boolean;
 };
 
 const touch = (p: Project): Project => ({ ...p, updatedAt: Date.now() });
@@ -231,6 +248,7 @@ export const useEditor = create<EditorState>()(
       muted: false,
       dialog: null,
       mediaTarget: null,
+      mediaSource: "uploads",
 
       load: (p) =>
         set({
@@ -485,7 +503,7 @@ export const useEditor = create<EditorState>()(
         }),
       clearSelection: () => set({ selection: [], audioSelection: null, editingTextId: null }),
       setEditingText: (id) => set({ editingTextId: id, selection: id ? [id] : get().selection }),
-      setLeftTab: (tab) => set({ leftTab: tab }),
+      setLeftTab: (tab) => set(tab === "uploads" || tab === "stock" ? { leftTab: tab, mediaSource: tab } : { leftTab: tab }),
       setInspectorTab: (tab) => set({ inspectorTab: tab }),
       setViewport: (v) => set((s) => ({ viewport: typeof v === "function" ? v(s.viewport) : v })),
       setInteracting: (v) => set({ interacting: v }),
@@ -495,6 +513,17 @@ export const useEditor = create<EditorState>()(
       setMuted: (v) => set({ muted: v }),
       setDialog: (d) => set({ dialog: d }),
       setMediaTarget: (t) => set({ mediaTarget: t }),
+      pickMedia: (t) => set((s) => ({ mediaTarget: t, leftTab: s.mediaSource })),
+      fillMediaTarget: (media) => {
+        const target = activeMediaTarget(get());
+        if (!target || !media.url || target.kind !== media.kind) return false;
+        const value = { mediaId: media.id, src: media.url };
+        if (target.path.length) get().setComponentProp(target.blockId, target.path, value);
+        /* A new clip plays from its start, and its length is not the old one's. */
+        else get().updateBlock(target.blockId, media.kind === "video" ? { ...value, trimStart: 0, sourceDuration: media.duration } : value);
+        set({ mediaTarget: null });
+        return true;
+      },
     }),
     {
       partialize: (s): Tracked => ({ project: s.project }),
@@ -533,6 +562,11 @@ export const useEditor = create<EditorState>()(
 export function useTemporal<T>(selector: (s: TemporalState<Tracked>) => T): T {
   return useStoreWithEqualityFn(useEditor.temporal, selector, shallow);
 }
+
+/* The media target, while it is still live: it lapses once its block is no
+   longer the one thing selected. */
+export const activeMediaTarget = (s: Pick<EditorState, "mediaTarget" | "selection">) =>
+  s.mediaTarget && s.selection.length === 1 && s.selection[0] === s.mediaTarget.blockId ? s.mediaTarget : null;
 
 /* Convenience selectors. */
 export const useProject = () => useEditor((s) => s.project);

@@ -179,7 +179,8 @@ export const listStock = query({
 */
 export const searchStock = query({
   args: {
-    kind: mediaKind,
+    /* Both kinds when absent, newest first across them (the Media page's "All"). */
+    kind: v.optional(mediaKind),
     category: v.optional(v.string()),
     q: v.optional(v.string()),
     cursor: v.optional(v.union(v.number(), v.null())),
@@ -190,9 +191,11 @@ export const searchStock = query({
 
     const rows = await ctx.db
       .query("media")
-      .withIndex("by_source_kind", (index) => index.eq("source", "stock").eq("kind", kind))
+      .withIndex("by_source_kind", (index) => (kind ? index.eq("source", "stock").eq("kind", kind) : index.eq("source", "stock")))
       .order("desc")
       .collect();
+    /* Across kinds the index orders by kind first. */
+    if (!kind) rows.sort((a, b) => b._creationTime - a._creationTime);
 
     const terms = normalise(q ?? "").split(/\s+/).filter(Boolean);
     const matching = rows.filter(
@@ -291,6 +294,95 @@ export const getUrl = query({
   handler: async (ctx, { storageId }) => {
     await requireUser(ctx);
     return await ctx.storage.getUrl(storageId);
+  },
+});
+
+/* ------------------------------------------------------ media page --- */
+
+/*
+  The Media page's preview: one row with what its sidebar shows beyond the grid's
+  `MediaItem` — who uploaded it, and whether this organisation owns it (and so
+  may delete it). Null for an id this caller may not see, stock included when
+  signed out.
+*/
+export const details = query({
+  args: { orgId: v.string(), id: v.string() },
+  handler: async (ctx, { orgId, id }) => {
+    const context = await tryOrg(ctx, orgId);
+    const mediaId = ctx.db.normalizeId("media", id);
+    if (!context || !mediaId) return null;
+    const row = await ctx.db.get(mediaId);
+    if (!row || (row.orgId && row.orgId !== context.org._id)) return null;
+
+    const uploader = row.createdBy ? await ctx.db.get(row.createdBy) : null;
+    return {
+      ...(await withUrls(ctx, row)),
+      aesthetics: row.aesthetics ?? [],
+      uploadedBy: uploader?.name ?? uploader?.email,
+      own: row.orgId === context.org._id,
+    };
+  },
+});
+
+/*
+  This organisation's projects that reference a media id, most recently edited
+  first. A document can mention media in a block, a scene background or a
+  catalog block's props, wherever its schema keeps them, so the document is
+  searched as text rather than walked: an id is 32 characters of base32 that
+  nothing else in a document looks like. An org's projects are few enough to
+  read in one go.
+*/
+export const usedIn = query({
+  args: { orgId: v.string(), mediaId: v.string() },
+  handler: async (ctx, { orgId, mediaId }) => {
+    const context = await tryOrg(ctx, orgId);
+    if (!context || !ctx.db.normalizeId("media", mediaId)) return [];
+
+    const projects = await ctx.db
+      .query("projects")
+      .withIndex("by_org_updatedAt", (q) => q.eq("orgId", context.org._id))
+      .order("desc")
+      .collect();
+    return projects
+      .filter((project) => JSON.stringify(project.document).includes(`"${mediaId}"`))
+      .map((project) => ({ id: project._id, name: project.name, kind: project.kind, updatedAt: project.updatedAt }));
+  },
+});
+
+/*
+  "Similar": other media in the same library sharing the most categories, then
+  labels (subject and style), same kind first. Stock is compared with stock and
+  an upload with the org's uploads. Nothing in common means not similar, so a
+  row with no labels — most uploads — has no neighbours rather than arbitrary
+  ones.
+*/
+export const similar = query({
+  args: { orgId: v.string(), mediaId: v.string(), limit: v.optional(v.number()) },
+  handler: async (ctx, { orgId, mediaId, limit = 12 }): Promise<MediaItem[]> => {
+    const context = await tryOrg(ctx, orgId);
+    const id = ctx.db.normalizeId("media", mediaId);
+    if (!context || !id) return [];
+    const row = await ctx.db.get(id);
+    if (!row || (row.orgId && row.orgId !== context.org._id)) return [];
+
+    const pool = await (row.orgId
+      ? ctx.db.query("media").withIndex("by_org", (q) => q.eq("orgId", row.orgId))
+      : ctx.db.query("media").withIndex("by_source_kind", (q) => q.eq("source", "stock"))
+    ).collect();
+
+    const categories = new Set(row.categories ?? []);
+    const labels = new Set([...row.tags, ...(row.aesthetics ?? [])].map(normalise));
+    const scored = pool
+      .filter((other) => other._id !== row._id)
+      .map((other) => {
+        const sharedCategories = (other.categories ?? []).filter((c) => categories.has(c)).length;
+        const sharedLabels = [...other.tags, ...(other.aesthetics ?? [])].filter((l) => labels.has(normalise(l))).length;
+        return { other, score: sharedCategories * 3 + sharedLabels, sameKind: other.kind === row.kind };
+      })
+      .filter(({ score }) => score > 0)
+      .sort((a, b) => Number(b.sameKind) - Number(a.sameKind) || b.score - a.score || b.other._creationTime - a.other._creationTime);
+
+    return await Promise.all(scored.slice(0, Math.min(limit, 30)).map(({ other }) => withUrls(ctx, other)));
   },
 });
 

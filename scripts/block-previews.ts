@@ -56,16 +56,17 @@ function walk(dir: string): string[] {
 }
 
 /*
-  Where each block's code lives: the folder of the file that registers it
-  (`registerBlock({ id: "…"`). Blocks follow `lib/blocks/<id>/` or
-  `lib/blocks/text/<id>/`, but reading the registration rather than assuming
-  the folder name means a block filed somewhere else still hashes correctly.
+  Where each block's code lives: the folder of the file that declares it
+  (`defineBlock({ id: "…"` in its `schema.ts`). Blocks follow
+  `lib/blocks/<id>/` or `lib/blocks/text/<id>/`, but reading the declaration
+  rather than assuming the folder name means a block filed somewhere else still
+  hashes correctly.
 */
 function sourceFolders(): Map<string, string> {
   const folders = new Map<string, string>();
   for (const file of walk(BLOCKS_DIR)) {
     const text = readFileSync(file, "utf8");
-    for (const match of text.matchAll(/registerBlock\s*(?:<[^>]*>)?\s*\(\s*\{[\s\S]*?\bid\s*:\s*["'`]([^"'`]+)["'`]/g)) {
+    for (const match of text.matchAll(/(?:defineBlock|registerBlock)\s*(?:<[^>]*>)?\s*\(\s*\{[\s\S]*?\bid\s*:\s*["'`]([^"'`]+)["'`]/g)) {
       folders.set(match[1]!, dirname(file));
     }
   }

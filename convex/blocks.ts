@@ -2,6 +2,7 @@ import { v } from "convex/values";
 
 import { internalMutation, internalQuery, query } from "./_generated/server";
 import { tryUser } from "./lib/auth";
+import { describeBlock, listSpecs } from "./lib/blockCatalog";
 
 /*
   Pictures of the block catalog, for the Blocks panel.
@@ -34,6 +35,16 @@ export const assets = query({
       })),
     );
   },
+});
+
+/*
+  Every catalog block's data: its inputs, defaults, and which field holds
+  which role (`lib/blocks/catalog.ts`). No sign-in needed — it is the same
+  data the app's bundle ships to every visitor.
+*/
+export const catalog = query({
+  args: {},
+  handler: async () => listSpecs().map(describeBlock),
 });
 
 /* ── The script's steps, run through `npx convex run` ─────────────────── */

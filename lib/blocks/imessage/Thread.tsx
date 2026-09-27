@@ -4,7 +4,7 @@ import type { PropsOf } from "../inputs";
 import { BlockImage } from "../media";
 import type { RenderContext } from "../registry";
 
-import type { inputs } from "./index";
+import type { inputs } from "./schema";
 
 type Props = PropsOf<typeof inputs>;
 type Message = Props["messages"][number];

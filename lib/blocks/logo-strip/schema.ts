@@ -1,4 +1,5 @@
 import { input } from "../inputs";
+import { defineBlock } from "../spec";
 
 export const inputs = {
   logos: input.list({ label: "Logos", itemLabel: "Logo", min: 2, max: 8, item: input.image({ label: "Logo" }) }),
@@ -22,3 +23,27 @@ export const inputs = {
     ],
   }),
 };
+
+/*
+  Logo strip — a "trusted by" row. In a video the logos scroll past as a
+  seamless marquee; as a still they sit evenly spaced across the block.
+*/
+const logo = (name: string) => ({ src: `/blocks/logo-strip/${name}.svg` });
+
+export const logoStrip = defineBlock({
+  id: "logo-strip",
+  name: "Logo strip",
+  category: "Logos",
+  tags: ["logos", "brands", "partners", "clients", "trusted by", "as seen in", "marquee", "ticker", "press"],
+  inputs,
+  defaults: {
+    logos: ["northwind", "lumen", "kite", "oakline", "veloce", "hearth"].map(logo),
+    speed: 1,
+    direction: "left",
+    gap: 80,
+    tone: "white",
+  },
+  defaultDuration: 6,
+  aspectHint: "landscape",
+  preview: "",
+});

@@ -10,10 +10,13 @@ owns what it looks like and how it moves.
 
 | | |
 |---|---|
-| `lib/blocks/registry.ts` | The contract (`BlockDefinition`), `registerBlock`, placement, the preview spec |
+| `lib/blocks/spec.ts` | A block's data (`BlockSpec`) and `defineBlock` |
+| `lib/blocks/registry.ts` | The contract (`BlockDefinition` = spec + render), `registerBlock`, placement, the preview spec |
+| `lib/blocks/catalog.ts` | Every block's spec, no render code: what the server reads (one line per block) |
+| `lib/blocks/fields.ts` | Field paths and the roles inside a block's props (`fieldSlots`) |
 | `lib/blocks/inputs.ts` | The nine input primitives, defaults, validation and repair |
 | `lib/blocks/media.tsx` | `BlockImage`: painting an `image` input |
-| `lib/blocks/index.ts` | The catalog: one import line per block |
+| `lib/blocks/index.ts` | The studio's catalog: one import line per block |
 | `lib/blocks/previews.ts` | `useBlockPreview(id)`: the generated preview and poster |
 | `lib/blocks/imessage/` | The reference block. Copy its shape |
 | `components/editor/inspector/SchemaFields.tsx` | The inspector every block gets, generated from its inputs |
@@ -22,7 +25,8 @@ owns what it looks like and how it moves.
 ## The contract
 
 ```ts
-registerBlock({
+// lib/blocks/imessage/schema.ts
+export const imessage = defineBlock({
   id: "imessage",              // kebab-case, unique, never renamed (documents store it)
   name: "iMessage",            // what the panel, the timeline pill and the layer list say
   category: "Digital",         // one of BLOCK_CATEGORIES
@@ -31,36 +35,62 @@ registerBlock({
   defaults: { … },             // sample content a freshly added block shows
   defaultDuration: 6,          // seconds on the timeline when added to a video
   aspectHint: "portrait",      // square | portrait (4:5) | landscape (16:9) | free (1:1)
-  render: (props, ctx) => <Thread props={props} ctx={ctx} />,
   poster: { progress: 1 },     // optional: the frame shown as a still (default 1, settled)
   roles: { contactName: "author", "messages[].text": "body" },  // optional: see below
 });
+// …and, in index.tsx, the render:
+registerBlock({ ...imessage, render: (props, ctx) => <Thread props={props} ctx={ctx} /> });
 ```
 
 A block lives in its own folder, `lib/blocks/<id>/` (text blocks:
-`lib/blocks/text/<id>/`), with `index.tsx` holding the definition and the
-render code beside it. It is listed by adding one line to `lib/blocks/index.ts`:
+`lib/blocks/text/<id>/`), in two halves:
+
+- `schema.ts` — its **data**: the inputs and a `defineBlock({ … })` with
+  everything above but `render`. Plain TypeScript, no React, relative imports
+  only, because the server imports it: Convex bundles `lib/blocks/catalog.ts`
+  to validate a block's props and resolve its roles for the public API
+  (`convex/lib/blockCatalog.ts`, `blocks:catalog`). Nothing to publish or
+  re-run when a block changes; the next Convex deploy carries it.
+- `index.tsx` — the **render**, spreading the spec: `registerBlock({ ...spec, render })`.
+
+It is listed by adding one line to each of two files:
 
 ```ts
+// lib/blocks/catalog.ts — the data, for the server
+import { imessage } from "./imessage/schema";
+const SPECS = [imessage, /* … */];
+
+// lib/blocks/index.ts — the render, for the studio
 import "./imessage";
 ```
 
-That is the only shared file a block ticket touches, and the line is unique to
-the block, so parallel block tickets rebase without conflicts.
+Those are the only shared files a block ticket touches, and the lines are
+unique to the block, so parallel block tickets rebase without conflicts. The
+two lists are checked against each other in development: a block registered
+but missing from `catalog.ts`, or listed there but never registered, throws on
+load with the file to fix.
 
 The skeleton, as iMessage lays it out:
 
-```tsx
-// lib/blocks/<id>/index.tsx
+```ts
+// lib/blocks/<id>/schema.ts
 import { input } from "../inputs";
-import { registerBlock } from "../registry";
-
-import { View } from "./View";
+import { defineBlock } from "../spec";
 
 /* Exported so the render code can type its props from it. */
 export const inputs = { /* … */ };
 
-registerBlock({ id: "<id>", /* … */ inputs, defaults: { /* every key */ }, render: (props, ctx) => <View props={props} ctx={ctx} /> });
+export const myBlock = defineBlock({ id: "<id>", /* … */ inputs, defaults: { /* every key */ } });
+```
+
+```tsx
+// lib/blocks/<id>/index.tsx
+import { registerBlock } from "../registry";
+
+import { myBlock } from "./schema";
+import { View } from "./View";
+
+registerBlock({ ...myBlock, render: (props, ctx) => <View props={props} ctx={ctx} /> });
 ```
 
 ```tsx
@@ -69,7 +99,7 @@ import type { PropsOf } from "../inputs";
 import { BlockImage } from "../media";
 import type { RenderContext } from "../registry";
 
-import type { inputs } from "./index";
+import type { inputs } from "./schema";
 
 type Props = PropsOf<typeof inputs>;
 
@@ -202,8 +232,11 @@ the template role vocabulary (`CONTENT_ROLES`, `docs/templates.md`): `roles`
 maps a field path to a role — `name` for a top-level input, `list[].field`
 for a field of every list item, `object.field` inside an object. Paths are
 checked against the schema at compile time. Leave styling fields (theme,
-colours, toggles) out. The inspector lists these roles, and the public API will use them
-to fill a template's catalog blocks.
+colours, toggles) out. A role on a list of media or text (`logos`) describes
+each item. The inspector lists these roles; the server reads them from the
+catalog, so a template's slots list each field with its role and a concrete
+path (`messages[2].text`, `fieldSlots` in `fields.ts`), and the public API
+replaces a role inside a catalog block the same way as a role on a block.
 
 `defaults` on the definition is the sample content a freshly added block
 shows; it is typed from the schema (`PropsOf<typeof inputs>`), so a typo there
@@ -216,7 +249,7 @@ also the preview in the picker.
 
 ### Worked examples
 
-**iMessage** (`lib/blocks/imessage/index.tsx`) — a list of objects, a select
+**iMessage** (`lib/blocks/imessage/schema.ts`) — a list of objects, a select
 inside the list, and a media input:
 
 ```ts
@@ -353,7 +386,7 @@ that does not.
    writing the renderer: each field, its primitive, its limits, and where you
    deviate from Butter and why. Schema changes after content exists cost
    people their content; this is the cheap moment to get it right.
-3. **Build** in `lib/blocks/<id>/`, register it with one line in `index.ts`.
+3. **Build** in `lib/blocks/<id>/` (data in `schema.ts`, render in `index.tsx`), and list it with one line each in `catalog.ts` and `index.ts`.
 4. **Add from the picker.** It lands centred at a sensible size in a 9:16, a
    4:5 and a 1:1 project, and is selected.
 5. **Edit every input** in the inspector: text to its `maxLength`, lists to

@@ -37,6 +37,9 @@ type EditorState = Tracked & {
   /* UI state — deliberately outside the undo history. */
   activeSlideId: string;
   selection: string[];
+  /* A lane track, selected on its own: audio is not a block and has no place
+     in the block selection. Selecting either clears the other. */
+  audioSelection: string | null;
   editingTextId: string | null;
   leftTab: LeftTab | null;
   inspectorTab: InspectorTab;
@@ -67,6 +70,7 @@ type EditorState = Tracked & {
   addAudio: (track: AudioTrack) => void;
   updateAudio: (id: string, patch: Partial<AudioTrack>) => void;
   removeAudio: (id: string) => void;
+  selectAudio: (id: string | null) => void;
 
   addBlock: (block: Block, slideId?: string) => void;
   addBlocks: (blocks: Block[], slideId?: string) => void;
@@ -169,6 +173,7 @@ export const useEditor = create<EditorState>()(
       project: initial,
       activeSlideId: initial.slides[0].id,
       selection: [],
+      audioSelection: null,
       editingTextId: null,
       leftTab: null,
       inspectorTab: "design",
@@ -188,6 +193,7 @@ export const useEditor = create<EditorState>()(
           project: p,
           activeSlideId: p.slides[0]?.id,
           selection: [],
+          audioSelection: null,
           editingTextId: null,
           time: 0,
           playing: false,
@@ -211,7 +217,7 @@ export const useEditor = create<EditorState>()(
           return { project: p };
         }),
 
-      setActiveSlide: (id) => set({ activeSlideId: id, selection: [], editingTextId: null }),
+      setActiveSlide: (id) => set({ activeSlideId: id, selection: [], audioSelection: null, editingTextId: null }),
       addSlide: (afterId) => {
         const s = get();
         const idx = afterId ? s.project.slides.findIndex((x) => x.id === afterId) : s.project.slides.length - 1;
@@ -256,13 +262,25 @@ export const useEditor = create<EditorState>()(
       updateSlide: (id, patch) => set((s) => ({ project: mapSlide(s.project, id, (sl) => ({ ...sl, ...patch })) })),
       setBackground: (slideId, bg) =>
         set((s) => ({ project: mapSlide(s.project, slideId, (sl) => ({ ...sl, background: bg })) })),
-      addAudio: (track) => set((s) => ({ project: touch({ ...s.project, audio: [...s.project.audio, track] }) })),
+      /* The new track comes selected, as in the reference, so its properties
+         are in the inspector straight away. */
+      addAudio: (track) =>
+        set((s) => ({
+          project: touch({ ...s.project, audio: [...s.project.audio, track] }),
+          audioSelection: track.id,
+          selection: [],
+          editingTextId: null,
+        })),
       updateAudio: (id, patch) =>
         set((s) => ({
           project: touch({ ...s.project, audio: s.project.audio.map((a) => (a.id === id ? { ...a, ...patch } : a)) }),
         })),
       removeAudio: (id) =>
-        set((s) => ({ project: touch({ ...s.project, audio: s.project.audio.filter((a) => a.id !== id) }) })),
+        set((s) => ({
+          project: touch({ ...s.project, audio: s.project.audio.filter((a) => a.id !== id) }),
+          audioSelection: s.audioSelection === id ? null : s.audioSelection,
+        })),
+      selectAudio: (id) => set({ audioSelection: id, selection: id ? [] : get().selection, editingTextId: null }),
 
       addBlock: (block, slideId) => get().addBlocks([block], slideId),
       addBlocks: (blocks, slideId) =>
@@ -385,14 +403,14 @@ export const useEditor = create<EditorState>()(
       select: (ids, additive, exact) =>
         set((s) => {
           const wanted = exact ? ids : expandGroups(s.project, ids);
-          if (!additive) return { selection: wanted, editingTextId: null };
+          if (!additive) return { selection: wanted, audioSelection: null, editingTextId: null };
           /* Toggling: a group flips as one — if any member is selected the whole group leaves. */
           const next = new Set(s.selection);
           const on = wanted.some((id) => next.has(id));
           wanted.forEach((id) => (on ? next.delete(id) : next.add(id)));
-          return { selection: [...next], editingTextId: null };
+          return { selection: [...next], audioSelection: null, editingTextId: null };
         }),
-      clearSelection: () => set({ selection: [], editingTextId: null }),
+      clearSelection: () => set({ selection: [], audioSelection: null, editingTextId: null }),
       setEditingText: (id) => set({ editingTextId: id, selection: id ? [id] : get().selection }),
       setLeftTab: (tab) => set({ leftTab: tab }),
       setInspectorTab: (tab) => set({ inspectorTab: tab }),

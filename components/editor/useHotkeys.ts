@@ -96,7 +96,7 @@ export const SHORTCUTS: Shortcut[] = [
     run: (_e, { state: s }) => {
       if (s.dialog) return s.setDialog(null);
       if (s.editingTextId) return s.setEditingText(null);
-      if (s.leftTab && !s.selection.length) return s.setLeftTab(null);
+      if (s.leftTab && !s.selection.length && !s.audioSelection) return s.setLeftTab(null);
       s.clearSelection();
     },
   },
@@ -292,8 +292,8 @@ export const SHORTCUTS: Shortcut[] = [
     label: "Delete",
     keys: ["⌫", "Del"],
     preventDefault: true,
-    match: (e, { state }) => (e.key === "Delete" || e.key === "Backspace") && state.selection.length > 0,
-    run: (_e, { state: s }) => s.removeBlocks(s.selection),
+    match: (e, { state }) => (e.key === "Delete" || e.key === "Backspace") && (state.selection.length > 0 || !!state.audioSelection),
+    run: (_e, { state: s }) => (s.selection.length ? s.removeBlocks(s.selection) : s.removeAudio(s.audioSelection!)),
   },
   {
     id: "selection.nudge",

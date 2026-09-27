@@ -8,6 +8,7 @@ import type { Id } from "@/convex/_generated/dataModel";
 
 import { sceneOffsets } from "./geometry";
 import { useEditor } from "./store";
+import type { AudioTrack } from "./types";
 
 /*
   Sound, in two places: the Audio panel's preview, and the audio lane playing
@@ -181,6 +182,119 @@ export function usePreview(): PreviewSnapshot {
   );
 }
 
+/* ── Tracks ────────────────────────────────────────────────────────────── */
+
+/* The URL a lane track plays from: a live one for library audio, the saved
+   `src` if that cannot be had (or for anything that never came from the
+   library). Empty when there is nothing to play at all. */
+export function trackUrl(convex: ConvexReactClient | undefined, track: Pick<AudioTrack, "trackId" | "src">): Promise<string> {
+  if (!track.trackId) return Promise.resolve(track.src ?? "");
+  return playableUrl(convex, track.trackId).catch(() => track.src ?? "");
+}
+
+/* Longest fade either end may have; the inspector offers 0–3 s. */
+export const MAX_FADE = 3;
+
+/* The two fades never overlap: on a pill shorter than both together, each
+   gets at most half of it. */
+export function fadeLengths(track: Pick<AudioTrack, "fadeIn" | "fadeOut" | "duration">) {
+  const half = track.duration / 2;
+  return {
+    fadeIn: Math.min(Math.max(track.fadeIn ?? 0, 0), MAX_FADE, half),
+    fadeOut: Math.min(Math.max(track.fadeOut ?? 0, 0), MAX_FADE, half),
+  };
+}
+
+/* 0–1 envelope at `t` seconds into the pill — the same linear ramps the export
+   mix schedules, so what plays in the studio is what the file sounds like. */
+export function fadeGain(track: Pick<AudioTrack, "fadeIn" | "fadeOut" | "duration">, t: number) {
+  const { fadeIn, fadeOut } = fadeLengths(track);
+  let gain = 1;
+  if (fadeIn > 0) gain = Math.min(gain, t / fadeIn);
+  if (fadeOut > 0) gain = Math.min(gain, (track.duration - t) / fadeOut);
+  return Math.min(Math.max(gain, 0), 1);
+}
+
+/* ── Waveforms ─────────────────────────────────────────────────────────── */
+
+/*
+  Peaks for the lane's pills: the loudest sample in each 1/PEAKS_PER_SECOND of
+  the source, 0–1, mono. Decoding is the expensive part (a three-minute song is
+  some sixty megabytes of samples for a moment), so it happens once per file,
+  one file at a time, and only the peaks are kept.
+*/
+export const PEAKS_PER_SECOND = 50;
+
+type PeaksEntry = Float32Array | "error";
+const peaks = new Map<string, PeaksEntry>();
+const peaksWanted = new Set<string>();
+const peaksListeners = new Set<() => void>();
+let decodeQueue: Promise<void> = Promise.resolve();
+
+function computePeaks(buffer: AudioBuffer) {
+  const size = Math.max(1, Math.ceil(buffer.duration * PEAKS_PER_SECOND));
+  const out = new Float32Array(size);
+  const window = buffer.length / size;
+  for (let c = 0; c < buffer.numberOfChannels; c++) {
+    const data = buffer.getChannelData(c);
+    for (let i = 0; i < size; i++) {
+      const from = Math.floor(i * window);
+      const to = Math.min(data.length, Math.floor((i + 1) * window));
+      let max = out[i];
+      /* Every eighth sample is plenty for a line a few pixels tall, and an
+         eighth of the work on a long file. */
+      for (let j = from; j < to; j += 8) {
+        const v = Math.abs(data[j]);
+        if (v > max) max = v;
+      }
+      out[i] = max;
+    }
+  }
+  return out;
+}
+
+function requestPeaks(convex: ConvexReactClient | undefined, key: string, track: Pick<AudioTrack, "trackId" | "src">) {
+  if (peaks.has(key) || peaksWanted.has(key)) return;
+  peaksWanted.add(key);
+  decodeQueue = decodeQueue.then(async () => {
+    let entry: PeaksEntry = "error";
+    try {
+      const url = await trackUrl(convex, track);
+      if (url) {
+        const bytes = await (await fetch(url)).arrayBuffer();
+        entry = computePeaks(await new OfflineAudioContext(1, 1, 44_100).decodeAudioData(bytes));
+      }
+    } catch {
+      /* A pill without a waveform is still a pill. */
+    }
+    peaks.set(key, entry);
+    peaksWanted.delete(key);
+    for (const listener of peaksListeners) listener();
+  });
+}
+
+/* The peaks for a track's file, or null until they are ready (or if the file
+   cannot be decoded). */
+export function useWaveform(track: Pick<AudioTrack, "trackId" | "src">): Float32Array | null {
+  const convex = useConvex();
+  const key = track.trackId ?? track.src ?? "";
+  useEffect(() => {
+    if (key) requestPeaks(convex, key, track);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the key is the track's identity
+  }, [convex, key]);
+  const entry = useSyncExternalStore(
+    (listener) => {
+      peaksListeners.add(listener);
+      return () => {
+        peaksListeners.delete(listener);
+      };
+    },
+    () => peaks.get(key),
+    () => undefined,
+  );
+  return entry instanceof Float32Array ? entry : null;
+}
+
 /* ── The audio lane ────────────────────────────────────────────────────── */
 
 type LanePlayer = { el: HTMLAudioElement; key: string; ready: boolean; retried: boolean };
@@ -200,8 +314,7 @@ export function useAudioLane() {
     const players = new Map<string, LanePlayer>();
 
     const load = (id: string, player: LanePlayer, trackId: string | undefined, src: string | undefined) => {
-      const resolve = trackId ? playableUrl(convex, trackId).catch(() => src ?? "") : Promise.resolve(src ?? "");
-      void resolve.then((url) => {
+      void trackUrl(convex, { trackId, src }).then((url) => {
         /* The track may have been removed, or re-pointed, while we asked. */
         if (!url || players.get(id) !== player) return;
         player.el.src = url;
@@ -256,10 +369,11 @@ export function useAudioLane() {
         player ??= create(track.id, key, track.trackId, track.src);
         const { el } = player;
 
-        el.volume = Math.min(Math.max(track.volume / 100, 0), 1);
-        el.muted = s.muted;
-        const inside = s.playing && now >= track.start && now < track.start + track.duration;
-        const at = now - track.start;
+        const into = now - track.start;
+        el.volume = Math.min(Math.max((track.volume / 100) * fadeGain(track, into), 0), 1);
+        el.muted = s.muted || !!track.muted;
+        const inside = s.playing && into >= 0 && into < track.duration;
+        const at = into + (track.offset ?? 0);
         /* A pill trimmed longer than its file: past the end is silence. Calling
            `play()` on an ended element would restart it from the top. */
         const past = Number.isFinite(el.duration) && at >= el.duration;

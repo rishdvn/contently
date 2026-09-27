@@ -36,10 +36,11 @@ import { Menu, MenuDivider, MenuItem } from "@/components/ui/menu";
 import { Tooltip } from "@/components/ui/tooltip";
 import { getBlock } from "@/lib/blocks";
 import { cn } from "@/lib/cn";
+import { fadeGain, fadeLengths, PEAKS_PER_SECOND, useWaveform } from "@/lib/editor/audio";
 import { formatTime, sceneAt, sceneOffsets, totalDuration } from "@/lib/editor/geometry";
 import { useEditor } from "@/lib/editor/store";
 import { backgroundCss } from "@/lib/editor/style";
-import type { Block, Slide } from "@/lib/editor/types";
+import type { AudioTrack, Block, Slide } from "@/lib/editor/types";
 
 import { SlidePreview } from "../canvas/Artboard";
 import { cameraRef } from "../canvas/Viewport";
@@ -386,6 +387,7 @@ function Tracks() {
   const project = useEditor((s) => s.project);
   const activeSlideId = useEditor((s) => s.activeSlideId);
   const selection = useEditor((s) => s.selection);
+  const audioSelection = useEditor((s) => s.audioSelection);
   const time = useEditor((s) => s.time);
   const playing = useEditor((s) => s.playing);
   const setLeftTab = useEditor((s) => s.setLeftTab);
@@ -517,24 +519,18 @@ function Tracks() {
             />
           ))}
 
-          <div className="relative flex items-center" style={{ height: ROW_H, paddingLeft: PAD_X + LABEL_W }}>
-            {project.audio.length ? (
-              project.audio.map((a) => (
-                <AudioBar key={a.id} track={a} pxPerSec={pxPerSec} total={total} scrollRef={scrollRef} onContext={(x, y, items, above) => setCtx({ x, y, items, above })} />
-              ))
-            ) : (
-              <button type="button" className={laneBtn} onClick={() => setLeftTab("audio")}>
-                <Music className="size-3.5" /> Add audio
-              </button>
-            )}
-          </div>
-          {project.audio.length ? (
-            <div className="flex items-center" style={{ height: ROW_H, paddingLeft: PAD_X + LABEL_W }}>
-              <button type="button" className={laneBtn} onClick={() => setLeftTab("audio")}>
-                <Music className="size-3.5" /> Add audio
-              </button>
+          {/* One row per audio track, as in the reference, so two songs never
+              hide each other; the "Add audio" row always sits beneath them. */}
+          {project.audio.map((a) => (
+            <div key={a.id} className="relative" style={{ height: ROW_H }}>
+              <AudioBar track={a} pxPerSec={pxPerSec} total={total} selected={a.id === audioSelection} scrollRef={scrollRef} onContext={(x, y, items, above) => setCtx({ x, y, items, above })} />
             </div>
-          ) : null}
+          ))}
+          <div className="flex items-center" style={{ height: ROW_H, paddingLeft: PAD_X + LABEL_W }}>
+            <button type="button" className={laneBtn} onClick={() => setLeftTab("audio")}>
+              <Music className="size-3.5" /> Add audio
+            </button>
+          </div>
 
           <div className="pointer-events-none absolute top-0 bottom-0 z-20" style={{ left: playheadX }}>
             <div className="absolute top-[3px] size-2 -translate-x-1/2 rounded-full bg-ink" />
@@ -1189,51 +1185,206 @@ function LayerBar({
   );
 }
 
+/*
+  One audio track. Drag to move; drag the left edge to trim the head of the
+  file (the pill's start and the offset into the source move together), the
+  right edge to trim the tail. Neither end can pass the ends of the file, when
+  its length is known, or of the project. Clicking selects it for the
+  inspector's Audio card.
+*/
 function AudioBar({
   track,
   pxPerSec,
   total,
+  selected,
   scrollRef,
   onContext,
 }: {
-  track: { id: string; title: string; start: number; duration: number };
+  track: AudioTrack;
   pxPerSec: number;
   total: number;
+  selected: boolean;
   scrollRef: RefObject<HTMLDivElement | null>;
   onContext: (x: number, y: number, items: ReactNode, above?: number) => void;
 }) {
   const updateAudio = useEditor((s) => s.updateAudio);
   const removeAudio = useEditor((s) => s.removeAudio);
+  const selectAudio = useEditor((s) => s.selectAudio);
   const drag = useTimelineDrag(scrollRef, pxPerSec);
+  const peaks = useWaveform(track);
+  /* Tracked in JS rather than :hover so the affordances show for pointers that report no hover capability. */
+  const [hover, setHover] = useState(false);
+  const [label, setLabel] = useState<{ side: "start" | "end"; t: number } | null>(null);
+  const offset = track.offset ?? 0;
+  /* Seconds of source left after the pill's own start; unbounded if unknown. */
+  const sourceLeft = track.sourceDuration !== undefined ? track.sourceDuration - offset : Infinity;
+  const { fadeIn, fadeOut } = fadeLengths(track);
+
+  const gesture = (e: React.PointerEvent, onMove: (dt: number) => void, side?: "start" | "end") => {
+    if (e.button !== 0) return;
+    selectAudio(track.id);
+    useEditor.getState().setInteracting(true);
+    drag(e, onMove, () => {
+      useEditor.getState().setInteracting(false);
+      if (side) setLabel(null);
+    });
+  };
   const move = (e: React.PointerEvent) => {
-    const { start } = track;
-    drag(e, (dt) => updateAudio(track.id, { start: Math.min(Math.max(0, snap(start + dt)), Math.max(0, total - track.duration)) }));
+    const { start, duration } = track;
+    gesture(e, (dt) => updateAudio(track.id, { start: Math.min(Math.max(0, snap(start + dt)), Math.max(0, total - duration)) }));
+  };
+  const trimStart = (e: React.PointerEvent) => {
+    const { start, duration } = track;
+    gesture(
+      e,
+      (dt) => {
+        /* Earliest: the head of the file, or 0 on the timeline. Latest: half a
+           second before the pill's end. */
+        const v = Math.min(Math.max(snap(start + dt), start - offset, 0), start + duration - MIN_AUDIO_PILL);
+        const shift = v - start;
+        updateAudio(track.id, { start: v, offset: Math.max(0, offset + shift), duration: duration - shift });
+        setLabel({ side: "start", t: v });
+      },
+      "start",
+    );
   };
   const trimEnd = (e: React.PointerEvent) => {
-    const { duration } = track;
-    drag(e, (dt) => updateAudio(track.id, { duration: Math.max(0.5, Math.min(snap(duration + dt), total - track.start)) }));
+    const { start, duration } = track;
+    gesture(
+      e,
+      (dt) => {
+        const v = Math.max(MIN_AUDIO_PILL, Math.min(snap(duration + dt), total - start, sourceLeft));
+        updateAudio(track.id, { duration: v });
+        setLabel({ side: "end", t: start + v });
+      },
+      "end",
+    );
   };
-  return (
-    <div
-      className="group absolute top-[3px] bottom-[3px] flex cursor-grab items-center overflow-hidden rounded-[5px] bg-[rgb(167_139_250/0.35)] ring-1 ring-white/10 ring-inset hover:ring-white/30 active:cursor-grabbing"
-      style={{ left: PAD_X + LABEL_W + track.start * pxPerSec, width: Math.max(6, track.duration * pxPerSec - 2) }}
-      onPointerDown={move}
-      onContextMenu={(e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        onContext(
-          e.clientX,
-          e.clientY,
-          <MenuItem onClick={() => removeAudio(track.id)} icon={<Trash2 />} destructive>
-            Remove audio
-          </MenuItem>,
-        );
-      }}
-    >
-      <Music className="ml-1.5 size-3 shrink-0 text-white/80" />
-      <span className="pointer-events-none truncate px-1.5 text-[10px] leading-none font-medium tracking-[0.3px] text-white/90">{track.title}</span>
-      <div className="absolute inset-x-8 top-1/2 h-px -translate-y-1/2 bg-[repeating-linear-gradient(90deg,rgb(255_255_255/0.5)_0_2px,transparent_2px_5px)] opacity-60" />
-      <div className="absolute top-0 right-0 bottom-0 w-2 cursor-ew-resize" onPointerDown={trimEnd} />
-    </div>
+
+  const menu = (
+    <>
+      <MenuItem onClick={() => updateAudio(track.id, { muted: !track.muted })} icon={track.muted ? <Volume2 /> : <VolumeX />}>
+        {track.muted ? "Unmute" : "Mute"}
+      </MenuItem>
+      <MenuItem onClick={() => removeAudio(track.id)} icon={<Trash2 />} shortcut={shortcutKey("selection.delete")} destructive>
+        Remove audio
+      </MenuItem>
+    </>
   );
+
+  const left = PAD_X + LABEL_W + track.start * pxPerSec;
+  const width = Math.max(6, track.duration * pxPerSec - 2);
+
+  return (
+    <>
+      <div
+        role="button"
+        tabIndex={-1}
+        aria-label={`Audio: ${track.title}`}
+        aria-pressed={selected}
+        className={cn(
+          "group absolute top-[3px] bottom-[3px] flex cursor-grab items-center overflow-hidden rounded-[5px] bg-[rgb(167_139_250/0.35)] ring-1 ring-inset active:cursor-grabbing",
+          selected ? "ring-ink" : "ring-white/10 hover:ring-white/30",
+          track.muted && "opacity-60",
+        )}
+        style={{ left, width }}
+        onPointerDown={move}
+        onPointerEnter={() => setHover(true)}
+        onPointerLeave={() => setHover(false)}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          selectAudio(track.id);
+          onContext(e.clientX, e.clientY, menu);
+        }}
+      >
+        <Waveform peaks={peaks} offset={offset} duration={track.duration} fadeIn={fadeIn} fadeOut={fadeOut} width={width} />
+        <Music className="relative ml-1.5 size-3 shrink-0 text-white/80" />
+        <button
+          type="button"
+          aria-label={track.muted ? "Unmute audio" : "Mute audio"}
+          aria-pressed={!!track.muted}
+          className={cn(pillIcon, "relative ml-0.5")}
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={() => updateAudio(track.id, { muted: !track.muted })}
+        >
+          {track.muted ? <VolumeX /> : <Volume2 />}
+        </button>
+        <span className="pointer-events-none relative truncate px-1 text-[10px] leading-none font-medium tracking-[0.3px] text-white/90">{track.title}</span>
+        <div className="absolute top-0 bottom-0 left-0 w-2 cursor-ew-resize" onPointerDown={trimStart}>
+          <div className={cn("absolute top-1/2 left-[3px] h-2.5 w-[2px] -translate-y-1/2 rounded-full bg-white/70", hover || selected ? "opacity-100" : "opacity-0 group-hover:opacity-100")} />
+        </div>
+        <div className="absolute top-0 right-0 bottom-0 w-2 cursor-ew-resize" onPointerDown={trimEnd}>
+          <div className={cn("absolute top-1/2 right-[3px] h-2.5 w-[2px] -translate-y-1/2 rounded-full bg-white/70", hover || selected ? "opacity-100" : "opacity-0 group-hover:opacity-100")} />
+        </div>
+      </div>
+      {label ? (
+        <span
+          className="pointer-events-none absolute -top-3 z-20 rounded-[4px] bg-black/85 px-1.5 py-0.5 text-[10px] leading-[12px] font-medium tabular-nums text-white"
+          style={label.side === "end" ? { left: PAD_X + LABEL_W + label.t * pxPerSec + 6 } : { left: PAD_X + LABEL_W + label.t * pxPerSec - 44 }}
+        >
+          {clockLabel(label.t)}
+        </span>
+      ) : null}
+    </>
+  );
+}
+
+/* The shortest pill a trim leaves behind. */
+const MIN_AUDIO_PILL = 0.5;
+
+/*
+  The slice of the file the pill plays — `offset` to `offset + duration` —
+  drawn as mirrored bars across the pill's width, shaped by the fades, which
+  also get a ramp line so a fade shows before the audio has decoded. A canvas,
+  because a song is thousands of peaks and a pill is redrawn on every frame of
+  a trim.
+*/
+function Waveform({ peaks, offset, duration, fadeIn, fadeOut, width }: { peaks: Float32Array | null; offset: number; duration: number; fadeIn: number; fadeOut: number; width: number }) {
+  const ref = useRef<HTMLCanvasElement>(null);
+  useLayoutEffect(() => {
+    const canvas = ref.current;
+    if (!canvas) return;
+    const dpr = window.devicePixelRatio || 1;
+    const h = canvas.clientHeight;
+    canvas.width = Math.max(1, Math.round(width * dpr));
+    canvas.height = Math.max(1, Math.round(h * dpr));
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    ctx.scale(dpr, dpr);
+    ctx.clearRect(0, 0, width, h);
+    const envelope = { fadeIn, fadeOut, duration };
+    const pxPerSecond = width / Math.max(duration, 0.001);
+    ctx.strokeStyle = "rgba(255,255,255,0.75)";
+    ctx.lineWidth = 1;
+    if (fadeIn > 0) {
+      ctx.beginPath();
+      ctx.moveTo(0, h);
+      ctx.lineTo(fadeIn * pxPerSecond, 0);
+      ctx.stroke();
+    }
+    if (fadeOut > 0) {
+      ctx.beginPath();
+      ctx.moveTo(width - fadeOut * pxPerSecond, 0);
+      ctx.lineTo(width, h);
+      ctx.stroke();
+    }
+    if (!peaks) return;
+    ctx.fillStyle = "rgba(255,255,255,0.35)";
+    const bar = 2;
+    const gap = 1;
+    let top = 0;
+    for (let i = 0; i < peaks.length; i++) top = Math.max(top, peaks[i]);
+    const norm = top > 0 ? 1 / top : 1;
+    for (let x = 0; x < width; x += bar + gap) {
+      const from = Math.floor((offset + (x / width) * duration) * PEAKS_PER_SECOND);
+      const to = Math.max(from + 1, Math.floor((offset + ((x + bar) / width) * duration) * PEAKS_PER_SECOND));
+      let v = 0;
+      for (let i = from; i < to && i < peaks.length; i++) v = Math.max(v, peaks[i]);
+      if (from >= peaks.length) break;
+      const bh = Math.max(1, v * norm * fadeGain(envelope, ((x + bar / 2) / width) * duration) * (h - 4));
+      ctx.fillRect(x, (h - bh) / 2, bar, bh);
+    }
+  }, [peaks, offset, duration, fadeIn, fadeOut, width]);
+  return <canvas ref={ref} aria-hidden className="pointer-events-none absolute inset-0 size-full" />;
 }

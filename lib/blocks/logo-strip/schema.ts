@@ -1,7 +1,7 @@
 import { input } from "../inputs";
 
 export const inputs = {
-  logos: input.list({ label: "Logos", itemLabel: "Logo", min: 2, max: 8, item: input.image() }),
+  logos: input.list({ label: "Logos", itemLabel: "Logo", min: 2, max: 8, item: input.image({ label: "Logo" }) }),
   speed: input.number({ label: "Speed", min: 0.5, max: 3, step: 0.25, unit: "×", default: 1 }),
   direction: input.select({
     label: "Direction",

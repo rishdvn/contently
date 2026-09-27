@@ -125,6 +125,11 @@ function SlideStrip({ left, right }: { left: number; right: number }) {
     cameraRef.current?.centerSlide(slides.findIndex((s) => s.id === id));
   };
 
+  /* As on the timeline: a slide made active from elsewhere scrolls into the strip's view. */
+  useEffect(() => {
+    document.querySelector(`[data-strip-slide="${activeId}"]`)?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [activeId]);
+
   const drop = (targetId: string) => {
     if (!dragging || dragging === targetId) return;
     const from = slides.findIndex((s) => s.id === dragging);
@@ -143,6 +148,7 @@ function SlideStrip({ left, right }: { left: number; right: number }) {
           return (
             <div
               key={s.id}
+              data-strip-slide={s.id}
               className={cn("group relative flex shrink-0 flex-col items-center gap-1", over === s.id && dragging !== s.id && "translate-x-1")}
               draggable
               onDragStart={() => setDragging(s.id)}
@@ -427,6 +433,18 @@ function Tracks() {
       el.scrollLeft = Math.max(0, playheadX - el.clientWidth / 3);
     }
   }, [playheadX, playing]);
+
+  /* A scene made active from elsewhere — a template's scenes just added past
+     the right edge — is brought into view. Only on a change of scene, so
+     zooming does not yank the view back to it. */
+  const activeStartX = PAD_X + offsets[activeIndex] * pxPerSec;
+  const shownScene = useRef(activeSlideId);
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el || shownScene.current === activeSlideId) return;
+    shownScene.current = activeSlideId;
+    if (activeStartX < el.scrollLeft || activeStartX > el.scrollLeft + el.clientWidth - 40) el.scrollLeft = Math.max(0, activeStartX - 40);
+  }, [activeSlideId, activeStartX]);
 
   const seek = (clientX: number) => {
     const el = scrollRef.current;

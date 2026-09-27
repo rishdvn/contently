@@ -5,7 +5,7 @@ import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSPr
 import { getBlock, type RenderContext } from "@/lib/blocks";
 import { coerceProps } from "@/lib/blocks/inputs";
 import { useMediaPoster, useMediaUrl } from "@/lib/editor/media";
-import { useEditor } from "@/lib/editor/store";
+import { useEditor, withoutHistory } from "@/lib/editor/store";
 import { effectOverlays, filterCss, flipStyle, frameStyle, gradientCss, highlightStyle, shadowCss, textStyle } from "@/lib/editor/style";
 import { NEUTRAL_ADJUSTMENTS, type Block, type ComponentBlock, type ImageBlock, type ShapeBlock, type TextBlock, type VideoBlock } from "@/lib/editor/types";
 
@@ -136,7 +136,7 @@ function TextContent({ block, editing, measure }: { block: TextBlock; editing: b
     if (!el) return;
     /* offsetHeight is layout size, so the canvas zoom transform doesn't leak in. */
     const needed = el.offsetHeight;
-    if (measure && needed > 0 && Math.abs(needed - block.h) > 1) updateBlock(block.id, { h: needed });
+    if (measure && needed > 0 && Math.abs(needed - block.h) > 1) withoutHistory(() => updateBlock(block.id, { h: needed }));
   };
   const fontsReady = useFontsReady();
   // eslint-disable-next-line react-hooks/exhaustive-deps -- measure whenever anything affecting layout changes
@@ -318,7 +318,7 @@ function VideoContent({ block }: { block: VideoBlock }) {
           onLoadedMetadata={(e) => {
             if (pb) return;
             const d = e.currentTarget.duration;
-            if (Number.isFinite(d) && d !== block.sourceDuration) updateBlock(block.id, { sourceDuration: d });
+            if (Number.isFinite(d) && d !== block.sourceDuration) withoutHistory(() => updateBlock(block.id, { sourceDuration: d }));
           }}
         />
       ) : null}

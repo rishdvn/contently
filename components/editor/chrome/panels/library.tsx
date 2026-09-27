@@ -1,17 +1,21 @@
 "use client";
 
-import { Plus } from "lucide-react";
+import { useQuery } from "convex/react";
+import type { FunctionReturnType } from "convex/server";
+import { ArrowLeft, Plus } from "lucide-react";
 import { useMemo, useState } from "react";
 
+import { ProjectStage, useProjectClock } from "@/components/hub/ProjectPreview";
+import { Button } from "@/components/ui/button";
 import { Chip, ChipRow } from "@/components/ui/chip";
+import { Dialog, DialogFooter, DialogHeader } from "@/components/ui/dialog";
 import { Tooltip } from "@/components/ui/tooltip";
+import { api } from "@/convex/_generated/api";
 import { aspectRatioOf, BLOCK_CATEGORIES, listBlocks, placementFor, useBlockPreview, type AnyBlockDefinition } from "@/lib/blocks";
 import { cn } from "@/lib/cn";
 import { componentBlock, textBlock } from "@/lib/editor/factory";
 import {
   SHAPES,
-  TEMPLATE_CATEGORIES,
-  TEMPLATES,
   TEXT_CATEGORIES,
   TEXT_PRESETS,
   shapeFor,
@@ -20,74 +24,252 @@ import {
 } from "@/lib/editor/presets";
 import { useEditor } from "@/lib/editor/store";
 import { highlightStyle, textStyle } from "@/lib/editor/style";
-import type { ShapeKind } from "@/lib/editor/types";
+import type { Project, ShapeKind, Slide } from "@/lib/editor/types";
+
+import { cameraRef } from "../../canvas/Viewport";
 
 import { CategoryList, LEFT_PANEL_WIDTH, PanelBody, PanelHeader, PanelPrimary, PanelSearch } from "../LeftPanel";
 
 /* ------------------------------------------------------------ Templates --- */
 
+/*
+  The studio's Templates flyout, after Butter's: a grid of templates; clicking
+  one opens its scenes; hovering a scene plays it; "Add all scenes" appends
+  every scene, clicking one appends just that one. In an image project a
+  template's scenes are alternatives for the one slide instead.
+
+  Templates come from Convex (`convex/templates.ts`, `docs/templates.md`). The
+  author's own organisation's drafts are listed too, marked, so a template can
+  be tried here before it is published.
+*/
 export function TemplatesPanel() {
+  const [open, setOpen] = useState<string | null>(null);
+  return open ? <TemplateDetail id={open} onBack={() => setOpen(null)} /> : <TemplateGrid onOpen={setOpen} />;
+}
+
+type TemplateCard = FunctionReturnType<typeof api.templates.list>[number];
+
+const KIND_LABEL: Record<string, string> = { video: "Video", carousel: "Carousel", image: "Image" };
+
+function TemplateGrid({ onOpen }: { onOpen: (id: string) => void }) {
   const [q, setQ] = useState("");
   const [cat, setCat] = useState<string | null>(null);
-  const updateSlide = useEditor((s) => s.updateSlide);
-  const addSlide = useEditor((s) => s.addSlide);
-  const activeSlideId = useEditor((s) => s.activeSlideId);
-  const width = useEditor((s) => s.project.width);
-  const height = useEditor((s) => s.project.height);
-  const clearSelection = useEditor((s) => s.clearSelection);
+  const all = useQuery(api.templates.list, { drafts: true });
 
-  const list = TEMPLATES.filter((t) => (!cat || t.category === cat) && t.label.toLowerCase().includes(q.toLowerCase()));
+  /* The chips are whatever categories the library uses, most used first. */
+  const categories = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const t of all ?? []) for (const c of t.categories) counts.set(c, (counts.get(c) ?? 0) + 1);
+    return [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([c]) => c);
+  }, [all]);
 
-  const apply = (id: string, asNew: boolean) => {
-    const t = TEMPLATES.find((x) => x.id === id)!;
-    const target = asNew ? addSlide(activeSlideId) : activeSlideId;
-    updateSlide(target, t.build(width, height));
-    clearSelection();
-  };
+  const needle = q.trim().toLowerCase();
+  const list = (all ?? []).filter(
+    (t) => (!cat || t.categories.includes(cat)) && (!needle || `${t.name} ${t.tags.join(" ")} ${t.categories.join(" ")} ${t.kind}`.toLowerCase().includes(needle)),
+  );
+  /* Two columns filled in turn, so posters of different aspects stack as a masonry. */
+  const columns = [list.filter((_, i) => i % 2 === 0), list.filter((_, i) => i % 2 === 1)];
 
   return (
     <>
       <PanelHeader>
         <PanelSearch value={q} onChange={setQ} placeholder="Search templates" />
       </PanelHeader>
-      <div className="flex items-center gap-2 px-3 pb-2">
-        <ChipRow className="min-w-0 [scrollbar-width:none]">
-          {TEMPLATE_CATEGORIES.map((c) => (
-            <Chip key={c} selected={cat === c} onClick={() => setCat(cat === c ? null : c)} className="h-7 px-3 text-cap">
-              {c}
-            </Chip>
-          ))}
-        </ChipRow>
-      </div>
-      <PanelBody>
-        <div className="grid grid-cols-2 gap-2">
-          {list.map((t) => (
-            <div key={t.id} className="group relative">
-              <button
-                type="button"
-                className="block w-full overflow-hidden rounded-[12px] ring-1 ring-transparent transition-shadow hover:ring-line-strong"
-                style={{ aspectRatio: `${width} / ${height}`, background: t.swatch }}
-                onClick={() => apply(t.id, false)}
-                title="Apply to this slide"
-              >
-                <span className="absolute inset-x-0 bottom-0 scrim px-2.5 pt-8 pb-2 text-left text-cap text-white">{t.label}</span>
-              </button>
-              <Tooltip label="Add as new slide" side="left" className="absolute top-1.5 right-1.5 opacity-0 transition-opacity group-hover:opacity-100">
-                <button
-                  type="button"
-                  aria-label="Add as new slide"
-                  className="flex size-6 items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80 [&>svg]:size-3.5"
-                  onClick={() => apply(t.id, true)}
-                >
-                  <Plus />
-                </button>
-              </Tooltip>
-            </div>
-          ))}
+      {categories.length ? (
+        <div className="flex items-center gap-2 px-3 pb-2">
+          <ChipRow className="min-w-0 [scrollbar-width:none]">
+            {categories.map((c) => (
+              <Chip key={c} selected={cat === c} onClick={() => setCat(cat === c ? null : c)} className="h-7 px-3 text-cap capitalize">
+                {c}
+              </Chip>
+            ))}
+          </ChipRow>
         </div>
-        {!list.length ? <Empty>No templates match.</Empty> : null}
+      ) : null}
+      <PanelBody>
+        {all === undefined ? (
+          <div className="grid grid-cols-2 gap-2">
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} className="aspect-[4/5] animate-pulse rounded-[12px] bg-card" />
+            ))}
+          </div>
+        ) : list.length ? (
+          <div className="flex gap-2">
+            {columns.map((col, i) => (
+              <div key={i} className="flex min-w-0 flex-1 flex-col gap-3">
+                {col.map((t) => (
+                  <TemplateTile key={t.id} t={t} onOpen={() => onOpen(t.id)} />
+                ))}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <Empty>{all.length ? "No templates match." : "No templates yet."}</Empty>
+        )}
       </PanelBody>
     </>
+  );
+}
+
+/*
+  A template's poster; while the pointer is over it, the template itself plays
+  in its place (the document is fetched on first hover). Pointer state rather
+  than `:hover`, which does not fire for every pointer.
+*/
+function TemplateTile({ t, onOpen }: { t: TemplateCard; onOpen: () => void }) {
+  const [hover, setHover] = useState(false);
+  const doc = useQuery(api.templates.get, hover ? { id: t.id } : "skip");
+  const n = t.scenes.length;
+  const unit = t.kind === "video" ? "scene" : "slide";
+  return (
+    <button type="button" className="group flex flex-col gap-1.5 text-left" onClick={onOpen} onPointerEnter={() => setHover(true)} onPointerLeave={() => setHover(false)} aria-label={`Open ${t.name}`}>
+      <div className="relative w-full overflow-hidden rounded-[12px] bg-card ring-1 ring-transparent transition-shadow group-hover:ring-line-strong" style={{ aspectRatio: `${t.width} / ${t.height}` }}>
+        {t.poster ? (
+          // eslint-disable-next-line @next/next/no-img-element -- a Convex storage URL at tile size
+          <img src={t.poster} alt="" draggable={false} className="absolute inset-0 size-full object-cover" />
+        ) : null}
+        {hover && doc ? <HoverPlay project={doc.document as Project} /> : null}
+        {!t.published ? <span className="absolute top-1.5 left-1.5 rounded-[6px] bg-black/60 px-1.5 py-0.5 text-cap text-white">Draft</span> : null}
+      </div>
+      <div className="flex flex-col gap-0.5 px-0.5">
+        <span className="truncate text-cap text-ink">{t.name}</span>
+        <span className="flex items-center gap-1.5 text-[10px] text-ink-secondary">
+          <span className="rounded-[4px] bg-card px-1 py-px">{KIND_LABEL[t.kind] ?? t.kind}</span>
+          {n} {unit}
+          {n === 1 ? "" : "s"}
+        </span>
+      </div>
+    </button>
+  );
+}
+
+/* A document playing from the start, filling its container, for as long as it is mounted. */
+function HoverPlay({ project }: { project: Project }) {
+  const clock = useProjectClock(project, true);
+  return <ProjectStage project={project} clock={clock} className="absolute inset-0" />;
+}
+
+function TemplateDetail({ id, onBack }: { id: string; onBack: () => void }) {
+  const t = useQuery(api.templates.get, { id });
+  const kind = useEditor((s) => s.project.kind);
+  const insertScenes = useEditor((s) => s.insertScenes);
+  const replaceSlide = useEditor((s) => s.replaceSlide);
+  const [confirming, setConfirming] = useState<number | null>(null);
+
+  const doc = t?.document as Project | undefined;
+  /* Image projects are one slide: a template's scenes are alternatives for it, not additions. */
+  const single = kind === "image";
+
+  const named = (scene: Slide): Slide => ({ ...scene, name: t && doc && doc.slides.length > 1 ? `${t.name} — ${scene.name}` : (t?.name ?? scene.name) });
+  const from = doc ? { width: doc.width, height: doc.height } : undefined;
+  const reveal = (ids: string[]) => {
+    const p = useEditor.getState().project;
+    /* Carousels lay slides side by side on the canvas; bring the first new one to the middle. */
+    if (p.kind === "carousel") requestAnimationFrame(() => cameraRef.current?.centerSlide(p.slides.findIndex((x) => x.id === ids[0])));
+  };
+  const addAll = () => {
+    if (!doc) return;
+    reveal(insertScenes(doc.slides.map(named), undefined, from));
+  };
+  const pick = (index: number) => {
+    if (!doc) return;
+    if (single) {
+      setConfirming(index);
+      return;
+    }
+    reveal(insertScenes([named(doc.slides[index])], undefined, from));
+  };
+  const replace = () => {
+    if (!doc || confirming === null) return;
+    replaceSlide(useEditor.getState().activeSlideId, doc.slides[confirming], from);
+    setConfirming(null);
+  };
+
+  return (
+    <>
+      <PanelHeader>
+        <div className="min-w-0 flex-1">
+          <button type="button" className="flex h-7 items-center gap-1 rounded-[6px] pr-2 pl-1 text-ui text-ink-secondary hover:bg-[var(--state-hover)] hover:text-ink [&>svg]:size-3.5" onClick={onBack}>
+            <ArrowLeft /> Back
+          </button>
+        </div>
+      </PanelHeader>
+      <div className="flex flex-col gap-3 px-3 pb-3">
+        <div className="flex flex-col gap-0.5 px-0.5">
+          <div className="truncate text-panels text-ink">{t?.name ?? "\u00a0"}</div>
+          <div className="text-cap text-ink-secondary">{t && doc ? `${KIND_LABEL[t.kind] ?? t.kind} · ${doc.width} × ${doc.height} px` : "\u00a0"}</div>
+        </div>
+        {single ? (
+          <div className="text-cap text-ink-secondary">Pick a scene to use on this slide.</div>
+        ) : (
+          <button
+            type="button"
+            disabled={!doc}
+            className="flex h-10 items-center justify-center rounded-[10px] bg-ink text-ui text-canvas transition-colors hover:bg-white disabled:bg-raised disabled:text-ink-disabled"
+            onClick={addAll}
+          >
+            {doc ? (doc.slides.length > 1 ? "Add all scenes" : "Add scene") : "Loading…"}
+          </button>
+        )}
+      </div>
+      <PanelBody>
+        {t === null ? <Empty>This template is no longer available.</Empty> : null}
+        {doc && t ? (
+          <div className="grid grid-cols-2 gap-1.5">
+            {doc.slides.map((scene, i) => (
+              <SceneTile key={scene.id} project={doc} scene={scene} poster={t.scenePosters[i] ?? null} index={i} onPick={() => pick(i)} />
+            ))}
+          </div>
+        ) : null}
+      </PanelBody>
+      <Dialog open={confirming !== null} onClose={() => setConfirming(null)} size="sm">
+        <DialogHeader title="Replace this slide?" description="Its content is swapped for the template's scene. Undo brings it back." onClose={() => setConfirming(null)} />
+        <DialogFooter>
+          <Button variant="ghost" onClick={() => setConfirming(null)}>
+            Cancel
+          </Button>
+          <Button variant="primary" onClick={replace}>
+            Replace
+          </Button>
+        </DialogFooter>
+      </Dialog>
+    </>
+  );
+}
+
+/*
+  One scene of a template: its poster, its length, and on hover a ring, a "+"
+  and the scene itself playing, as Butter's scene cards do.
+*/
+function SceneTile({ project, scene, poster, index, onPick }: { project: Project; scene: Slide; poster: string | null; index: number; onPick: () => void }) {
+  const [hover, setHover] = useState(false);
+  const one = useMemo(() => ({ ...project, slides: [scene] }), [project, scene]);
+  const clock = useProjectClock(one, hover && project.kind === "video");
+  const label = project.kind === "video" ? `${Math.round(scene.duration * 10) / 10}s` : `${index + 1}`;
+  return (
+    <button
+      type="button"
+      aria-label={`Add ${scene.name}`}
+      className="relative overflow-hidden rounded-[6px] bg-card ring-2 ring-transparent transition-shadow hover:ring-ink data-[hover=true]:ring-ink"
+      data-hover={hover}
+      style={{ aspectRatio: `${project.width} / ${project.height}` }}
+      onPointerEnter={() => setHover(true)}
+      onPointerLeave={() => setHover(false)}
+      onClick={onPick}
+    >
+      {poster && !hover ? (
+        // eslint-disable-next-line @next/next/no-img-element -- a Convex storage URL at tile size
+        <img src={poster} alt="" draggable={false} className="absolute inset-0 size-full object-cover" />
+      ) : (
+        <ProjectStage project={one} clock={clock} className="absolute inset-0" />
+      )}
+      <span className="absolute right-1.5 bottom-1.5 rounded-[4px] bg-black/60 px-1 py-px text-[10px] text-white">{label}</span>
+      {hover ? (
+        <span className="absolute top-1/2 left-1/2 flex size-8 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-black/60 text-white [&>svg]:size-4">
+          <Plus />
+        </span>
+      ) : null}
+    </button>
   );
 }
 

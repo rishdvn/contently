@@ -8,6 +8,7 @@ import { shallow } from "zustand/shallow";
 import { setIn } from "@/lib/blocks/inputs";
 
 import { cloneBlock, project as makeProject, slide as makeSlide, uid } from "./factory";
+import { rescaleSlide } from "./geometry";
 import {
   ASPECTS,
   type AspectId,
@@ -66,6 +67,15 @@ type EditorState = Tracked & {
   removeSlide: (id: string) => void;
   moveSlide: (id: string, dir: -1 | 1) => void;
   updateSlide: (id: string, patch: Partial<Slide>) => void;
+  /*
+    Scenes from elsewhere — a template — as new scenes of this project, at
+    `at` (default: the end), rescaled from the `from` frame to this one. The
+    first becomes the active scene. One undo step. Returns the new ids.
+  */
+  insertScenes: (scenes: Slide[], at?: number, from?: { width: number; height: number }) => string[];
+  /* A scene's content in place of one slide's, keeping the slide: an image
+     project taking a template scene as an alternative. One undo step. */
+  replaceSlide: (id: string, scene: Slide, from?: { width: number; height: number }) => void;
   setBackground: (slideId: string, bg: Background) => void;
   addAudio: (track: AudioTrack) => void;
   updateAudio: (id: string, patch: Partial<AudioTrack>) => void;
@@ -140,6 +150,22 @@ export function expandGroups(p: Project, ids: string[]): string[] {
 }
 
 /*
+  A scene from another document, made this project's own: fresh ids for the
+  slide and every block (groups kept, under new ids), laid out for this
+  project's frame, and in a video its blocks kept inside the scene's length.
+*/
+function adoptScene(p: Project, scene: Slide, from?: { width: number; height: number }): Slide {
+  const copy = structuredClone(scene);
+  const sized = from ? rescaleSlide(copy, from, { width: p.width, height: p.height }) : copy;
+  const duration = sized.duration > 0 ? sized.duration : makeSlide().duration;
+  const blocks = regroup(sized.blocks.map((b) => ({ ...b, id: uid(), ...(p.kind === "video" ? { end: Math.min(b.end, duration) } : {}) })));
+  return { ...sized, id: uid(), duration, blocks };
+}
+
+/* Nothing on any slide, as a new project opens: one blank scene, or a carousel's three blank slides. */
+const isBlankProject = (p: Project) => p.slides.every((s) => s.blocks.length === 0 && s.background.type === "color");
+
+/*
   Copies keep their grouping but under fresh ids, so a duplicated group is a
   new group rather than extra members of the old one.
 */
@@ -165,6 +191,24 @@ export function undo() {
 export function redo() {
   flushHistory();
   useEditor.temporal.getState().redo();
+}
+
+/*
+  A change the canvas makes on its own — a text box re-measured to hug its
+  text once fonts load, a clip's length read from its metadata — rather than
+  one a person made. It is not an undo step: left in the history it would sit
+  between an action and its undo, so undoing "add all scenes" would only undo
+  a text box growing by a pixel.
+*/
+export function withoutHistory(fn: () => void) {
+  const temporal = useEditor.temporal.getState();
+  if (!temporal.isTracking) return fn();
+  temporal.pause();
+  try {
+    fn();
+  } finally {
+    useEditor.temporal.getState().resume();
+  }
 }
 
 export const useEditor = create<EditorState>()(
@@ -260,6 +304,35 @@ export const useEditor = create<EditorState>()(
           return { project: touch({ ...s.project, slides }) };
         }),
       updateSlide: (id, patch) => set((s) => ({ project: mapSlide(s.project, id, (sl) => ({ ...sl, ...patch })) })),
+      insertScenes: (scenes, at, from) => {
+        if (!scenes.length) return [];
+        const s = get();
+        const added = scenes.map((scene) => adoptScene(s.project, scene, from));
+        /* As Butter does: the blank scene a new project opens with is replaced
+           rather than left in front of what was just chosen — and, by the same
+           rule, a new carousel's blank slides. */
+        const blank = at === undefined && isBlankProject(s.project);
+        const slides = blank ? [] : [...s.project.slides];
+        const index = at === undefined ? slides.length : Math.min(Math.max(0, at), slides.length);
+        slides.splice(index, 0, ...added);
+        /* Its own undo step, not merged with an edit made just before or after. */
+        flushHistory();
+        set({ project: touch({ ...s.project, slides }), activeSlideId: added[0].id, selection: [], audioSelection: null, editingTextId: null, time: 0, playing: false });
+        flushHistory();
+        return added.map((x) => x.id);
+      },
+      replaceSlide: (id, scene, from) => {
+        const s = get();
+        const adopted = adoptScene(s.project, scene, from);
+        flushHistory();
+        set({
+          project: mapSlide(s.project, id, (sl) => ({ ...sl, background: adopted.background, blocks: adopted.blocks })),
+          activeSlideId: id,
+          selection: [],
+          editingTextId: null,
+        });
+        flushHistory();
+      },
       setBackground: (slideId, bg) =>
         set((s) => ({ project: mapSlide(s.project, slideId, (sl) => ({ ...sl, background: bg })) })),
       /* The new track comes selected, as in the reference, so its properties

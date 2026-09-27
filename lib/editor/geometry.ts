@@ -1,4 +1,4 @@
-import { SLIDE_GAP, type Project, type Rect, type Viewport } from "./types";
+import { SLIDE_GAP, type Block, type Project, type Rect, type Slide, type Viewport } from "./types";
 
 /* Slides sit side by side on the world plane, the first at the origin. */
 export function slideOrigin(p: Project, index: number) {
@@ -118,4 +118,72 @@ export function sceneAt(p: Project, globalTime: number): { index: number; local:
     if (globalTime >= offsets[i]) return { index: i, local: globalTime - offsets[i] };
   }
   return { index: 0, local: 0 };
+}
+
+/* ------------------------------------------------------------ rescale --- */
+
+type Size = { width: number; height: number };
+
+/* A block drawn edge to edge — a background photo, a colour wash. It should
+   still cover the frame after a change of aspect, not float in it. */
+const BLEED = 0.02;
+function coversFrame(b: Block, from: Size) {
+  return b.x <= from.width * BLEED && b.y <= from.height * BLEED && b.x + b.w >= from.width * (1 - BLEED) && b.y + b.h >= from.height * (1 - BLEED) && !b.rotation;
+}
+
+/*
+  A scene laid out for one frame, moved into another — a template's 4:5 scene
+  added to a 9:16 project. As Butter does it: every block's centre keeps its
+  relative place on each axis, so a layout spreads out into a taller frame
+  rather than sitting letterboxed in the middle of it; sizes scale uniformly by
+  the smaller of the two ratios, so a block keeps its shape, text keeps its
+  proportions to the frame, and nothing grows past what the frame can hold.
+  Full-bleed blocks stretch to cover the new frame.
+
+  Only geometry and the lengths that go with it (type size, spacing, radii,
+  strokes, shadows) change; content, timing and roles are untouched.
+*/
+export function rescaleSlide(slide: Slide, from: Size, to: Size): Slide {
+  if (from.width === to.width && from.height === to.height) return slide;
+  const sx = to.width / from.width;
+  const sy = to.height / from.height;
+  const k = Math.min(sx, sy);
+  const len = (n: number) => round(n * k, 2);
+
+  const blocks = slide.blocks.map((b): Block => {
+    const box = coversFrame(b, from)
+      ? { x: 0, y: 0, w: to.width, h: to.height }
+      : (() => {
+          const w = b.w * k;
+          const h = b.h * k;
+          return { x: (b.x + b.w / 2) * sx - w / 2, y: (b.y + b.h / 2) * sy - h / 2, w, h };
+        })();
+    const common = {
+      ...b,
+      x: round(box.x, 2),
+      y: round(box.y, 2),
+      w: round(box.w, 2),
+      h: round(box.h, 2),
+      ...(b.shadow ? { shadow: { ...b.shadow, x: len(b.shadow.x), y: len(b.shadow.y), blur: len(b.shadow.blur) } } : {}),
+    };
+    switch (b.type) {
+      case "text":
+        return {
+          ...(common as typeof b),
+          fontSize: len(b.fontSize),
+          letterSpacing: len(b.letterSpacing),
+          ...(b.highlight ? { highlight: { ...b.highlight, padding: len(b.highlight.padding), radius: len(b.highlight.radius) } } : {}),
+          ...(b.stroke ? { stroke: { ...b.stroke, width: len(b.stroke.width) } } : {}),
+          ...(b.glow ? { glow: { ...b.glow, blur: len(b.glow.blur) } } : {}),
+        };
+      case "image":
+      case "video":
+        return { ...(common as typeof b), radius: len(b.radius), ...(b.border ? { border: { ...b.border, width: len(b.border.width) } } : {}) };
+      case "shape":
+        return { ...(common as typeof b), radius: len(b.radius), ...(b.stroke ? { stroke: { ...b.stroke, width: len(b.stroke.width) } } : {}) };
+      case "component":
+        return common as typeof b;
+    }
+  });
+  return { ...slide, blocks };
 }

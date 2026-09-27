@@ -19,7 +19,7 @@ import type { Project, ProjectKind } from "@/lib/editor/types";
 import { HubNav } from "./HubNav";
 import { ImportLocalProjects } from "./ImportLocalProjects";
 import { PreviewModal } from "./PreviewModal";
-import { projectMeta, ProjectStage, useProjectClock } from "./ProjectPreview";
+import { projectMeta, ProjectStage, relativeTime, useProjectClock } from "./ProjectPreview";
 
 /*
   The workspace: sidebar, page header with the single filled Create action,
@@ -123,7 +123,7 @@ export function Hub() {
           key={previewDoc.id}
           project={previewDoc}
           others={Array.from(docs.values()).filter((d) => d.id !== previewDoc.id)}
-          relative={relative(previewDoc.updatedAt)}
+          relative={relativeTime(previewDoc.updatedAt)}
           onClose={preview.close}
           onSwitch={preview.replace}
           onOpen={(id) => router.push(`/editor/${id}`)}
@@ -350,15 +350,4 @@ function LiveArt({ project, playing }: { project: Project; playing: boolean }) {
       ) : null}
     </>
   );
-}
-
-function relative(ts: number) {
-  const d = Date.now() - ts;
-  const m = Math.round(d / 60000);
-  if (m < 1) return "Just now";
-  if (m < 60) return `${m} min ago`;
-  const h = Math.round(m / 60);
-  if (h < 24) return `${h} hour${h > 1 ? "s" : ""} ago`;
-  const days = Math.round(h / 24);
-  return `${days} day${days > 1 ? "s" : ""} ago`;
 }

@@ -1,8 +1,9 @@
 import { ConvexError, v } from "convex/values";
 
 import type { Doc, Id } from "./_generated/dataModel";
-import { mutation, query, type MutationCtx } from "./_generated/server";
-import { requireOrg, tryOrg } from "./lib/auth";
+import { mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
+import { requireOrg, tryOrg, tryUser } from "./lib/auth";
+import { withResolvedMedia } from "./lib/documentMedia";
 
 /*
   Projects. One row per document the studio can open, owned by an organisation.
@@ -240,5 +241,129 @@ export const importLocal = mutation({
       ids.push(await insertProject(ctx, org._id, user._id, document));
     }
     return ids;
+  },
+});
+
+/* ── Share links ────────────────────────────────────────────────────────
+
+  `/p/<id>` is a read-only viewer. Members of the project's org can always open
+  it. Anyone else needs `?t=<shareToken>`, which exists only while the studio's
+  "Anyone with the link" switch is on.
+
+  The token is what makes the link revocable. The id alone never grants a
+  signed-out visitor anything — it is already in every studio URL anyone has
+  bookmarked or pasted — and turning the switch off deletes the token, so a
+  link handed out earlier stops resolving even if sharing is turned on again.
+*/
+
+/* 144 random bits, URL-safe. Convex seeds `crypto` afresh for every function
+   run, so these are not predictable from outside. */
+function newShareToken() {
+  const bytes = new Uint8Array(18);
+  crypto.getRandomValues(bytes);
+  return btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_");
+}
+
+/* The studio's switch: `null` for a project it cannot see, otherwise whether a
+   link is live and what it is. */
+export const shareState = query({
+  args: { orgId: v.string(), id: v.string() },
+  handler: async (ctx, { orgId, id }) => {
+    const context = await tryOrg(ctx, orgId);
+    if (!context) return null;
+
+    const projectId = ctx.db.normalizeId("projects", id);
+    const project = projectId ? await ctx.db.get(projectId) : null;
+    if (!project || project.orgId !== context.org._id) return null;
+    return { token: project.shareToken ?? null };
+  },
+});
+
+/* Idempotent: a second click, or a second tab, gets the link that is already
+   out there rather than silently revoking it. */
+export const share = mutation({
+  args: { orgId: v.string(), id: v.id("projects") },
+  handler: async (ctx, { orgId, id }) => {
+    const { project } = await owned(ctx, orgId, id);
+    if (project.shareToken) return project.shareToken;
+    const shareToken = newShareToken();
+    await ctx.db.patch(project._id, { shareToken });
+    return shareToken;
+  },
+});
+
+export const unshare = mutation({
+  args: { orgId: v.string(), id: v.id("projects") },
+  handler: async (ctx, { orgId, id }) => {
+    const { project } = await owned(ctx, orgId, id);
+    if (project.shareToken) await ctx.db.patch(project._id, { shareToken: undefined });
+  },
+});
+
+type ShareAccess = "member" | "link";
+
+/* Membership first: a teammate who was sent a public link still gets the
+   member's view, with the way back into the studio. */
+async function shareAccess(ctx: QueryCtx, project: Doc<"projects">, token: string | undefined): Promise<ShareAccess | null> {
+  const user = await tryUser(ctx);
+  if (user) {
+    const membership = await ctx.db
+      .query("memberships")
+      .withIndex("by_org_user", (q) => q.eq("orgId", project.orgId).eq("userId", user._id))
+      .unique();
+    if (membership) return "member";
+  }
+  if (token && project.shareToken && token === project.shareToken) return "link";
+  return null;
+}
+
+/*
+  The finished files a viewer can download: the newest completed render of each
+  format, in the order the formats are listed. The render worker writes these
+  (`render.ts`); a project nobody has rendered has none, and the viewer shows
+  no button. Single-scene jobs are left out — the studio asks for those while
+  working on one scene, and a visitor wants the whole project.
+*/
+const DOWNLOAD_FORMATS = ["mp4", "carousel-zip", "png"] as const;
+
+async function downloadsFor(ctx: QueryCtx, projectId: Id<"projects">) {
+  const jobs = await ctx.db
+    .query("renderJobs")
+    .withIndex("by_project", (q) => q.eq("projectId", projectId))
+    .order("desc")
+    .collect();
+
+  const downloads: { format: (typeof DOWNLOAD_FORMATS)[number]; files: { name: string; url: string }[] }[] = [];
+  for (const format of DOWNLOAD_FORMATS) {
+    const job = jobs.find((j) => j.format === format && j.status === "done" && j.scene === undefined && j.outputStorageIds.length > 0);
+    if (!job) continue;
+    const urls = await Promise.all(job.outputStorageIds.map((id) => ctx.storage.getUrl(id)));
+    const files = urls.flatMap((url, i) => (url ? [{ url, name: job.outputNames?.[i] ?? `${i + 1}` }] : []));
+    if (files.length) downloads.push({ format, files });
+  }
+  return downloads;
+}
+
+/*
+  What `/p/<id>` renders. Deliberately not org-scoped by argument: the visitor
+  may have no org, or a different one active. `null` covers every way the link
+  can fail — unknown id, deleted project, sharing turned off, wrong token — so
+  the page cannot tell a probing visitor which of those it was.
+*/
+export const getShared = query({
+  args: { id: v.string(), token: v.optional(v.string()) },
+  handler: async (ctx, { id, token }) => {
+    const projectId = ctx.db.normalizeId("projects", id);
+    const project = projectId ? await ctx.db.get(projectId) : null;
+    if (!project) return null;
+
+    const access = await shareAccess(ctx, project, token);
+    if (!access) return null;
+
+    return {
+      access,
+      project: { ...view(project), document: await withResolvedMedia(ctx, project.orgId, project.document) },
+      downloads: await downloadsFor(ctx, project._id),
+    };
   },
 });

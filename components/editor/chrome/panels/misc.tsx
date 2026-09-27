@@ -10,11 +10,11 @@ import { Chip, ChipRow } from "@/components/ui/chip";
 import { MenuItem } from "@/components/ui/menu";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
-import type { PlayableTrack as LibraryTrack } from "@/convex/audio/library";
 import type { MediaItem } from "@/convex/media";
 import { useActiveOrg } from "@/lib/auth/useActiveOrg";
 import { cn } from "@/lib/cn";
 import { previewPosition, seekPreview, stopPreview, togglePreview, usePreview } from "@/lib/editor/audio";
+import { rememberTrack, useRecentTracks, type RecentTrack } from "@/lib/editor/recentAudio";
 import { imageBlock, uid, videoBlock } from "@/lib/editor/factory";
 import { primeMedia } from "@/lib/editor/media";
 import { STOCK_PHOTOS, STOCK_VIDEOS, type StockItem } from "@/lib/editor/presets";
@@ -69,8 +69,9 @@ export function StockPanel() {
 /*
   The audio library: Music and Sound effects, each filtered by its own facets
   and searchable. Clicking a row adds it to the timeline; its artwork previews
-  it. The catalog is
-  the Convex index of Soundstripe plus the seeded CC0 set (`convex/audio/*`);
+  it. With no search and no filter the tab browses the way Butter's does:
+  recently used tracks, then a short section per mood (for sound effects, per
+  category) whose "See more" applies that filter. The catalog is the Convex index of Soundstripe plus the seeded CC0 set (`convex/audio/*`);
   playback, preview and the lane alike, goes through `lib/editor/audio.ts`.
 */
 
@@ -89,6 +90,8 @@ const FACETS: Record<AudioKind, { facet: Facet; label: string }[]> = {
 
 const NO_FILTERS: AudioFilters = { mood: [], genre: [], category: [] };
 const AUDIO_PAGE_SIZE = 30;
+/* Rows per browse section, as in Butter. */
+const SECTION_SIZE = 3;
 const SEARCH_DEBOUNCE_MS = 200;
 /* Genres run to sixty-odd values, many carried by a single track. Past this many
    chips a one-track value is noise; search still finds it. */
@@ -117,6 +120,8 @@ function AudioLibrary() {
   const debounce = useRef<ReturnType<typeof setTimeout>>(undefined);
   const [filters, setFilters] = useState<AudioFilters>(NO_FILTERS);
   const [open, setOpen] = useState<Facet | null>(null);
+  /* "See more" on Recently used: the whole list in place of the sections. */
+  const [allRecent, setAllRecent] = useState(false);
   const kind = useEditor((s) => s.project.kind);
 
   const moods = useQuery(api.audio.library.moods, tab === "music" ? {} : "skip");
@@ -130,6 +135,7 @@ function AudioLibrary() {
 
   const search = (value: string) => {
     setQ(value);
+    setAllRecent(false);
     clearTimeout(debounce.current);
     debounce.current = setTimeout(() => setTerm(value.trim()), SEARCH_DEBOUNCE_MS);
   };
@@ -139,6 +145,8 @@ function AudioLibrary() {
       ? { kind: tab, q: term || undefined, moods: filters.mood, genres: filters.genre }
       : { kind: tab, q: term || undefined, categories: filters.category };
   const filtered = FACETS[tab].some(({ facet }) => filters[facet].length > 0);
+  const browsing = !term && !filtered;
+  const sectionFacet: Facet = tab === "music" ? "mood" : "category";
 
   return (
     <>
@@ -155,6 +163,7 @@ function AudioLibrary() {
         onChange={(next) => {
           setTab(next);
           setOpen(null);
+          setAllRecent(false);
         }}
         options={[
           { value: "music", label: "Music" },
@@ -175,15 +184,33 @@ function AudioLibrary() {
         <FacetChips
           values={values[open]}
           picked={filters[open]}
-          onToggle={(value) =>
-            setFilters((f) => ({ ...f, [open]: f[open].includes(value) ? f[open].filter((v) => v !== value) : [...f[open], value] }))
-          }
+          onToggle={(value) => {
+            setFilters((f) => ({ ...f, [open]: f[open].includes(value) ? f[open].filter((v) => v !== value) : [...f[open], value] }));
+            setAllRecent(false);
+          }}
         />
       ) : null}
       {kind !== "video" ? <p className="px-3 pb-2 text-cap text-ink-disabled">Audio plays in video projects. You can still preview tracks here.</p> : null}
-      <PanelBody>
-        {/* Keyed by the search, so a new query starts again from its first page. */}
-        <AudioResults key={JSON.stringify(args)} args={args} searched={Boolean(term) || filtered} canAdd={kind === "video"} />
+      {/* Keyed by the view, so "See more" opens its list at the top rather than
+          wherever the sections had been scrolled to. */}
+      <PanelBody key={browsing ? (allRecent ? "recent" : "browse") : "list"}>
+        {browsing ? (
+          <AudioBrowse
+            key={tab}
+            kind={tab}
+            values={values[sectionFacet]}
+            canAdd={kind === "video"}
+            allRecent={allRecent}
+            onAllRecent={setAllRecent}
+            onSeeMore={(value) => {
+              setFilters({ ...NO_FILTERS, [sectionFacet]: [value] });
+              setOpen(null);
+            }}
+          />
+        ) : (
+          /* Keyed by the search, so a new query starts again from its first page. */
+          <AudioResults key={JSON.stringify(args)} args={args} searched={Boolean(term) || filtered} canAdd={kind === "video"} />
+        )}
       </PanelBody>
     </>
   );
@@ -267,13 +294,149 @@ function LoadMore({ onVisible }: { onVisible: () => void }) {
 }
 
 /*
+  The tab with nothing searched or filtered, laid out as Butter's is: what was
+  used lately, then three tracks for each mood (or category), each section's
+  "See more" handing over to the ordinary filtered list.
+*/
+function AudioBrowse({
+  kind,
+  values,
+  canAdd,
+  allRecent,
+  onAllRecent,
+  onSeeMore,
+}: {
+  kind: AudioKind;
+  values: { value: string; count: number }[] | undefined;
+  canAdd: boolean;
+  allRecent: boolean;
+  onAllRecent: (all: boolean) => void;
+  onSeeMore: (value: string) => void;
+}) {
+  const recent = useRecentTracks(kind);
+
+  if (allRecent) {
+    return (
+      <AudioSection title="Recently used" action="Back" onAction={() => onAllRecent(false)}>
+        {recent.map((track) => (
+          <AudioRow key={track.id} track={track} canAdd={canAdd} />
+        ))}
+      </AudioSection>
+    );
+  }
+
+  /* Butter lists moods A–Z; categories keep the facet's own order, most
+     populated first, which is also how Butter leads with Transitions. */
+  const shown = values?.filter((v) => values.length <= LONG_FACET || v.count > 1) ?? [];
+  const sections = kind === "music" ? [...shown].sort((a, b) => a.value.localeCompare(b.value)) : shown;
+
+  return (
+    <>
+      {recent.length ? (
+        <AudioSection title="Recently used" action={recent.length > SECTION_SIZE ? "See more" : undefined} onAction={() => onAllRecent(true)}>
+          {recent.slice(0, SECTION_SIZE).map((track) => (
+            <AudioRow key={track.id} track={track} canAdd={canAdd} />
+          ))}
+        </AudioSection>
+      ) : null}
+      {!values ? (
+        <div className="py-10 text-center text-cap text-ink-secondary">Loading…</div>
+      ) : sections.length ? (
+        sections.map(({ value }) => (
+          <FacetSection key={value} kind={kind} value={value} canAdd={canAdd} onSeeMore={() => onSeeMore(value)} />
+        ))
+      ) : (
+        /* A library with no facets yet still has tracks to list. */
+        <AudioResults args={{ kind }} searched={false} canAdd={canAdd} />
+      )}
+    </>
+  );
+}
+
+/* One browse section's heading and rows. */
+function AudioSection({
+  title,
+  action,
+  onAction,
+  sectionRef,
+  children,
+}: {
+  title: string;
+  action?: string;
+  onAction?: () => void;
+  sectionRef?: React.Ref<HTMLElement>;
+  children: React.ReactNode;
+}) {
+  return (
+    <section ref={sectionRef} aria-label={title} className="flex flex-col pt-3 first:pt-1">
+      <div className="flex h-6 items-center justify-between gap-2">
+        <h3 className="truncate text-ui text-ink">{title}</h3>
+        {action ? (
+          <button type="button" className="shrink-0 text-ui text-ink-secondary transition-colors hover:text-ink" onClick={onAction}>
+            {action}
+          </button>
+        ) : null}
+      </div>
+      <div role="list" aria-label={title} className="flex flex-col gap-0.5">
+        {children}
+      </div>
+    </section>
+  );
+}
+
+/* Three rows of a row height each, with the 2px gaps between them: what a
+   section holds its place with until its tracks arrive. */
+const SECTION_PLACEHOLDER = "h-[184px]";
+
+/*
+  A mood's (or category's) three tracks. A filtered search reads the whole tab,
+  so a section only asks once it scrolls near the panel's viewport, rather than
+  every section at once on open.
+*/
+function FacetSection({ kind, value, canAdd, onSeeMore }: { kind: AudioKind; value: string; canAdd: boolean; onSeeMore: () => void }) {
+  const ref = useRef<HTMLElement>(null);
+  const [near, setNear] = useState(false);
+  const args: AudioSearch = kind === "music" ? { kind, moods: [value] } : { kind, categories: [value] };
+  const result = useQuery(api.audio.library.search, near ? { ...args, page: 0, pageSize: SECTION_SIZE } : "skip");
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || near) return;
+    /* Rooted on the panel's scroller: a margin on the default (window) root
+       would not reach past the scroller's clipping. */
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) setNear(true);
+      },
+      { root: scrollParent(el), rootMargin: "240px 0px" },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [near]);
+
+  if (result && !result.items.length) return null;
+  return (
+    <AudioSection title={value} action="See more" onAction={onSeeMore} sectionRef={ref}>
+      {result ? result.items.map((track) => <AudioRow key={track.id} track={track} canAdd={canAdd} />) : <div className={SECTION_PLACEHOLDER} />}
+    </AudioSection>
+  );
+}
+
+function scrollParent(el: HTMLElement): HTMLElement | null {
+  for (let node = el.parentElement; node; node = node.parentElement) {
+    if (/(auto|scroll)/.test(getComputedStyle(node).overflowY)) return node;
+  }
+  return null;
+}
+
+/*
   One track, as Butter lays it out: clicking the row adds it to the timeline,
   clicking the artwork previews it. Outside a video project there is no
   timeline to add to, so the row previews instead. Hover is tracked from
   pointer events as well as `:hover`, because the VNC desktop reports no hover
   capability.
 */
-function AudioRow({ track, canAdd }: { track: LibraryTrack; canAdd: boolean }) {
+function AudioRow({ track, canAdd }: { track: RecentTrack; canAdd: boolean }) {
   const convex = useConvex();
   const preview = usePreview();
   const addAudio = useEditor((s) => s.addAudio);
@@ -292,8 +455,11 @@ function AudioRow({ track, canAdd }: { track: LibraryTrack; canAdd: boolean }) {
   const facets = track.kind === "music" ? [...track.mood, ...track.genre] : track.categories;
   const subtitle = track.artist ?? facets.slice(0, 2).join(" · ");
 
+  /* Starting a preview (not pausing one) counts as using the track. */
   const toggle = () => {
-    if (playable) togglePreview(convex, track);
+    if (!playable) return;
+    if (status !== "playing" && status !== "loading") rememberTrack(track);
+    togglePreview(convex, track);
   };
 
   /* At the playhead, for the whole track or as much of it as the project has
@@ -317,6 +483,7 @@ function AudioRow({ track, canAdd }: { track: LibraryTrack; canAdd: boolean }) {
       sourceDuration: track.duration,
       volume: 80,
     });
+    rememberTrack(track);
     setAdded(true);
     clearTimeout(addedTimer.current);
     addedTimer.current = setTimeout(() => setAdded(false), 1200);

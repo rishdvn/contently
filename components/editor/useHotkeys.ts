@@ -67,6 +67,8 @@ export type Shortcut = {
   kinds?: ProjectKind[];
   /** Runs before the "is the user typing?" guard, so it works in a field too. */
   global?: boolean;
+  /** Also runs while this dialog is open, so the key that opened it can close it. */
+  dialog?: NonNullable<EditorState["dialog"]>;
   preventDefault?: boolean;
   match: (e: KeyboardEvent, ctx: Ctx) => boolean;
   run: (e: KeyboardEvent, ctx: Ctx) => void;
@@ -103,6 +105,7 @@ export const SHORTCUTS: Shortcut[] = [
     area: "General",
     label: "Keyboard shortcuts",
     keys: ["?"],
+    dialog: "shortcuts",
     preventDefault: true,
     /* Shift+/ on a US layout reports "?"; the code check covers the rest. */
     match: (e, { mod }) => !mod && !e.altKey && (e.key === "?" || (e.shiftKey && e.code === "Slash")),
@@ -376,11 +379,16 @@ export function useHotkeys() {
     const onKeyDown = (e: KeyboardEvent) => {
       const state = useEditor.getState();
       const ctx: Ctx = { mod: e.metaKey || e.ctrlKey, state };
-      /* The sheet is a real modal: only the global bindings reach past it. */
-      const inert = isEditable(e.target) || state.dialog === "shortcuts";
+      /*
+        The sheet is a real modal: only the global bindings, and the key that
+        opened it, reach past it. Export and Share are flyouts over a live
+        canvas and leave the keys alone.
+      */
+      const typing = isEditable(e.target);
+      const modal = state.dialog === "shortcuts";
 
       for (const s of SHORTCUTS) {
-        if (inert && !s.global) continue;
+        if (!s.global && (typing || (modal && s.dialog !== state.dialog))) continue;
         if (s.kinds && !s.kinds.includes(state.project.kind)) continue;
         if (!s.match(e, ctx)) continue;
         if (s.preventDefault) e.preventDefault();

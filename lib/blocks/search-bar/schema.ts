@@ -35,6 +35,8 @@ export const searchBar = defineBlock({
     theme: "light",
     accent: "#d7f5dc",
   },
+  /* The query is the question the video opens on; each suggestion is one answer. The placeholder is chrome. */
+  roles: { query: "hook", suggestions: "benefit" },
   defaultDuration: 5,
   aspectHint: "landscape",
   preview: "",

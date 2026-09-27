@@ -135,8 +135,9 @@ describe("applyReplacements", () => {
   });
 
   it("replaces every match of a role, or the one asked for", () => {
+    /* Two benefit texts, plus the Product card's badge field. */
     const all = apply([{ role: "benefit", text: "Same" }]);
-    assert.equal(all.changed.length, 2);
+    assert.equal(all.changed.length, 3);
     const one = apply([{ role: "benefit", index: 1, text: "Second" }]);
     assert.deepEqual(one.changed.map((c) => c.blockId), ["b2"]);
     assert.equal((blockIn(one.document, "b1") as { text: string }).text, "Glows in a week");
@@ -185,7 +186,8 @@ describe("applyReplacements", () => {
     ]);
     assert.deepEqual(out.problems, []);
     assert.deepEqual(out.unmatched.map((u) => u.replacement), [0, 1, 2]);
-    assert.equal(out.changed.length, 1);
+    /* The CTA text and the Product card's button. */
+    assert.equal(out.changed.length, 2);
   });
 
   it("fails on media it cannot find", () => {
@@ -220,11 +222,19 @@ describe("view", () => {
     const card = scenes[1]!.blocks[2] as { component: { id: string; schema: object; fields: { path: string; role: string }[] } };
     assert.equal(card.component.id, "product-card");
     assert.deepEqual(Object.keys(card.component.schema).slice(0, 3), ["image", "name", "price"]);
-    assert.deepEqual(card.component.fields.map((f) => [f.path, f.role]), [["image", "image:product"]]);
+    assert.deepEqual(card.component.fields.map((f) => [f.path, f.role]), [
+      ["image", "image:product"],
+      ["name", "heading"],
+      ["price", "price"],
+      ["compareAtPrice", "price"],
+      ["badge", "benefit"],
+      ["cta", "cta"],
+    ]);
   });
 
   it("summarises roles and duration", () => {
-    assert.deepEqual(roleCounts(doc()), { benefit: 2, cta: 1, brand: 2, hook: 1, "image:product": 1, "image:background": 1 });
+    /* Field roles count too: the Product card's name, prices, badge and button, and each of the Logo strip's six logos. */
+    assert.deepEqual(roleCounts(doc()), { heading: 1, benefit: 3, cta: 2, price: 2, brand: 2, hook: 1, logo: 6, "image:product": 1, "image:background": 1 });
     assert.equal(durationOf(doc()), 12);
     assert.equal(durationOf({ ...doc(), kind: "image" }), null);
   });

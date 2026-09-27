@@ -160,6 +160,12 @@ export function mediaIdsIn(project: Project): string[] {
   return [...ids];
 }
 
+/* The resolved URL for a media id outside React — the exporter's question. Null
+   when the row is gone, undefined while nobody has asked yet. */
+export function mediaUrl(mediaId: string): string | null | undefined {
+  return resolved.get(mediaId)?.url;
+}
+
 /*
   Hold until every id in the document has an answer. Exports go through here
   first: rasterising a project that was opened a moment ago would otherwise bake

@@ -3,10 +3,10 @@
 import { getFontEmbedCSS, toCanvas, toSvg } from "html-to-image";
 import { ArrayBufferTarget, Muxer } from "mp4-muxer";
 
-import { waitForMedia, waitForPaintableMedia } from "./media";
+import { mediaUrl, waitForMedia, waitForPaintableMedia } from "./media";
 import { useEditor } from "./store";
 import { fadeLengths } from "./audio";
-import { totalDuration } from "./geometry";
+import { sceneOffsets, totalDuration } from "./geometry";
 import type { AudioTrack, Project } from "./types";
 
 export type ImageFormat = "png" | "jpeg";
@@ -120,38 +120,93 @@ export type AudioUrlResolver = (track: AudioTrack) => Promise<string>;
 
 const savedUrl: AudioUrlResolver = async (track) => track.src ?? "";
 
+/* One thing to hear in the mix: a lane track, or the soundtrack of a video
+   block. Times are on the project timeline. */
+type MixSource = {
+  title: string;
+  url: () => Promise<string>;
+  start: number;
+  end: number;
+  offset: number;
+  volume: number;
+  fadeIn?: number;
+  fadeOut?: number;
+  /* Lane audio is the point of the track, so failing to load it fails the
+     export. A clip's sound is incidental — plenty of clips have no audio
+     stream at all — so a clip that cannot be decoded is simply silent. */
+  required: boolean;
+};
+
+function mixSources(project: Project, resolve: AudioUrlResolver): MixSource[] {
+  const total = totalDuration(project);
+  const sources: MixSource[] = project.audio
+    .filter((t) => !t.muted && t.volume > 0 && t.duration > 0 && t.start < total)
+    .map((t) => ({
+      title: t.title,
+      url: () => resolve(t),
+      start: t.start,
+      end: Math.min(t.start + t.duration, total),
+      offset: t.offset ?? 0,
+      volume: t.volume,
+      fadeIn: t.fadeIn,
+      fadeOut: t.fadeOut,
+      required: true,
+    }));
+  const offsets = sceneOffsets(project);
+  project.slides.forEach((slide, i) => {
+    for (const block of slide.blocks) {
+      if (block.type !== "video" || block.muted || block.hidden || block.volume <= 0) continue;
+      const start = offsets[i] + Math.max(0, block.start);
+      const end = offsets[i] + Math.min(block.end, slide.duration);
+      if (end <= start) continue;
+      sources.push({
+        title: block.name ?? "Video",
+        url: async () => (block.mediaId ? (mediaUrl(block.mediaId) ?? block.src) : block.src),
+        start,
+        end,
+        offset: block.trimStart,
+        volume: block.volume,
+        required: false,
+      });
+    }
+  });
+  return sources;
+}
+
 /*
-  The lane, mixed down offline: every unmuted track decoded, placed at its
-  start, cut to its offset and length, scaled by its volume and ramped by its
-  fades — the envelope `fadeGain` gives playback, scheduled on a gain node. The
-  studio's own mute button is monitoring and is ignored here; a muted track is
+  Everything audible, mixed down offline: every unmuted lane track and every
+  unmuted video block decoded, placed at its start, cut to its offset and
+  length, scaled by its volume and — for lane tracks — ramped by its fades, the
+  envelope `fadeGain` gives playback, scheduled on a gain node. The studio's
+  own mute button is monitoring and is ignored here; a muted track or clip is
   left out. Null when there is nothing to hear.
 
-  A track whose file cannot be fetched or decoded fails the export, named: a
-  video that quietly lost its music is worse than one that did not render.
+  A lane track whose file cannot be fetched or decoded fails the export, named:
+  a video that quietly lost its music is worse than one that did not render.
 */
 export async function mixAudio(project: Project, resolve: AudioUrlResolver = savedUrl, signal?: AbortSignal): Promise<AudioBuffer | null> {
   const total = totalDuration(project);
-  const tracks = project.audio.filter((t) => !t.muted && t.volume > 0 && t.duration > 0 && t.start < total);
-  if (!tracks.length || total <= 0) return null;
+  const sources = mixSources(project, resolve);
+  if (!sources.length || total <= 0) return null;
 
   const ctx = new OfflineAudioContext(AUDIO_CHANNELS, Math.ceil(total * AUDIO_RATE), AUDIO_RATE);
-  for (const track of tracks) {
+  let scheduled = 0;
+  for (const track of sources) {
     if (signal?.aborted) throw new DOMException("Export cancelled", "AbortError");
     let buffer: AudioBuffer;
     try {
-      const url = await resolve(track);
+      const url = await track.url();
       if (!url) throw new Error("no file");
       const response = await fetch(url, { signal });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       buffer = await ctx.decodeAudioData(await response.arrayBuffer());
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") throw error;
+      if (!track.required) continue;
       throw new Error(`Couldn't load the audio "${track.title}". Check your connection, or remove it from the timeline.`);
     }
 
-    const start = track.start;
-    const end = Math.min(track.start + track.duration, total);
+    const { start, end } = track;
     const volume = Math.min(Math.max(track.volume / 100, 0), 1);
     const { fadeIn, fadeOut } = fadeLengths({ ...track, duration: end - start });
     const gain = ctx.createGain();
@@ -164,9 +219,10 @@ export async function mixAudio(project: Project, resolve: AudioUrlResolver = sav
     const source = ctx.createBufferSource();
     source.buffer = buffer;
     source.connect(gain).connect(ctx.destination);
-    source.start(start, track.offset ?? 0, end - start);
+    source.start(start, track.offset, end - start);
+    scheduled++;
   }
-  return ctx.startRendering();
+  return scheduled ? ctx.startRendering() : null;
 }
 
 /* AAC where the browser can encode it — it plays everywhere — and Opus, which

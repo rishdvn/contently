@@ -5,6 +5,7 @@ import { useEffect, useLayoutEffect, useRef } from "react";
 
 import { useToast } from "@/components/ui/toast";
 import { useActiveOrg } from "@/lib/auth/useActiveOrg";
+import { useAudioLane } from "@/lib/editor/audio";
 import { project as makeProject } from "@/lib/editor/factory";
 import { googleFontsHref } from "@/lib/editor/fonts";
 import { useCreateProject, useProject, useSaveProject, type ProjectLoad } from "@/lib/editor/persistence";
@@ -45,6 +46,7 @@ export function Editor({ projectId, kind }: { projectId: string; kind?: string }
   useLoadIntoStore(projectId, load);
   useAutosave(projectId);
   usePlayback();
+  useAudioLane();
   useHotkeys();
 
   const leftTab = useEditor((s) => s.leftTab);

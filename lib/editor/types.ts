@@ -197,6 +197,13 @@ export type AudioTrack = {
   start: number;
   duration: number;
   volume: number;
+  /*
+    The `audioTracks` row this came from. Library audio is played by id, through
+    `getPlayableUrl`, because its CDN URLs expire within a week; `src` is only
+    the last URL we saw, a fallback when that call fails.
+  */
+  trackId?: string;
+  src?: string;
 };
 
 export type Project = {

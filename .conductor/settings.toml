@@ -7,9 +7,11 @@
 [scripts]
 setup = ".conductor/setup.sh"
 
-# Each workspace gets its own port, so several can serve the app at once.
-# Anything that drives a browser must read $CONDUCTOR_PORT rather than assume 3000.
+# Local workspaces each get their own port, so several can serve the app at
+# once. Cloud workspaces have a VM each and no $CONDUCTOR_PORT at all, so they
+# fall back to 3000; without the fallback, `next dev --port` fails for want of
+# a value. Anything that drives a browser must resolve the port the same way.
 [scripts.run.dev]
-command = "npm run dev -- --port $CONDUCTOR_PORT"
+command = "npm run dev -- --port ${CONDUCTOR_PORT:-3000}"
 default = true
 icon = "play"

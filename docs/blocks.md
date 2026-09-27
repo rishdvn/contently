@@ -230,7 +230,9 @@ Rules of thumb:
 **Roles.** A block that holds content says what each content field is for, in
 the template role vocabulary (`CONTENT_ROLES`, `docs/templates.md`): `roles`
 maps a field path to a role — `name` for a top-level input, `list[].field`
-for a field of every list item, `object.field` inside an object. Paths are
+for a field of every list item, `object.field` inside an object. A list of
+plain images or texts takes its role by the list's name, and the role names
+each item (Logo strip: `logos` → `logo`). Paths are
 checked against the schema at compile time. Leave styling fields (theme,
 colours, toggles) out. A role on a list of media or text (`logos`) describes
 each item. The inspector lists these roles; the server reads them from the

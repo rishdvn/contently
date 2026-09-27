@@ -15,6 +15,9 @@ export const inputs = {
   Counter — a number that counts up (or down) to its value. In a video it
   eases out over the first 80% of the block and holds; as a still it shows
   the final value. Listed in the Text panel under Counters.
+
+  No `roles`: the number is not copy, and no role in the vocabulary fits it;
+  prefix and suffix are units. A caption beside it is its own text block.
 */
 export const counter = defineBlock({
   id: "counter",

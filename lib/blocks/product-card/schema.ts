@@ -46,7 +46,8 @@ export const productCard = defineBlock({
     theme: "light",
     accent: "#111111",
   },
-  roles: { image: "image:product" },
+  /* The badge is a reason to buy ("New", "Best seller"); rating is a number, not copy. */
+  roles: { image: "image:product", name: "heading", price: "price", compareAtPrice: "price", badge: "benefit", cta: "cta" },
   defaultDuration: 4,
   aspectHint: "portrait",
   preview: "",

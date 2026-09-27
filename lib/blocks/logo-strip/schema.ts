@@ -43,6 +43,8 @@ export const logoStrip = defineBlock({
     gap: 80,
     tone: "white",
   },
+  /* A list of images: the role names what each item is. */
+  roles: { logos: "logo" },
   defaultDuration: 6,
   aspectHint: "landscape",
   preview: "",

@@ -83,17 +83,27 @@ describe("roles inside catalog blocks", () => {
   });
 
   it("finds block roles and field roles alike, optionally in one scene", () => {
-    assert.deepEqual(findRole(template, "heading"), [{ scene: 0, blockId: "title" }]);
+    assert.deepEqual(findRole(template, "heading"), [
+      { scene: 0, blockId: "title" },
+      { scene: 0, blockId: "card", field: "name" },
+    ]);
     assert.deepEqual(findRole(template, "author", 0), []);
     assert.deepEqual(findRole(template, "author", 1), [{ scene: 1, blockId: "chat", field: "contactName" }]);
   });
 
   it("counts field roles in a template's roles and lists them on its slots", () => {
-    assert.deepEqual(rolesIn(template), ["heading", "body", "author", "image:product"]);
+    assert.deepEqual(rolesIn(template), ["heading", "body", "benefit", "cta", "price", "author", "image:product"]);
     const card = slotsOf(template).find((s) => s.blockId === "card");
     assert.deepEqual(
       card?.fields?.map((f) => [f.path, f.role]),
-      [["image", "image:product"]],
+      [
+        ["image", "image:product"],
+        ["name", "heading"],
+        ["price", "price"],
+        ["compareAtPrice", "price"],
+        ["badge", "benefit"],
+        ["cta", "cta"],
+      ],
     );
   });
 

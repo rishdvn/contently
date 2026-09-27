@@ -29,6 +29,7 @@ import { FONTS, WEIGHT_LABELS, fontDef, nearestWeight } from "@/lib/editor/fonts
 import { totalDuration } from "@/lib/editor/geometry";
 import { useMediaUrl } from "@/lib/editor/media";
 import { BG_COLORS, BG_GRADIENTS, TEXT_PRESETS, textFromPreset } from "@/lib/editor/presets";
+import { ROLE_LABEL, roleOf, rolesFor } from "@/lib/editor/roles";
 import { useActiveSlide, useEditor, useSelectedBlocks } from "@/lib/editor/store";
 import { gradientCss } from "@/lib/editor/style";
 import {
@@ -37,6 +38,7 @@ import {
   type AudioTrack,
   type Block,
   type ComponentBlock,
+  type ContentRole,
   type Effect,
   type EffectKind,
   type ImageBlock,
@@ -104,6 +106,7 @@ export function Inspector({ bottom }: { bottom: number }) {
             <X className="size-4" />
           </button>
           <div className="min-w-0 flex-1 truncate text-panels text-ink">{title}</div>
+          {one && roleOf(one) ? <span className="shrink-0 rounded-[6px] bg-raised px-1.5 py-0.5 text-cap text-ink-secondary">{ROLE_LABEL[roleOf(one)!]}</span> : null}
           {one ? (
             <Tooltip label="Layer" side="bottom">
               <span className="flex size-7 items-center justify-center text-ink-disabled">
@@ -133,6 +136,7 @@ export function Inspector({ bottom }: { bottom: number }) {
           {one.type === "shape" ? <ShapeProperties b={one} /> : null}
           {one.type === "component" ? <ComponentProperties b={one} /> : null}
           <CommonProperties blocks={[one]} />
+          <RoleProperties b={one} />
         </>
       ) : (
         <>
@@ -597,6 +601,53 @@ function ComponentProperties({ b }: { b: ComponentBlock }) {
       brandColors={brand}
     />
   );
+}
+
+/* ---------------------------------------------------------------- role --- */
+
+/*
+  What the block is for when the project becomes a template: the slot a person
+  or an AI fills with their own content (`docs/templates.md`). Only the roles
+  that fit the block's type are offered. A catalog block also lists the roles
+  its definition gives its fields, which are fixed by the block, not the author.
+*/
+function RoleProperties({ b }: { b: Block }) {
+  const updateBlock = useEditor((s) => s.updateBlock);
+  const options = rolesFor(b.type);
+  const role = roleOf(b);
+  const fields = b.type === "component" ? Object.entries(getBlock(b.componentId)?.roles ?? {}) : [];
+  if (!options.length) return null;
+  return (
+    <Section label="Role">
+      <Select aria-label="Role" value={role ?? ""} onChange={(e) => updateBlock(b.id, { role: (e.target.value || undefined) as ContentRole | undefined })}>
+        <option value="">None</option>
+        {options.map((r) => (
+          <option key={r} value={r}>
+            {ROLE_LABEL[r]}
+          </option>
+        ))}
+      </Select>
+      {fields.length ? (
+        <div className="flex flex-col gap-1 px-1 pb-0.5">
+          {fields.map(([path, r]) => (
+            <div key={path} className="flex items-center justify-between gap-2 text-cap">
+              <span className="truncate text-ink-secondary">{b.type === "component" ? fieldLabel(b.componentId, path) : path}</span>
+              <span className="shrink-0 text-ink-disabled">{r ? ROLE_LABEL[r] : ""}</span>
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </Section>
+  );
+}
+
+/* "messages[].text" → "Messages › Text", from the labels in the block's schema. */
+function fieldLabel(componentId: string, path: string) {
+  const [head, tail] = path.split(/\[\]\.|\./);
+  const top = getBlock(componentId)?.inputs[head];
+  const inner = top?.kind === "list" ? top.item : top;
+  const leaf = tail && inner?.kind === "object" ? inner.fields[tail] : undefined;
+  return [top?.label ?? head, tail ? (leaf?.label ?? tail) : null].filter(Boolean).join(" › ");
 }
 
 /* -------------------------------------------------------------- common --- */

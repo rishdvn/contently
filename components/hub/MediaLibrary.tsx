@@ -125,7 +125,7 @@ export function MediaLibrary() {
         </div>
 
         {tab === "ours" ? (
-          <ChipRow role="toolbar" aria-label="Categories" className="mt-3 pb-1 [scrollbar-width:thin]">
+          <ChipRow wrap role="toolbar" aria-label="Categories" className="mt-3">
             <Chip selected={category === null} onClick={() => setCategory(null)}>
               All categories
             </Chip>

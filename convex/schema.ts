@@ -169,10 +169,21 @@ export default defineSchema({
        show the visual hierarchy instead of guessing from role tags. */
     scenePosters: v.array(v.id("_storage")),
     poster: v.optional(v.id("_storage")),
+    /* SHA-256 of the document the posters were rendered from. The poster
+       script skips a template whose document still hashes to this. */
+    postersHash: v.optional(v.string()),
     published: v.boolean(),
+    /* Where it came from (`templates.createFromProject`). The org's admins
+       are the ones who may update and publish it, and its media is resolved
+       against this org for every reader. */
+    orgId: v.optional(v.id("organizations")),
+    sourceProjectId: v.optional(v.id("projects")),
+    createdBy: v.optional(v.id("users")),
+    updatedAt: v.optional(v.number()),
   })
     .index("by_published", ["published"])
-    .index("by_published_kind", ["published", "kind"]),
+    .index("by_published_kind", ["published", "kind"])
+    .index("by_org", ["orgId"]),
 
   /* The Blocks panel's pictures of each catalog block, written by
      `scripts/block-previews.ts`. The block itself is code (`lib/blocks/<id>/`);

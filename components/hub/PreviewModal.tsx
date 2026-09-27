@@ -1,7 +1,7 @@
 "use client";
 
 import { Check, ChevronLeft, ChevronRight, Download, Info, Maximize, Pause, Play, Share, Volume2, VolumeX, X } from "lucide-react";
-import { forwardRef, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { forwardRef, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentProps, type ReactNode } from "react";
 
 import { cn } from "@/lib/cn";
 import { fontDef } from "@/lib/editor/fonts";
@@ -49,12 +49,9 @@ export function PreviewModal({
   const [muted, setMuted] = useState(false);
   const clock = useProjectClock(project, playing, { resetOnStop: false });
   const stageRef = useRef<HTMLDivElement>(null);
-  const areaRef = useRef<HTMLDivElement>(null);
-  const [area, setArea] = useState({ w: 0, h: 0 });
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose?.();
       if (e.key === " ") {
         e.preventDefault();
         setPlaying((p) => !p);
@@ -65,7 +62,119 @@ export function PreviewModal({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onClose, project.kind, clock]);
+  }, [project.kind, clock]);
+
+  return (
+    <PreviewShell
+      label={`${project.name} preview`}
+      onClose={onClose}
+      stage={(area) => {
+        /* Fit the document inside the area with breathing room, never upscaling past its export size. */
+        const pad = 24;
+        const stageW = Math.max(0, Math.min(area.w - pad * 2, ((area.h - pad * 2) * project.width) / project.height, project.width));
+        return stageW > 0 ? (
+          <Stage
+            ref={stageRef}
+            project={project}
+            clock={clock}
+            width={stageW}
+            playing={playing}
+            muted={muted}
+            onTogglePlay={() => setPlaying((p) => !p)}
+            onToggleMute={() => setMuted((m) => !m)}
+            onFullscreen={() => stageRef.current?.requestFullscreen?.().catch(() => {})}
+          />
+        ) : null;
+      }}
+    >
+      <div className="flex shrink-0 gap-2">
+        <ShareButton url={shareUrl} id={project.id} />
+        {onClose ? <PreviewCloseButton onClose={onClose} /> : null}
+      </div>
+
+      <PreviewPanel>
+        <div className="text-cap text-ink-secondary">{KIND_LABEL[project.kind]}</div>
+        <div className="mt-1 truncate text-[20px] leading-7 font-medium text-ink">{project.name}</div>
+      </PreviewPanel>
+
+      {downloads.map((d) => (
+        <a
+          key={d.url}
+          href={d.url}
+          download
+          target="_blank"
+          rel="noreferrer"
+          className="flex h-10 w-full shrink-0 items-center justify-center gap-2 rounded-[10px] bg-white text-default text-canvas transition-colors hover:bg-[#e8e8e8] focus-visible:ring-2 focus-visible:ring-spectrum-amber focus-visible:outline-none"
+        >
+          <Download className="size-4" />
+          {d.label}
+        </a>
+      ))}
+
+      {onOpen ? <PreviewOutlineButton onClick={() => onOpen(project.id)}>Open in editor</PreviewOutlineButton> : null}
+
+      <PreviewPanel>
+        <div className="text-ui text-ink">Info</div>
+        <PreviewFact label="Size" value={`${project.width} × ${project.height}`} />
+        <PreviewFact label="Type" value={KIND_LABEL[project.kind]} />
+        <PreviewFact label={project.kind === "video" ? "Length" : project.kind === "carousel" ? "Slides" : "Format"} value={project.kind === "image" ? ASPECTS[project.aspect].label : projectMeta(project)} />
+        <PreviewFact label="Edited" value={relative} />
+
+        <div className="mt-4 text-cap text-ink-secondary">Contents</div>
+        <ul className="mt-1.5 flex flex-col gap-1.5">
+          {contents(project).map((c) => (
+            <li key={c} className="flex items-center gap-1.5 text-ui text-ink">
+              {c}
+              <Info className="size-3.5 text-ink-secondary" />
+            </li>
+          ))}
+        </ul>
+
+        <PreviewTags label="Tags" tags={tags(project)} />
+      </PreviewPanel>
+
+      {others.length && onSwitch ? (
+        <PreviewPanel>
+          <div className="text-ui text-ink">More projects</div>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            {others.map((o) => (
+              <MiniCard key={o.id} project={o} onClick={() => onSwitch(o.id)} />
+            ))}
+          </div>
+        </PreviewPanel>
+      ) : null}
+    </PreviewShell>
+  );
+}
+
+/*
+  The enlarged preview's frame, whatever it shows: the page dimmed and blurred
+  underneath, the item as large as fits left of a floating column of panels.
+  Escape and a click on the backdrop close it; the page behind stops scrolling
+  while it is open. `stage` is given the space it has to fill.
+*/
+export function PreviewShell({
+  label,
+  onClose,
+  stage,
+  children,
+}: {
+  label: string;
+  onClose?: () => void;
+  stage: (area: { w: number; h: number }) => ReactNode;
+  /* The sidebar's panels, top to bottom. */
+  children: ReactNode;
+}) {
+  const areaRef = useRef<HTMLDivElement>(null);
+  const [area, setArea] = useState({ w: 0, h: 0 });
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose?.();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
 
   useEffect(() => {
     const previous = document.documentElement.style.overflow;
@@ -85,121 +194,26 @@ export function PreviewModal({
     return () => ro.disconnect();
   }, []);
 
-  /* Fit the document inside the area with breathing room, never upscaling past its export size. */
-  const pad = 24;
-  const stageW = Math.max(0, Math.min(area.w - pad * 2, ((area.h - pad * 2) * project.width) / project.height, project.width));
-
   return (
     <div
       className="fixed inset-0 animate-scrim-in bg-black/80 text-ink backdrop-blur-[6px]"
       style={{ zIndex: "var(--z-modal)" }}
       role="dialog"
       aria-modal="true"
-      aria-label={`${project.name} preview`}
+      aria-label={label}
       onClick={(e) => {
         if (e.target === e.currentTarget || e.target === areaRef.current) onClose?.();
       }}
     >
       <div ref={areaRef} className="absolute inset-y-0 left-0 flex items-center justify-center" style={{ right: SIDEBAR_W + GUTTER * 2 }}>
-        {stageW > 0 ? (
-          <Stage
-            ref={stageRef}
-            project={project}
-            clock={clock}
-            width={stageW}
-            playing={playing}
-            muted={muted}
-            onTogglePlay={() => setPlaying((p) => !p)}
-            onToggleMute={() => setMuted((m) => !m)}
-            onFullscreen={() => stageRef.current?.requestFullscreen?.().catch(() => {})}
-          />
-        ) : null}
+        {area.w > 0 ? stage(area) : null}
       </div>
 
       <aside
         className="absolute flex flex-col gap-2 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         style={{ top: GUTTER, right: GUTTER, bottom: GUTTER, width: SIDEBAR_W }}
       >
-        <div className="flex shrink-0 gap-2">
-          <ShareButton url={shareUrl} id={project.id} />
-          {onClose ? (
-            <button
-              type="button"
-              aria-label="Close preview"
-              onClick={onClose}
-              className="flex h-9 flex-1 items-center justify-center rounded-[10px] bg-white text-canvas transition-colors hover:bg-[#e8e8e8]"
-            >
-              <X className="size-4" />
-            </button>
-          ) : null}
-        </div>
-
-        <Panel>
-          <div className="text-cap text-ink-secondary">{KIND_LABEL[project.kind]}</div>
-          <div className="mt-1 truncate text-[20px] leading-7 font-medium text-ink">{project.name}</div>
-        </Panel>
-
-        {downloads.map((d) => (
-          <a
-            key={d.url}
-            href={d.url}
-            download
-            target="_blank"
-            rel="noreferrer"
-            className="flex h-10 w-full shrink-0 items-center justify-center gap-2 rounded-[10px] bg-white text-default text-canvas transition-colors hover:bg-[#e8e8e8] focus-visible:ring-2 focus-visible:ring-spectrum-amber focus-visible:outline-none"
-          >
-            <Download className="size-4" />
-            {d.label}
-          </a>
-        ))}
-
-        {onOpen ? (
-          <button
-            type="button"
-            onClick={() => onOpen(project.id)}
-            className="h-10 w-full shrink-0 rounded-[10px] border border-white/75 bg-transparent text-default text-ink transition-colors hover:bg-white hover:text-canvas focus-visible:ring-2 focus-visible:ring-spectrum-amber focus-visible:outline-none"
-          >
-            Open in editor
-          </button>
-        ) : null}
-
-        <Panel>
-          <div className="text-ui text-ink">Info</div>
-          <Fact label="Size" value={`${project.width} × ${project.height}`} />
-          <Fact label="Type" value={KIND_LABEL[project.kind]} />
-          <Fact label={project.kind === "video" ? "Length" : project.kind === "carousel" ? "Slides" : "Format"} value={project.kind === "image" ? ASPECTS[project.aspect].label : projectMeta(project)} />
-          <Fact label="Edited" value={relative} />
-
-          <div className="mt-4 text-cap text-ink-secondary">Contents</div>
-          <ul className="mt-1.5 flex flex-col gap-1.5">
-            {contents(project).map((c) => (
-              <li key={c} className="flex items-center gap-1.5 text-ui text-ink">
-                {c}
-                <Info className="size-3.5 text-ink-secondary" />
-              </li>
-            ))}
-          </ul>
-
-          <div className="mt-4 text-cap text-ink-secondary">Tags</div>
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            {tags(project).map((t) => (
-              <span key={t} className="rounded-[8px] bg-raised px-2.5 py-1 text-ui text-ink">
-                {t}
-              </span>
-            ))}
-          </div>
-        </Panel>
-
-        {others.length && onSwitch ? (
-          <Panel>
-            <div className="text-ui text-ink">More projects</div>
-            <div className="mt-3 grid grid-cols-2 gap-2">
-              {others.map((o) => (
-                <MiniCard key={o.id} project={o} onClick={() => onSwitch(o.id)} />
-              ))}
-            </div>
-          </Panel>
-        ) : null}
+        {children}
       </aside>
     </div>
   );
@@ -207,16 +221,58 @@ export function PreviewModal({
 
 const KIND_LABEL: Record<Project["kind"], string> = { image: "Image", carousel: "Carousel", video: "Video" };
 
-function Panel({ children, className }: { children: ReactNode; className?: string }) {
+export function PreviewPanel({ children, className }: { children: ReactNode; className?: string }) {
   return <section className={cn("shrink-0 rounded-[10px] bg-card p-3.5", className)}>{children}</section>;
 }
 
-function Fact({ label, value }: { label: string; value: string }) {
+export function PreviewFact({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div className="mt-3">
       <div className="text-cap text-ink-secondary">{label}</div>
       <div className="mt-0.5 text-ui text-ink">{value}</div>
     </div>
+  );
+}
+
+export function PreviewTags({ label, tags }: { label: string; tags: string[] }) {
+  return (
+    <>
+      <div className="mt-4 text-cap text-ink-secondary">{label}</div>
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        {tags.map((t) => (
+          <span key={t} className="rounded-[8px] bg-raised px-2.5 py-1 text-ui text-ink">
+            {t}
+          </span>
+        ))}
+      </div>
+    </>
+  );
+}
+
+export function PreviewCloseButton({ onClose }: { onClose: () => void }) {
+  return (
+    <button
+      type="button"
+      aria-label="Close preview"
+      onClick={onClose}
+      className="flex h-9 flex-1 items-center justify-center rounded-[10px] bg-white text-canvas transition-colors hover:bg-[#e8e8e8]"
+    >
+      <X className="size-4" />
+    </button>
+  );
+}
+
+/* The sidebar's secondary action, outlined ("Open in editor"). */
+export function PreviewOutlineButton({ className, ...props }: ComponentProps<"button">) {
+  return (
+    <button
+      type="button"
+      className={cn(
+        "flex h-10 w-full shrink-0 items-center justify-center gap-2 rounded-[10px] border border-white/75 bg-transparent text-default text-ink transition-colors hover:bg-white hover:text-canvas focus-visible:ring-2 focus-visible:ring-spectrum-amber focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 [&>svg]:size-4",
+        className,
+      )}
+      {...props}
+    />
   );
 }
 

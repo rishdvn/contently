@@ -7,6 +7,7 @@ import Image from "next/image";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
+import { MediaArt } from "@/components/hub/MediaCard";
 import { Chip, ChipRow } from "@/components/ui/chip";
 import { MenuItem } from "@/components/ui/menu";
 import { api } from "@/convex/_generated/api";
@@ -20,7 +21,7 @@ import { rememberWith, useImportLocalRecent, useRecentTracks, useRememberTrack, 
 import { imageBlock, uid, videoBlock } from "@/lib/editor/factory";
 import { primeMedia } from "@/lib/editor/media";
 import { activeMediaTarget, useEditor, useSelectedBlocks, type MediaSource } from "@/lib/editor/store";
-import { mediaKindOf, probeFile, uploadToStorage } from "@/lib/editor/upload";
+import { useMediaUpload, type UploadJob } from "@/lib/editor/useMediaUpload";
 import { formatTime, sceneOffsets, totalDuration } from "@/lib/editor/geometry";
 import { NEUTRAL_ADJUSTMENTS } from "@/lib/editor/types";
 
@@ -1014,23 +1015,19 @@ export function UploadsPanel() {
   return <UploadsLibrary />;
 }
 
-/* One file on its way up. Kept until it lands (the row then arrives in `list`)
-   or fails, which is the only state worth staying on screen. */
-type UploadJob = { id: string; name: string; progress: number; error?: string };
-
 function UploadsLibrary() {
   const [q, setQ] = useState("");
   const [tab, setTab] = useState<"all" | "videos" | "images">("all");
   const [over, setOver] = useState(false);
-  const [jobs, setJobs] = useState<UploadJob[]>([]);
   const [menu, setMenu] = useState<{ item: MediaItem; x: number; y: number } | null>(null);
   const input = useRef<HTMLInputElement>(null);
 
   const { orgId, isLoaded } = useActiveOrg();
   const items = useQuery(api.media.list, orgId ? { orgId } : "skip");
-  const generateUploadUrl = useMutation(api.media.generateUploadUrl);
-  const createMedia = useMutation(api.media.create);
   const removeMedia = useMutation(api.media.remove);
+  /* The same upload flow as the Media page: one file at a time, each with its
+     own progress row until its `media` row arrives in `items`. */
+  const { ingest, jobs, dismiss, canUpload } = useMediaUpload();
 
   const addBlock = useEditor((s) => s.addBlock);
   const updateBlock = useEditor((s) => s.updateBlock);
@@ -1040,45 +1037,6 @@ function UploadsLibrary() {
   const height = useEditor((s) => s.project.height);
   /* A media slot that asked for a file (see `ReplaceBar`). */
   const target = useEditor(activeMediaTarget);
-
-  /*
-    Uploads run one at a time. Two large clips racing each other make the
-    progress bars meaningless and neither finishes sooner, and a file only
-    becomes a `media` row once its bytes and its poster are both up.
-  */
-  const ingest = async (files: FileList | File[]) => {
-    if (!orgId) return;
-    for (const file of Array.from(files)) {
-      if (!mediaKindOf(file)) continue;
-      const jobId = uid();
-      const progress = (fraction: number) => setJobs((j) => j.map((x) => (x.id === jobId ? { ...x, progress: fraction } : x)));
-      setJobs((j) => [...j, { id: jobId, name: file.name, progress: 0 }]);
-      try {
-        const probe = await probeFile(file);
-        const storageId = await uploadToStorage(await generateUploadUrl({ orgId }), file, progress);
-        const posterStorageId = probe.poster
-          ? await uploadToStorage(await generateUploadUrl({ orgId }), probe.poster)
-          : undefined;
-        const row = await createMedia({
-          orgId,
-          kind: probe.kind,
-          /* Storage ids are opaque strings to the browser; Convex validates them. */
-          storageId: storageId as Id<"_storage">,
-          posterStorageId: posterStorageId as Id<"_storage"> | undefined,
-          width: probe.width,
-          height: probe.height,
-          duration: probe.duration,
-          name: file.name,
-        });
-        /* The row's URL is already in hand, so a block placed now paints at once
-           instead of waiting for the resolver to ask the same question. */
-        primeMedia([row]);
-        setJobs((j) => j.filter((x) => x.id !== jobId));
-      } catch (error) {
-        setJobs((j) => j.map((x) => (x.id === jobId ? { ...x, error: error instanceof Error ? error.message : "Upload failed" } : x)));
-      }
-    }
-  };
 
   /* Placing media replaces the selected media block if there is exactly one. */
   const place = (item: MediaItem) => {
@@ -1113,7 +1071,7 @@ function UploadsLibrary() {
         <PanelSearch value={q} onChange={setQ} placeholder="Search uploads" />
       </PanelHeader>
       <ReplaceBar source="uploads" />
-      <PanelPrimary onClick={() => input.current?.click()} disabled={!orgId}>
+      <PanelPrimary onClick={() => input.current?.click()} disabled={!canUpload}>
         <Upload /> Upload files
       </PanelPrimary>
       <input
@@ -1146,7 +1104,7 @@ function UploadsLibrary() {
           {jobs.length ? (
             <div className="flex flex-col gap-1.5">
               {jobs.map((job) => (
-                <UploadProgress key={job.id} job={job} onDismiss={() => setJobs((j) => j.filter((x) => x.id !== job.id))} />
+                <UploadProgress key={job.id} job={job} onDismiss={() => dismiss(job.id)} />
               ))}
             </div>
           ) : null}
@@ -1214,35 +1172,26 @@ function UploadProgress({ job, onDismiss }: { job: UploadJob; onDismiss: () => v
 }
 
 /*
-  A tile in the grid. Videos play on hover, driven from pointer events rather
-  than `:hover` because the VNC desktop the visuals are checked on reports no
+  A tile in the grid, drawn the way the Media page draws its cards: a photo or
+  a video's poster through Next's image optimiser, so the panel pulls small
+  thumbnails rather than the multi-megabyte originals. A video's file is only
+  fetched while the pointer is on it. Hover comes from pointer events, not
+  `:hover`, because the VNC desktop the visuals are checked on reports no
   hover capability and the CSS variant never fires there.
 */
 function MediaTile({ item, onClick, onContextMenu }: { item: MediaItem; onClick: () => void; onContextMenu: (e: React.MouseEvent) => void }) {
-  const video = useRef<HTMLVideoElement>(null);
+  const [hover, setHover] = useState(false);
   return (
     <button
       type="button"
-      className="group relative aspect-square overflow-hidden rounded-[8px] bg-card"
+      className="group relative overflow-hidden rounded-[8px] bg-card"
       onClick={onClick}
       onContextMenu={onContextMenu}
-      onPointerEnter={() => video.current?.play().catch(() => {})}
-      onPointerLeave={() => {
-        const v = video.current;
-        if (!v) return;
-        v.pause();
-        v.currentTime = 0;
-      }}
+      onPointerEnter={() => setHover(true)}
+      onPointerLeave={() => setHover(false)}
       title={item.name}
     >
-      {!item.url ? (
-        <span className="flex size-full items-center justify-center text-[10px] text-ink-disabled">Unavailable</span>
-      ) : item.kind === "image" ? (
-        // eslint-disable-next-line @next/next/no-img-element -- Convex storage URL, sized by the grid
-        <img src={item.url} alt={item.name} loading="lazy" className="size-full object-cover" />
-      ) : (
-        <video ref={video} src={item.url} poster={item.posterUrl ?? undefined} muted loop playsInline preload="metadata" className="size-full object-cover" />
-      )}
+      <MediaArt item={item} playing={hover} aspect={1} sizes="120px" />
       {item.duration ? <span className="absolute right-1 bottom-1 rounded-[4px] bg-black/70 px-1 py-0.5 text-[10px] text-white">{formatTime(item.duration)}</span> : null}
     </button>
   );

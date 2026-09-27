@@ -49,7 +49,7 @@ type EditorState = Tracked & {
   playing: boolean;
   time: number;
   muted: boolean;
-  dialog: "export" | "share" | null;
+  dialog: "export" | "share" | "shortcuts" | null;
   mediaTarget: MediaTarget | null;
 
   load: (p: Project) => void;

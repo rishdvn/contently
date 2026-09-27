@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, Maximize, Redo2, Smartphone, Undo2 } from "lucide-react";
+import { ChevronDown, Keyboard, Maximize, Redo2, Smartphone, Undo2 } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
@@ -12,12 +12,14 @@ import { ASPECTS, type AspectId } from "@/lib/editor/types";
 
 import { cameraRef } from "../canvas/Viewport";
 import { Panel } from "../controls";
+import { shortcutKey } from "../useHotkeys";
 
 /*
   Top chrome: identity on the left, a floating command pill in the centre —
-  undo/redo · ratio · zoom · Share · Export. Every control on the bar acts on
-  the project; the reference's comments, help and export-preset affordances are
-  out of scope for V1 and are not stubbed here.
+  undo/redo · ratio · zoom · shortcuts · Share · Export. Every control on the
+  bar acts on the project; the reference's comments and export-preset
+  affordances are out of scope for V1 and are not stubbed here. Help is one
+  thing only: the keyboard reference, which needs somewhere to be found from.
 */
 export function TopBar({ left, right }: { left: number; right: number }) {
   return (
@@ -33,6 +35,7 @@ export function TopBar({ left, right }: { left: number; right: number }) {
         <Divider />
         <AspectPicker />
         <ZoomPicker />
+        <ShortcutsButton />
         <Divider />
         <ShareExport />
       </Panel>
@@ -72,17 +75,34 @@ function ProjectName() {
   );
 }
 
+function ShortcutsButton() {
+  const dialog = useEditor((s) => s.dialog);
+  const setDialog = useEditor((s) => s.setDialog);
+  return (
+    <Tooltip label={`Keyboard shortcuts (${shortcutKey("general.shortcuts")})`} side="bottom">
+      <button
+        type="button"
+        className={cn(iconBtn, dialog === "shortcuts" && "bg-[var(--state-selected)] text-ink")}
+        aria-label="Keyboard shortcuts"
+        onClick={() => setDialog(dialog === "shortcuts" ? null : "shortcuts")}
+      >
+        <Keyboard />
+      </button>
+    </Tooltip>
+  );
+}
+
 function HistoryButtons() {
   const canUndo = useTemporal((t) => t.pastStates.length > 0);
   const canRedo = useTemporal((t) => t.futureStates.length > 0);
   return (
     <>
-      <Tooltip label="Undo (⌘Z)" side="bottom">
+      <Tooltip label={`Undo (${shortcutKey("general.undo")})`} side="bottom">
         <button type="button" className={iconBtn} disabled={!canUndo} onClick={undo} aria-label="Undo">
           <Undo2 />
         </button>
       </Tooltip>
-      <Tooltip label="Redo (⇧⌘Z)" side="bottom">
+      <Tooltip label={`Redo (${shortcutKey("general.redo")})`} side="bottom">
         <button type="button" className={iconBtn} disabled={!canRedo} onClick={redo} aria-label="Redo">
           <Redo2 />
         </button>
@@ -130,7 +150,7 @@ function ZoomPicker() {
             {z * 100}%
           </MenuItem>
         ))}
-        <MenuItem onClick={() => cameraRef.current?.fit()} shortcut="⇧1">
+        <MenuItem onClick={() => cameraRef.current?.fit()} shortcut={shortcutKey("view.fit")}>
           Fit to screen
         </MenuItem>
       </Menu>

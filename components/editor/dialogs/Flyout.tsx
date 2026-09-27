@@ -10,8 +10,9 @@ import { Panel } from "../controls";
 
 /*
   Export and Share are not modals in the reference: they drop out of the
-  command pill as floating cards, and the canvas stays live behind them.
-  Dismiss on outside pointer-down or Escape (handled by the hotkey layer).
+  command pill as floating cards, and the canvas stays visible behind them.
+  Dismiss on outside pointer-down or Escape (handled by the hotkey layer),
+  which also holds back every other shortcut while one is open.
 */
 export function Flyout({
   id,

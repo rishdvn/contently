@@ -4,9 +4,10 @@
 
       CONTENTLY_API_KEY=ctly_… node scripts/api-e2e.mjs
 
-  key → list templates → read the video template → make a project → replace
-  the heading/hook by role and `image:product` by `mediaUrl` → render an MP4 →
-  poll → download → ffprobe the duration. Then the failures a caller should
+  key → list templates → read a template (video by default) → make a project
+  → replace the heading/hook by role and `image:product` by `mediaUrl` →
+  render (MP4 for a video, PNG for an image, ZIP for a carousel) → poll →
+  download → ffprobe the duration or size. Then the failures a caller should
   get: a wrong key (401), another organisation's project (404), a malformed
   replacement (400).
 
@@ -14,7 +15,8 @@
     CONTENTLY_API_URL   default https://chatty-giraffe-3.convex.site
     CONTENTLY_API_KEY   an API key (Contently → API keys)
     OTHER_ORG_API_KEY   optional: a key for a second organisation, for the 404 check
-    TEMPLATE_ID         optional: which video template (default: the first video template)
+    TEMPLATE_KIND       optional: video (default), image or carousel
+    TEMPLATE_ID         optional: which template (default: the first of that kind)
     PRODUCT_IMAGE_URL   optional: the picture for image:product
     OUT_DIR             optional: where to save the render (default /tmp/contently-api-e2e)
     RENDER_TIMEOUT_S    optional: how long to wait for the render (default 600)
@@ -33,6 +35,8 @@ const otherKey = process.env.OTHER_ORG_API_KEY;
 const productImage = process.env.PRODUCT_IMAGE_URL ?? "https://images.unsplash.com/photo-1620916566398-39f1143ab7be?w=900&q=80";
 const outDir = process.env.OUT_DIR ?? "/tmp/contently-api-e2e";
 const renderTimeout = Number(process.env.RENDER_TIMEOUT_S ?? 600) * 1000;
+const kind = process.env.TEMPLATE_KIND ?? "video";
+const format = { video: "mp4", image: "png", carousel: "carousel-zip" }[kind];
 if (!key) {
   console.error("Set CONTENTLY_API_KEY (Contently → API keys)");
   process.exit(2);
@@ -73,12 +77,12 @@ const wrong = await call("GET", "/v1/templates", { auth: "ctly_thisIsNotARealKey
 check(wrong.status === 401, `wrong key → 401 (${wrong.json.error?.message})`);
 
 step("List templates");
-const list = await call("GET", "/v1/templates?kind=video");
-check(list.status === 200 && Array.isArray(list.json.data), `${list.json.data?.length} video templates`);
-for (const t of list.json.data ?? []) console.log(`   ${t.id}  ${t.name}  ${t.sceneCount} scenes, ${t.duration}s  roles ${JSON.stringify(t.roles)}${t.published ? "" : "  (unpublished)"}`);
+const list = await call("GET", `/v1/templates?kind=${kind}`);
+check(list.status === 200 && Array.isArray(list.json.data), `${list.json.data?.length} ${kind} templates`);
+for (const t of list.json.data ?? []) console.log(`   ${t.id}  ${t.name}  ${t.sceneCount} scenes${t.duration !== null ? `, ${t.duration}s` : ""}  roles ${JSON.stringify(t.roles)}${t.published ? "" : "  (unpublished)"}`);
 const templateId = process.env.TEMPLATE_ID ?? list.json.data?.[0]?.id;
 if (!templateId) {
-  console.error("No video template to work with");
+  console.error(`No ${kind} template to work with`);
   process.exit(1);
 }
 
@@ -86,14 +90,15 @@ step("Read the template");
 const template = await call("GET", `/v1/templates/${templateId}`);
 check(template.status === 200, `template "${template.json.name}"`);
 for (const scene of template.json.scenes ?? []) {
-  console.log(`   scene ${scene.index} "${scene.name}" ${scene.duration}s poster ${scene.poster ? "yes" : "no"}`);
+  console.log(`   scene ${scene.index} "${scene.name}"${scene.duration !== undefined ? ` ${scene.duration}s` : ""} poster ${scene.poster ? "yes" : "no"}`);
   for (const b of scene.blocks) {
     const what = b.text !== undefined ? `"${b.text}" (≤${b.textConstraints.maxChars} chars, ${b.textConstraints.lines} lines)` : b.mediaSlot ? `${b.mediaSlot.kind} slot, aspect ${b.mediaSlot.aspect}` : b.component ? `${b.component.name}: ${b.component.fields.map((f) => `${f.path}=${f.role}`).join(", ") || "no content roles"}` : "";
-    console.log(`     ${b.id.padEnd(12)} ${b.type.padEnd(9)} ${(b.role ?? "–").padEnd(16)} ${what}`);
+    console.log(`     ${b.id.padEnd(22)} ${b.type.padEnd(9)} ${(b.role ?? "–").padEnd(16)} ${what}`);
   }
 }
 const hasRole = (role) => (template.json.scenes ?? []).some((s) => s.blocks.some((b) => b.role === role || b.component?.fields.some((f) => f.role === role)));
-check(hasRole("image:product"), "the template has an image:product slot (inside a catalog block)");
+const productSlot = hasRole("image:product");
+console.log(`   image:product slot: ${productSlot ? "yes" : "no (the replacement will be reported unmatched)"}`);
 
 step("Make a project from it");
 const created = await call("POST", "/v1/projects", { body: { templateId, name: `API e2e ${new Date().toISOString()}` } });
@@ -111,15 +116,20 @@ const patched = await call("PATCH", `/v1/projects/${projectId}/content`, { body:
 check(patched.status === 200, `${patched.json.changed?.length} changed, ${patched.json.unmatched?.length} unmatched, ${patched.json.warnings?.length} warnings`);
 for (const c of patched.json.changed ?? []) console.log(`   ✎ scene ${c.scene} ${c.blockId}${c.field ? `.${c.field}` : ""}: ${JSON.stringify(c.before)} → ${JSON.stringify(c.after)}`);
 for (const u of patched.json.unmatched ?? []) console.log(`   ∅ replacement ${u.replacement}: ${u.reason}`);
-check((patched.json.changed ?? []).some((c) => c.field === "image" && c.after?.mediaId), "image:product filled from mediaUrl with an imported media id");
+const productChanges = (patched.json.changed ?? []).filter((c) => replacements[c.replacement].role === "image:product");
+if (productSlot) check(productChanges.length > 0 && productChanges.every((c) => c.after?.mediaId), `image:product filled from mediaUrl with an imported media id (${productChanges.map((c) => c.blockId + (c.field ? `.${c.field}` : "")).join(", ")})`);
+else check((patched.json.unmatched ?? []).some((u) => replacements[u.replacement].role === "image:product"), "image:product reported unmatched, not an error");
 check((patched.json.changed ?? []).some((c) => ["heading", "hook"].includes(replacements[c.replacement].role)), "heading/hook replaced by role");
 
 step("Failures a caller should see");
 const malformed = await call("PATCH", `/v1/projects/${projectId}/content`, { body: { replacements: [{ role: "headline", text: 42 }] } });
 check(malformed.status === 400 && malformed.json.error?.code === "invalid_request", `malformed → 400: ${malformed.json.error?.message}`);
 for (const d of malformed.json.error?.details ?? []) console.log(`   ${d.at}: ${d.message}`);
-const wrongKind = await call("PATCH", `/v1/projects/${projectId}/content`, { body: { replacements: [{ role: "image:product", text: "not a picture" }] } });
-check(wrongKind.status === 400, `text into an image slot → 400: ${wrongKind.json.error?.details?.[0]?.message}`);
+const mediaBlock = (template.json.scenes ?? []).flatMap((sc) => sc.blocks).find((b) => b.mediaSlot);
+if (mediaBlock) {
+  const wrongKind = await call("PATCH", `/v1/projects/${projectId}/content`, { body: { replacements: [{ blockId: mediaBlock.id, text: "not a picture" }] } });
+  check(wrongKind.status === 400, `text into the ${mediaBlock.mediaSlot.kind} block ${mediaBlock.id} → 400: ${wrongKind.json.error?.details?.[0]?.message}`);
+}
 if (otherKey) {
   const foreign = await call("GET", `/v1/projects/${projectId}`, { auth: otherKey });
   check(foreign.status === 404 && foreign.json.error?.code === "not_found", `another organisation's key → 404 (${foreign.json.error?.message})`);
@@ -127,8 +137,8 @@ if (otherKey) {
 const missing = await call("GET", "/v1/projects/not-a-project");
 check(missing.status === 404, "unknown project → 404");
 
-step("Render an MP4");
-const job = await call("POST", `/v1/projects/${projectId}/render`, { body: { format: "mp4" } });
+step(`Render (${format})`);
+const job = await call("POST", `/v1/projects/${projectId}/render`, { body: { format } });
 check(job.status === 202, `job ${job.json.id} ${job.json.status}`);
 const started = Date.now();
 let state = job.json;
@@ -152,12 +162,18 @@ if (state.status === "done") {
     writeFileSync(file, bytes);
     console.log(`   ⤓ ${file} (${(bytes.length / 1024 / 1024).toFixed(2)} MB)`);
     try {
+      if (format === "carousel-zip") continue;
       const probe = execFileSync("ffprobe", ["-v", "error", "-show_entries", "format=duration:stream=codec_name,width,height", "-of", "json", file]).toString();
       const info = JSON.parse(probe);
-      const duration = Number(info.format.duration);
       const video = info.streams.find((s) => s.width);
-      console.log(`   ffprobe: ${duration.toFixed(2)} s, ${video?.codec_name} ${video?.width}×${video?.height}`);
-      check(Math.abs(duration - template.json.duration) < 0.5, `duration ${duration.toFixed(2)} s matches the template's ${template.json.duration} s`);
+      if (format === "mp4") {
+        const duration = Number(info.format.duration);
+        console.log(`   ffprobe: ${duration.toFixed(2)} s, ${video?.codec_name} ${video?.width}×${video?.height}`);
+        check(Math.abs(duration - template.json.duration) < 0.5, `duration ${duration.toFixed(2)} s matches the template's ${template.json.duration} s`);
+      } else {
+        console.log(`   ffprobe: ${video?.codec_name} ${video?.width}×${video?.height}`);
+        check(video?.width === template.json.width && video?.height === template.json.height, `size matches the template's ${template.json.width}×${template.json.height}`);
+      }
     } catch (error) {
       console.log(`   (ffprobe unavailable: ${error.message.split("\n")[0]})`);
     }

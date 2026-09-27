@@ -3,7 +3,7 @@
 import { useQuery } from "convex/react";
 import type { FunctionReturnType } from "convex/server";
 import { ArrowLeft, Plus } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { ProjectStage, useProjectClock } from "@/components/hub/ProjectPreview";
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,7 @@ import { Chip, ChipRow } from "@/components/ui/chip";
 import { Dialog, DialogFooter, DialogHeader } from "@/components/ui/dialog";
 import { Tooltip } from "@/components/ui/tooltip";
 import { api } from "@/convex/_generated/api";
-import { aspectRatioOf, BLOCK_CATEGORIES, listBlocks, placementFor, useBlockPreview, type AnyBlockDefinition } from "@/lib/blocks";
+import { BLOCK_CATEGORIES, listBlocks, placementFor, useBlockPreview, type AnyBlockDefinition, type BlockCategory } from "@/lib/blocks";
 import { cn } from "@/lib/cn";
 import { componentBlock, textBlock } from "@/lib/editor/factory";
 import {
@@ -275,29 +275,40 @@ function SceneTile({ project, scene, poster, index, onPick }: { project: Project
 
 /* --------------------------------------------------------------- Blocks --- */
 
-const STICKERS = ["✨", "🔥", "💡", "❤️", "⭐️", "👉", "✅", "💬", "🎯", "🛒", "📌", "🎁"];
+/* Text blocks are browsed in the Text panel; every other category lives here. */
+const PANEL_CATEGORIES = BLOCK_CATEGORIES.filter((c) => c !== "Text");
 
+const matchesBlock = (def: AnyBlockDefinition, needle: string) => [def.name, def.category, ...def.tags].some((w) => w.toLowerCase().includes(needle));
+
+/*
+  The Blocks flyout, after Butter's: the shape tools, a search box, then the
+  catalog in a grid of square cards. Butter files categories down a side list;
+  here they are chips, so the grid keeps three full columns. A card shows the
+  block's poster frame and plays it while the pointer is over it; clicking adds
+  the block centred on the artboard and selects it.
+*/
 export function BlocksPanel() {
-  const [tab, setTab] = useState<"creator" | "butter">("creator");
+  const [q, setQ] = useState("");
+  const [cat, setCat] = useState<BlockCategory | null>(null);
   const addBlock = useEditor((s) => s.addBlock);
   const width = useEditor((s) => s.project.width);
   const height = useEditor((s) => s.project.height);
+  const addCatalogBlock = useAddCatalogBlock();
 
   const addShape = (k: ShapeKind) => addBlock(shapeFor(k, width, height));
-  const addSticker = (s: string) =>
-    addBlock(textBlock({ text: s, fontFamily: "Inter", fontSize: 200, x: width / 2 - 130, y: height / 2 - 130, w: 260, h: 260 }));
+
+  const all = listBlocks().filter((b) => b.category !== "Text");
+  /* A chip for every category that has something in it, in the catalog's order. */
+  const categories = PANEL_CATEGORIES.filter((c) => all.some((b) => b.category === c));
+  const needle = q.trim().toLowerCase();
+  const shown = all.filter((b) => (!cat || b.category === cat) && (!needle || matchesBlock(b, needle)));
+  const sections = needle
+    ? [{ title: cat ?? "Results", defs: shown }]
+    : (cat ? [cat] : categories).map((c) => ({ title: c, defs: shown.filter((b) => b.category === c) }));
 
   return (
     <>
-      <PanelHeader>
-        <div className="flex min-w-0 flex-1 items-baseline gap-3">
-          {(["creator", "butter"] as const).map((t) => (
-            <button key={t} type="button" className={cn("truncate text-panels transition-colors", tab === t ? "text-ink" : "text-ink-disabled hover:text-ink-secondary")} onClick={() => setTab(t)}>
-              {t === "creator" ? "Creator Blocks" : "Contently Blocks"}
-            </button>
-          ))}
-        </div>
-      </PanelHeader>
+      <PanelHeader title="Blocks" />
       <div className="flex items-center gap-1 px-3 pb-2">
         {SHAPES.slice(0, 6).map((s) => (
           <Tooltip key={s.kind} label={s.label} side="bottom">
@@ -307,106 +318,140 @@ export function BlocksPanel() {
           </Tooltip>
         ))}
       </div>
-      <PanelBody>
-        <CatalogBlocks />
-        <div className="mb-1.5 text-cap text-ink-secondary">Shapes</div>
-        <div className="grid grid-cols-3 gap-2">
-          {SHAPES.map((s) => (
-            <button
-              key={s.kind}
-              type="button"
-              className="flex aspect-square flex-col items-center justify-center gap-2 rounded-[14px] bg-card text-ink-secondary transition-colors hover:bg-raised hover:text-ink"
-              onClick={() => addShape(s.kind)}
-            >
-              <ShapeGlyph kind={s.kind} size={38} />
-              <span className="text-[10px] tracking-wide">{s.label}</span>
-            </button>
-          ))}
-          {STICKERS.map((s) => (
-            <button key={s} type="button" className="flex aspect-square items-center justify-center rounded-[14px] bg-card text-[40px] transition-colors hover:bg-raised" onClick={() => addSticker(s)} aria-label={`Sticker ${s}`}>
-              {s}
-            </button>
-          ))}
+      <div className="flex px-3 pb-2">
+        <PanelSearch value={q} onChange={setQ} placeholder="Search blocks" />
+      </div>
+      {categories.length ? (
+        <div className="px-3 pb-2">
+          <ChipRow className="min-w-0 [scrollbar-width:none]">
+            <Chip selected={!cat} onClick={() => setCat(null)} className="h-7 px-3 text-cap">
+              All
+            </Chip>
+            {categories.map((c) => (
+              <Chip key={c} selected={cat === c} onClick={() => setCat(cat === c ? null : c)} className="h-7 px-3 text-cap">
+                {c}
+              </Chip>
+            ))}
+          </ChipRow>
         </div>
+      ) : null}
+      <PanelBody>
+        {sections.map((s) =>
+          s.defs.length ? (
+            <section key={s.title} className="mb-4">
+              <div className="mb-1.5 text-cap text-ink-secondary">{s.title}</div>
+              <div className="grid grid-cols-3 gap-2">
+                {s.defs.map((def) => (
+                  <BlockCard key={def.id} def={def} onAdd={() => addCatalogBlock(def)} />
+                ))}
+              </div>
+            </section>
+          ) : null,
+        )}
+        {!shown.length ? <Empty>{needle ? "No blocks match." : "No blocks here yet."}</Empty> : null}
       </PanelBody>
     </>
   );
 }
 
 /*
-  The registered catalog, by category. A skeleton until the Blocks panel ticket
-  gives it search, chips and animated previews: each tile paints the block's
-  poster frame live, through the same renderer as the canvas.
+  Adds a catalog block the way Butter does: centred at the largest size its
+  aspect allows within 80% of the artboard, and — in a video — starting at the
+  playhead for its default length, pulled earlier if the scene would cut it
+  short.
 */
-function CatalogBlocks() {
+function useAddCatalogBlock() {
   const addBlock = useEditor((s) => s.addBlock);
-  const width = useEditor((s) => s.project.width);
-  const height = useEditor((s) => s.project.height);
-  const add = (def: AnyBlockDefinition) => addBlock(componentBlock(def.id, def.defaults, { ...placementFor(def, width, height), end: def.defaultDuration }));
-
-  return (
-    <>
-      {BLOCK_CATEGORIES.map((cat) => {
-        const defs = listBlocks(cat);
-        if (!defs.length) return null;
-        return (
-          <section key={cat} className="mb-4">
-            <div className="mb-1.5 text-cap text-ink-secondary">{cat}</div>
-            <div className="grid grid-cols-2 gap-2">
-              {defs.map((def) => (
-                <button key={def.id} type="button" aria-label={`Add ${def.name}`} className="group flex flex-col gap-1.5 text-left" onClick={() => add(def)}>
-                  <BlockThumb def={def} />
-                  <span className="px-0.5 text-cap text-ink-secondary transition-colors group-hover:text-ink">{def.name}</span>
-                </button>
-              ))}
-            </div>
-          </section>
-        );
-      })}
-    </>
-  );
+  return (def: AnyBlockDefinition) => {
+    const { project, activeSlideId, time } = useEditor.getState();
+    const scene = project.slides.find((s) => s.id === activeSlideId)?.duration ?? def.defaultDuration;
+    const length = project.kind === "video" ? Math.min(def.defaultDuration, scene) : def.defaultDuration;
+    const start = project.kind === "video" ? Math.min(Math.max(0, time), scene - length) : 0;
+    const round = (n: number) => Math.round(n * 100) / 100;
+    addBlock(componentBlock(def.id, def.defaults, { ...placementFor(def, project.width, project.height), start: round(start), end: round(start + length) }));
+  };
 }
 
 /*
-  A block at tile size. With generated previews (`scripts/block-previews.ts`)
-  the tile shows the poster and plays the preview while the pointer is over it
-  — pointer state rather than `:hover`, which does not fire for every pointer.
-  Without them it paints the poster frame live: laid out at phone width, then
-  scaled down to fit.
+  One catalog entry. Pointer state rather than a `hover:` variant drives the
+  preview, since those are gated on a hover-capable pointer.
 */
-function BlockThumb({ def }: { def: AnyBlockDefinition }) {
-  /* Two columns across the panel's padded width. Computed here, not at module scope: LeftPanel imports this file. */
-  const tile = (LEFT_PANEL_WIDTH - 24 - 8) / 2;
-  const box = { w: tile, h: tile };
-  const preview = useBlockPreview(def.id);
+function BlockCard({ def, onAdd }: { def: AnyBlockDefinition; onAdd: () => void }) {
   const [hover, setHover] = useState(false);
-  if (preview.poster) {
-    return (
-      <div
-        className="relative overflow-hidden rounded-[12px] bg-card ring-1 ring-transparent transition-shadow group-hover:ring-line-strong"
-        style={{ width: box.w, height: box.h }}
-        onPointerEnter={() => setHover(true)}
-        onPointerLeave={() => setHover(false)}
-      >
-        {/* eslint-disable-next-line @next/next/no-img-element -- a Convex storage URL at tile size */}
-        <img src={preview.poster} alt="" draggable={false} className="absolute inset-0 size-full object-cover" />
-        {hover && preview.video ? <video src={preview.video} autoPlay muted loop playsInline className="absolute inset-0 size-full object-cover" /> : null}
-      </div>
-    );
-  }
-  const w = 390;
-  const h = w / aspectRatioOf(def);
-  const scale = Math.min((box.w - 24) / w, (box.h - 24) / h);
-  const progress = def.poster?.progress ?? 1;
   return (
-    <div className="relative flex items-center justify-center overflow-hidden rounded-[12px] bg-card ring-1 ring-transparent transition-shadow group-hover:ring-line-strong" style={{ width: box.w, height: box.h }}>
-      <div className="pointer-events-none shrink-0" style={{ width: w * scale, height: h * scale }}>
+    <button
+      type="button"
+      aria-label={`Add ${def.name}`}
+      className={cn("group relative aspect-square overflow-hidden rounded-[8px] bg-card ring-1 transition-shadow", hover ? "ring-line-strong" : "ring-transparent")}
+      onPointerEnter={() => setHover(true)}
+      onPointerLeave={() => setHover(false)}
+      onFocus={() => setHover(true)}
+      onBlur={() => setHover(false)}
+      onClick={onAdd}
+    >
+      <BlockPreview def={def} playing={hover} />
+      <span className={cn("pointer-events-none absolute inset-x-0 bottom-0 scrim px-2 pt-5 pb-1.5 text-left text-cap text-white transition-opacity", hover ? "opacity-100" : "opacity-0")}>{def.name}</span>
+    </button>
+  );
+}
+
+/* Tile size: three columns across the panel's padded width. Computed on use, not at module scope: LeftPanel imports this file. */
+const tileSize = () => (LEFT_PANEL_WIDTH - 24 - 16) / 3;
+
+/*
+  A block at card size. With generated previews (`scripts/block-previews.ts`)
+  the card shows the stored poster at rest and plays the stored clip while
+  hovered. Until those exist the block itself is drawn, through the same
+  renderer as the canvas, at the size it would be added to this artboard — its
+  poster frame at rest and its animation, looping, while hovered.
+*/
+function BlockPreview({ def, playing }: { def: AnyBlockDefinition; playing: boolean }) {
+  const artW = useEditor((s) => s.project.width);
+  const artH = useEditor((s) => s.project.height);
+  const stored = useBlockPreview(def.id);
+  const time = useLoopClock(playing && !stored.video, def.defaultDuration);
+  const inner = tileSize() - 12;
+  const { w, h } = placementFor(def, artW, artH);
+  const scale = Math.min(inner / w, inner / h);
+
+  if (playing && stored.video) {
+    return <video src={stored.video} autoPlay muted loop playsInline className="pointer-events-none absolute inset-1.5 size-[calc(100%-12px)] object-contain" />;
+  }
+  if (!playing && stored.poster) {
+    /* eslint-disable-next-line @next/next/no-img-element -- a Convex storage URL at card size */
+    return <img src={stored.poster} alt="" draggable={false} className="pointer-events-none absolute inset-1.5 size-[calc(100%-12px)] object-contain" />;
+  }
+  const progress = playing ? Math.min(1, time / def.defaultDuration) : (def.poster?.progress ?? 1);
+  return (
+    <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+      <div className="shrink-0" style={{ width: w * scale, height: h * scale }}>
         <div style={{ width: w, height: h, transform: `scale(${scale})`, transformOrigin: "top left" }}>
-          {def.render(def.defaults, { mode: "static", progress, time: progress * def.defaultDuration, duration: def.defaultDuration, width: w, height: h })}
+          {def.render(def.defaults, { mode: playing ? "video" : "static", progress, time: progress * def.defaultDuration, duration: def.defaultDuration, width: w, height: h })}
         </div>
       </div>
     </div>
   );
+}
+
+/* Hold on the settled frame between loops, so a preview reads as finished before it restarts. */
+const LOOP_HOLD = 0.8;
+
+/* Seconds into the current loop while `active`; 0 otherwise. Ticks on animation frames. */
+function useLoopClock(active: boolean, duration: number) {
+  const [time, setTime] = useState(0);
+  useEffect(() => {
+    if (!active) return;
+    const t0 = performance.now();
+    let raf = requestAnimationFrame(function tick(now) {
+      setTime(((now - t0) / 1000) % (duration + LOOP_HOLD));
+      raf = requestAnimationFrame(tick);
+    });
+    return () => {
+      cancelAnimationFrame(raf);
+      setTime(0);
+    };
+  }, [active, duration]);
+  return active ? time : 0;
 }
 
 const SHAPE_PATHS: Record<ShapeKind, React.ReactNode> = {

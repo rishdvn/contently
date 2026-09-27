@@ -4,9 +4,20 @@ set -euo pipefail
 
 npm ci
 
-# Chromium for the Playwright MCP server. --with-deps is a no-op on macOS and
-# pulls the shared libraries headless Chromium needs on a Linux sandbox.
-npx --yes playwright install --with-deps chromium
+# LayoutProps and PageProps are globals Next generates into .next/types. Until
+# something generates them, `tsc --noEmit` fails on a fresh clone for reasons
+# that have nothing to do with the change being checked.
+npx next typegen
+
+# Chromium for the Playwright MCP server. --with-deps installs the shared
+# libraries through apt-get, so it only works on Debian-family images; the cloud
+# sandbox is Amazon Linux, which already has them, and there it would abort
+# the rest of this script.
+if command -v apt-get >/dev/null 2>&1; then
+  npx --yes playwright install --with-deps chromium
+else
+  npx --yes playwright install chromium
+fi
 
 # Video comes out of the recorder as WebM. ffmpeg is only needed to convert it
 # to something that previews everywhere; never fail setup over it.

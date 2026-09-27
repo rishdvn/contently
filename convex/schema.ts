@@ -82,15 +82,29 @@ export default defineSchema({
     name: v.string(),
     tags: v.array(v.string()),
     source: v.union(v.literal("upload"), v.literal("stock")),
-    /* Provider-scoped id of the asset this row was imported from. */
+    /* Provider-scoped id of the asset this row was imported from,
+       `<provider>:<id>` (`dupe:a584…`). Unique: it is what makes a re-run of
+       the stock import a no-op instead of a second copy. */
     sourceRef: v.optional(v.string()),
+    /* What we may do with a stock file. Every row from one provider carries the
+       same value, so a licence decision is one indexed query. */
     license: v.optional(v.string()),
+    /* Stock only. Our taxonomy slugs (`convex/stock/provider.ts`), not the
+       provider's words — those are in `tags` and `aesthetics`. */
+    categories: v.optional(v.array(v.string())),
+    /* Stock only: the provider's style labels, kept apart from its subject
+       labels in `tags`. */
+    aesthetics: v.optional(v.array(v.string())),
+    /* Stock only: who made it, as the provider names them. */
+    credit: v.optional(v.object({ name: v.optional(v.string()), handle: v.optional(v.string()) })),
     /* Absent on stock rows, which a script imports rather than a person. */
     createdBy: v.optional(v.id("users")),
   })
     .index("by_org", ["orgId"])
     .index("by_org_kind", ["orgId", "kind"])
-    .index("by_source_kind", ["source", "kind"]),
+    .index("by_source_kind", ["source", "kind"])
+    .index("by_sourceRef", ["sourceRef"])
+    .index("by_license", ["license"]),
 
   apiKeys: defineTable({
     orgId: v.id("organizations"),

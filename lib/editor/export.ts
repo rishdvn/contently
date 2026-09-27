@@ -5,7 +5,9 @@ import { ArrayBufferTarget, Muxer } from "mp4-muxer";
 
 import { waitForMedia, waitForPaintableMedia } from "./media";
 import { useEditor } from "./store";
-import type { Project } from "./types";
+import { fadeLengths } from "./audio";
+import { totalDuration } from "./geometry";
+import type { AudioTrack, Project } from "./types";
 
 export type ImageFormat = "png" | "jpeg";
 
@@ -107,6 +109,119 @@ async function settleMedia(node: HTMLElement, budgetMs: number) {
   }
 }
 
+/* -------------------------------------------------------------- audio --- */
+
+const AUDIO_RATE = 48_000;
+const AUDIO_CHANNELS = 2;
+
+/* How a lane track's file is found. The studio resolves library audio to a live
+   URL; anywhere without a session (the render route) falls back to `src`. */
+export type AudioUrlResolver = (track: AudioTrack) => Promise<string>;
+
+const savedUrl: AudioUrlResolver = async (track) => track.src ?? "";
+
+/*
+  The lane, mixed down offline: every unmuted track decoded, placed at its
+  start, cut to its offset and length, scaled by its volume and ramped by its
+  fades — the envelope `fadeGain` gives playback, scheduled on a gain node. The
+  studio's own mute button is monitoring and is ignored here; a muted track is
+  left out. Null when there is nothing to hear.
+
+  A track whose file cannot be fetched or decoded fails the export, named: a
+  video that quietly lost its music is worse than one that did not render.
+*/
+export async function mixAudio(project: Project, resolve: AudioUrlResolver = savedUrl, signal?: AbortSignal): Promise<AudioBuffer | null> {
+  const total = totalDuration(project);
+  const tracks = project.audio.filter((t) => !t.muted && t.volume > 0 && t.duration > 0 && t.start < total);
+  if (!tracks.length || total <= 0) return null;
+
+  const ctx = new OfflineAudioContext(AUDIO_CHANNELS, Math.ceil(total * AUDIO_RATE), AUDIO_RATE);
+  for (const track of tracks) {
+    if (signal?.aborted) throw new DOMException("Export cancelled", "AbortError");
+    let buffer: AudioBuffer;
+    try {
+      const url = await resolve(track);
+      if (!url) throw new Error("no file");
+      const response = await fetch(url, { signal });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      buffer = await ctx.decodeAudioData(await response.arrayBuffer());
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") throw error;
+      throw new Error(`Couldn't load the audio "${track.title}". Check your connection, or remove it from the timeline.`);
+    }
+
+    const start = track.start;
+    const end = Math.min(track.start + track.duration, total);
+    const volume = Math.min(Math.max(track.volume / 100, 0), 1);
+    const { fadeIn, fadeOut } = fadeLengths({ ...track, duration: end - start });
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(fadeIn > 0 ? 0 : volume, start);
+    if (fadeIn > 0) gain.gain.linearRampToValueAtTime(volume, start + fadeIn);
+    if (fadeOut > 0) {
+      gain.gain.setValueAtTime(volume, end - fadeOut);
+      gain.gain.linearRampToValueAtTime(0, end);
+    }
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+    source.connect(gain).connect(ctx.destination);
+    source.start(start, track.offset ?? 0, end - start);
+  }
+  return ctx.startRendering();
+}
+
+/* AAC where the browser can encode it — it plays everywhere — and Opus, which
+   every WebCodecs browser can, otherwise. */
+async function audioCodec(): Promise<{ config: AudioEncoderConfig; muxer: "aac" | "opus" } | null> {
+  if (typeof AudioEncoder === "undefined") return null;
+  const candidates: { config: AudioEncoderConfig; muxer: "aac" | "opus" }[] = [
+    { config: { codec: "mp4a.40.2", sampleRate: AUDIO_RATE, numberOfChannels: AUDIO_CHANNELS, bitrate: 192_000 }, muxer: "aac" },
+    { config: { codec: "opus", sampleRate: AUDIO_RATE, numberOfChannels: AUDIO_CHANNELS, bitrate: 160_000 }, muxer: "opus" },
+  ];
+  for (const candidate of candidates) {
+    try {
+      if ((await AudioEncoder.isConfigSupported(candidate.config)).supported) return candidate;
+    } catch {
+      /* An unknown codec string throws in some browsers rather than answering. */
+    }
+  }
+  return null;
+}
+
+/* The mix, encoded in 20 ms slices. */
+async function encodeAudio(mix: AudioBuffer, config: AudioEncoderConfig, muxer: Muxer<ArrayBufferTarget>) {
+  let failure: Error | null = null;
+  const encoder = new AudioEncoder({
+    output: (chunk, meta) => muxer.addAudioChunk(chunk, meta),
+    error: (e) => (failure = e),
+  });
+  encoder.configure(config);
+  const slice = Math.round(AUDIO_RATE / 50);
+  const channels = Array.from({ length: AUDIO_CHANNELS }, (_, c) => mix.getChannelData(Math.min(c, mix.numberOfChannels - 1)));
+  try {
+    for (let at = 0; at < mix.length; at += slice) {
+      if (failure) throw failure;
+      const frames = Math.min(slice, mix.length - at);
+      const planar = new Float32Array(frames * AUDIO_CHANNELS);
+      channels.forEach((data, c) => planar.set(data.subarray(at, at + frames), c * frames));
+      const data = new AudioData({
+        format: "f32-planar",
+        sampleRate: AUDIO_RATE,
+        numberOfFrames: frames,
+        numberOfChannels: AUDIO_CHANNELS,
+        timestamp: Math.round((at / AUDIO_RATE) * 1_000_000),
+        data: planar,
+      });
+      encoder.encode(data);
+      data.close();
+      while (encoder.encodeQueueSize > 8) await new Promise((r) => setTimeout(r, 2));
+    }
+    await encoder.flush();
+    if (failure) throw failure;
+  } finally {
+    if (encoder.state !== "closed") encoder.close();
+  }
+}
+
 /*
   Offline render: step the timeline one frame at a time, rasterise the scene
   and hand it to WebCodecs, then mux into a fragmented-free MP4 in memory.
@@ -114,7 +229,7 @@ async function settleMedia(node: HTMLElement, budgetMs: number) {
 */
 export async function renderVideo(
   project: Project,
-  opts: { fps: number; quality: VideoQuality; onProgress?: (p: number) => void; signal?: AbortSignal },
+  opts: { fps: number; quality: VideoQuality; onProgress?: (p: number) => void; signal?: AbortSignal; audioUrl?: AudioUrlResolver },
 ): Promise<Blob> {
   if (!canEncodeVideo()) throw new Error("This browser cannot encode video. Try Chrome or Edge.");
   /* As in `renderSlide`: no frame is painted before its media has a URL. */
@@ -133,12 +248,21 @@ export async function renderVideo(
   }
   if (!codec) throw new Error("No supported H.264 profile for this size");
 
+  /* The audio is mixed before the first frame: the muxer has to know about the
+     track when it is made, and a mix that fails should fail before minutes of
+     rasterising, not after. */
+  const mix = await mixAudio(project, opts.audioUrl, opts.signal);
+  const codecForAudio = mix ? await audioCodec() : null;
+  if (mix && !codecForAudio) throw new Error("This browser cannot encode audio. Try Chrome or Edge.");
+
   const muxer = new Muxer({
     target: new ArrayBufferTarget(),
     video: { codec: "avc", width, height },
+    audio: codecForAudio ? { codec: codecForAudio.muxer, numberOfChannels: AUDIO_CHANNELS, sampleRate: AUDIO_RATE } : undefined,
     fastStart: "in-memory",
     firstTimestampBehavior: "offset",
   });
+  if (mix && codecForAudio) await encodeAudio(mix, codecForAudio.config, muxer);
   let encodeError: Error | null = null;
   const encoder = new VideoEncoder({
     output: (chunk, meta) => muxer.addVideoChunk(chunk, meta),

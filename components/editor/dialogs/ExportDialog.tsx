@@ -1,8 +1,10 @@
 "use client";
 
+import { useConvex } from "convex/react";
 import { Check, Download } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
+import { trackUrl } from "@/lib/editor/audio";
 import { canEncodeVideo, download, renderVideo, safeName, slideToBlob, type ImageFormat, type VideoQuality } from "@/lib/editor/export";
 import { useEditor } from "@/lib/editor/store";
 
@@ -27,6 +29,7 @@ export function ExportDialog() {
 
 /* Mounted only while the flyout is open, so every open starts clean. */
 function ExportBody() {
+  const convex = useConvex();
   const project = useEditor((s) => s.project);
   const rename = useEditor((s) => s.rename);
   const activeSlideId = useEditor((s) => s.activeSlideId);
@@ -80,6 +83,9 @@ function ExportBody() {
         fps,
         quality,
         signal: abort.current.signal,
+        /* Library audio at a live URL: a saved Soundstripe link may have
+           expired since the track was added. */
+        audioUrl: (track) => trackUrl(convex, track),
         onProgress: (p) => setBusy({ label: "Rendering video…", progress: p }),
       });
       download(blob, `${safeName(project.name)}.mp4`);

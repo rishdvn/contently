@@ -88,6 +88,9 @@ export function Stage() {
       setLoaded(true);
       await loadFonts(p);
       await settle();
+      /* `loadFonts` knows the text blocks' faces; a catalog block asks for its
+         own only once it is laid out, which is now. */
+      await document.fonts.ready;
       if (root.current) await waitForPaintableMedia(root.current);
       await settle();
     };

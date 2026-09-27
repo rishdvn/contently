@@ -47,6 +47,40 @@ import "./imessage";
 That is the only shared file a block ticket touches, and the line is unique to
 the block, so parallel block tickets rebase without conflicts.
 
+The skeleton, as iMessage lays it out:
+
+```tsx
+// lib/blocks/<id>/index.tsx
+import { input } from "../inputs";
+import { registerBlock } from "../registry";
+
+import { View } from "./View";
+
+/* Exported so the render code can type its props from it. */
+export const inputs = { /* … */ };
+
+registerBlock({ id: "<id>", /* … */ inputs, defaults: { /* every key */ }, render: (props, ctx) => <View props={props} ctx={ctx} /> });
+```
+
+```tsx
+// lib/blocks/<id>/View.tsx
+import type { PropsOf } from "../inputs";
+import { BlockImage } from "../media";
+import type { RenderContext } from "../registry";
+
+import type { inputs } from "./index";
+
+type Props = PropsOf<typeof inputs>;
+
+export function View({ props, ctx }: { props: Props; ctx: RenderContext }) {
+  const u = ctx.width / 390;
+  return <div className="size-full overflow-hidden">{/* … */}</div>;
+}
+```
+
+The render output is placed in an `absolute inset-0` box the size of the block:
+make the root fill it (`size-full`) and clip its own overflow.
+
 ### `render(props, ctx)`
 
 `props` are the block's input values, already checked against the schema
@@ -115,7 +149,7 @@ block shows one frame: `poster.progress`, default `1`.
 
 A block never ships its own inspector. It declares its content slots from nine
 primitives and `SchemaFields` renders the controls — and the same schema is
-what the API and the MCP read to know what can be replaced. The list is
+what the public API and MCP (Phase 8) will read to know what can be replaced. The list is
 closed: a tenth kind is a platform change, not a block change.
 
 | Builder | Value | Inspector | Options |
@@ -125,23 +159,32 @@ closed: a tenth kind is a platform change, not a block change.
 | `input.video` | `{ mediaId?, src }` | Thumbnail; opens Uploads/Stock | |
 | `input.color` | `string` (CSS colour) | Colour field with brand swatches | |
 | `input.number` | `number` | Number field | `min`, `max`, `step`, `unit` |
-| `input.select` | one of the option values | Segmented (≤ 3) or menu | `options: { value, label }[]` |
+| `input.select` | one of the option values | Segmented strip when ≤ 3 options with labels ≤ 10 characters; a menu otherwise | `options: { value, label }[]` |
 | `input.boolean` | `boolean` | Switch | |
 | `input.list` | `item[]` | Reorderable rows, add/remove | `item`, `min`, `max`, `itemLabel` |
 | `input.object` | `{ …fields }` | A group of fields | `fields` |
 
-Every builder also takes `label` (what the inspector says; defaults to the key)
-and `default` (what a new list item or a missing field starts as).
+Every builder also takes `label` (what the inspector says; without one the key
+is turned into words, `contactName` → "Contact name") and `default` (what a new
+list item or a missing field starts as).
 
 Rules of thumb:
 
 - **Text has a `maxLength`.** It is what keeps a design from breaking when an
   AI fills it, and the API reports it as the slot's limit. Measure: the longest
   string the design still looks right with.
-- **Media goes through `image`/`video` inputs, painted with `BlockImage`.**
-  That is what makes a slot replaceable from Uploads and Stock, resolves org
-  media by id, keeps the export CORS-clean, and lets the save path strip
-  temporary `blob:` URLs. Never bake text into an image.
+- **Media goes through `image`/`video` inputs.** That is what makes a slot
+  replaceable from Uploads and Stock and lets the save path strip temporary
+  `blob:` URLs. Never bake text into an image.
+- **Paint an `image` input with `BlockImage`** (`lib/blocks/media.tsx`):
+  `<BlockImage value={props.avatar} style={…} className={…} />`. It resolves org
+  media by id, sets `crossOrigin` so the export is not tainted, defaults to
+  `object-fit: cover`, and renders nothing while the value is empty — so draw a
+  fallback underneath (iMessage shows the contact's initial). No block uses a
+  `video` input yet; the first one adds a `BlockVideo` beside `BlockImage`,
+  seeking the element to `ctx.time` rather than letting it play.
+- **An empty media value is `{ src: "" }`**, and `defaults` lists every key,
+  empty media included (iMessage: `avatar: { src: "" }`).
 - **Lists are for repeated content**, with honest bounds: `min` is what the
   design needs to make sense, `max` is where it stops fitting.
 - **Selects are for designed variants** (theme, layout), not for things a
@@ -157,6 +200,10 @@ Rules of thumb:
 shows; it is typed from the schema (`PropsOf<typeof inputs>`), so a typo there
 is a compile error. Make it look like a real post, not "Lorem ipsum": it is
 also the preview in the picker.
+
+- **Type** with the families in `lib/editor/fonts.ts` (`FONTS`): the render
+  pages load exactly those, so anything else falls back to the system stack in
+  exports and previews.
 
 ### Worked examples
 
@@ -185,6 +232,9 @@ Its animation is a schedule computed from the inputs and `ctx.duration`
 (`schedule()` in `Thread.tsx`): each message gets a slot, received messages a
 longer one with typing dots first, and the last fifth holds the finished
 thread. Every frame is `f(t)` against that schedule.
+
+The next two are schema sketches for blocks in the catalog plan, not yet in
+the repo — the shapes to reach for, not code to copy.
 
 **Image carousel** — a list of one primitive, plus timing:
 
@@ -235,7 +285,7 @@ animation at once.
 npm --prefix workers/render install   # once: the script runs on the render worker's Playwright
 npm run dev                           # the script renders through the app
 npm run block-previews                # every block whose hash changed
-npm run block-previews -- --only product-card --out /tmp/previews   # one block, plus local copies
+npm run block-previews -- --only product-card --out /tmp/previews   # some blocks (comma-separated), plus local copies
 ```
 
 Other flags: `--force` (ignore hashes), `--prune` (remove rows for blocks no

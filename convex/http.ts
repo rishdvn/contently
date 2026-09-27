@@ -3,6 +3,7 @@ import { Webhook } from "svix";
 
 import { internal } from "./_generated/api";
 import { httpAction } from "./_generated/server";
+import { registerApi } from "./api/router";
 import {
   memberUserInput,
   orgInput,
@@ -120,5 +121,8 @@ const clerkWebhook = httpAction(async (ctx, request) => {
 const http = httpRouter();
 
 http.route({ path: "/clerk", method: "POST", handler: clerkWebhook });
+
+/* The public REST API, `/v1/…` (`convex/api/router.ts`, `docs/api.md`). */
+registerApi(http);
 
 export default http;

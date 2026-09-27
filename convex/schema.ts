@@ -117,7 +117,10 @@ export default defineSchema({
     .index("by_sourceRef", ["sourceRef"])
     .index("by_license", ["license"])
     /* Which videos still need a transcode: `codec` absent or not "h264". */
-    .index("by_source_kind_codec", ["source", "kind", "codec"]),
+    .index("by_source_kind_codec", ["source", "kind", "codec"])
+    /* The API refuses to register a file another row already owns
+       (`api/media.create`): a storage id is visible in its URL. */
+    .index("by_storageId", ["storageId"]),
 
   apiKeys: defineTable({
     orgId: v.id("organizations"),
@@ -127,6 +130,12 @@ export default defineSchema({
     createdBy: v.id("users"),
     lastUsedAt: v.optional(v.number()),
     revokedAt: v.optional(v.number()),
+    /* The key's first characters (`ctly_Ab3x`), so a person can tell their
+       keys apart in the list without the key being recoverable. */
+    start: v.optional(v.string()),
+    /* Rate limit: a fixed one-minute window per key (`apiKeys.authenticate`). */
+    windowStart: v.optional(v.number()),
+    windowCount: v.optional(v.number()),
   })
     .index("by_org", ["orgId"])
     /* Authenticating an API request: hash the bearer token, look it up. */

@@ -254,7 +254,7 @@ function jobView(job: Doc<"renderJobs">, urls: (string | null)[]) {
   };
 }
 
-async function viewWithUrls(ctx: QueryCtx, job: Doc<"renderJobs">) {
+export async function viewWithUrls(ctx: QueryCtx, job: Doc<"renderJobs">) {
   const urls = await Promise.all(job.outputStorageIds.map((id) => ctx.storage.getUrl(id)));
   return jobView(job, urls);
 }
@@ -263,7 +263,42 @@ async function viewWithUrls(ctx: QueryCtx, job: Doc<"renderJobs">) {
   Ask for a render. The project has to be one the caller's org owns and the
   format has to make sense for it — a still project has no MP4 in it, and
   finding that out five minutes later from a failed job helps nobody.
+
+  Shared by the studio (`enqueue`, a signed-in member) and the public API
+  (`api/router.ts`, an API key), so both follow the same rules.
 */
+export async function enqueueJob(
+  ctx: MutationCtx,
+  orgId: Id<"organizations">,
+  requestedBy: Id<"users">,
+  { projectId, format: wanted, scene, scale, fps }: { projectId: string; format: RenderFormat; scene?: number; scale?: number; fps?: number },
+) {
+  const id = ctx.db.normalizeId("projects", projectId);
+  const project = id ? await ctx.db.get(id) : null;
+  if (!project || project.orgId !== orgId) fail("missing", "No such project in this organisation");
+
+  if (wanted === "mp4" && project.kind !== "video") fail("invalid", `Only a video project renders as MP4; this one is ${project.kind}`);
+  if (wanted === "carousel-zip" && project.kind !== "carousel") fail("invalid", `Only a carousel project renders as a carousel zip; this one is ${project.kind}`);
+
+  const slides = ((project.document as DocumentLike)?.slides ?? []).length;
+  if (scene !== undefined && (!Number.isInteger(scene) || scene < 0 || scene >= slides)) {
+    fail("invalid", `This project has no scene ${scene}`);
+  }
+
+  return await ctx.db.insert("renderJobs", {
+    orgId,
+    projectId: project._id,
+    format: wanted,
+    status: "queued",
+    scene,
+    scale,
+    fps,
+    outputStorageIds: [],
+    attempts: 0,
+    requestedBy,
+  });
+}
+
 export const enqueue = mutation({
   args: {
     orgId: v.string(),
@@ -273,33 +308,9 @@ export const enqueue = mutation({
     scale: v.optional(v.number()),
     fps: v.optional(v.number()),
   },
-  handler: async (ctx, { orgId, projectId, format: wanted, scene, scale, fps }) => {
+  handler: async (ctx, { orgId, ...job }) => {
     const { org, user } = await requireOrg(ctx, orgId);
-
-    const id = ctx.db.normalizeId("projects", projectId);
-    const project = id ? await ctx.db.get(id) : null;
-    if (!project || project.orgId !== org._id) fail("missing", "No such project in this organisation");
-
-    if (wanted === "mp4" && project.kind !== "video") fail("invalid", `Only a video project renders as MP4; this one is ${project.kind}`);
-    if (wanted === "carousel-zip" && project.kind !== "carousel") fail("invalid", `Only a carousel project renders as a carousel zip; this one is ${project.kind}`);
-
-    const slides = ((project.document as DocumentLike)?.slides ?? []).length;
-    if (scene !== undefined && (!Number.isInteger(scene) || scene < 0 || scene >= slides)) {
-      fail("invalid", `This project has no scene ${scene}`);
-    }
-
-    return await ctx.db.insert("renderJobs", {
-      orgId: org._id,
-      projectId: project._id,
-      format: wanted,
-      status: "queued",
-      scene,
-      scale,
-      fps,
-      outputStorageIds: [],
-      attempts: 0,
-      requestedBy: user._id,
-    });
+    return await enqueueJob(ctx, org._id, user._id, job);
   },
 });
 

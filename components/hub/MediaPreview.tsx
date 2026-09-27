@@ -249,8 +249,12 @@ function MediaStage({ item, area }: { item: MediaItem; area: { w: number; h: num
 
 function VideoStage({ item, onFullscreen }: { item: MediaItem; onFullscreen: () => void }) {
   const video = useRef<HTMLVideoElement>(null);
-  const [playing, setPlaying] = useState(true);
+  /* From the element's own events: autoplay can be refused. */
+  const [playing, setPlaying] = useState(false);
   const [muted, setMuted] = useState(false);
+  /* The browser cannot decode the file — HEVC clips outside Safari and
+     hardware-decoding Chrome, typically. */
+  const [unplayable, setUnplayable] = useState(false);
   const [time, setTime] = useState({ at: 0, total: item.duration ?? 0 });
   /* Tracked in JS rather than :hover so the controls also show for pointers that report no hover capability. */
   const [hover, setHover] = useState(false);
@@ -273,6 +277,19 @@ function VideoStage({ item, onFullscreen }: { item: MediaItem; onFullscreen: () 
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
+  /* Start with sound; a browser that only lets a page autoplay silently (a
+     preview opened from a link, with no click behind it) gets it muted. */
+  useEffect(() => {
+    const v = video.current;
+    if (!v) return;
+    v.play().catch((error: unknown) => {
+      if (!(error instanceof DOMException) || error.name !== "NotAllowedError") return;
+      v.muted = true;
+      setMuted(true);
+      void v.play().catch(() => {});
+    });
+  }, []);
+
   const progress = time.total > 0 ? time.at / time.total : 0;
 
   return (
@@ -281,16 +298,21 @@ function VideoStage({ item, onFullscreen }: { item: MediaItem; onFullscreen: () 
         ref={video}
         src={item.url ?? undefined}
         poster={item.posterUrl ?? undefined}
-        autoPlay
         loop
         playsInline
         muted={muted}
         className="size-full object-contain"
         onPlay={() => setPlaying(true)}
         onPause={() => setPlaying(false)}
+        onError={(e) => setUnplayable(e.currentTarget.error?.code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED)}
         onTimeUpdate={(e) => setTime({ at: e.currentTarget.currentTime, total: e.currentTarget.duration || time.total })}
         onClick={toggle}
       />
+      {unplayable ? (
+        <div className="absolute inset-x-4 top-4 rounded-[10px] bg-black/75 px-3 py-2.5 text-cap text-white">
+          This browser can&rsquo;t play this clip&rsquo;s format. Download it to watch, or open it in Safari.
+        </div>
+      ) : null}
       <div className={cn("absolute inset-x-0 bottom-0 flex items-center gap-1 bg-gradient-to-t from-black/70 to-transparent px-2 pt-6 pb-2 text-white transition-opacity duration-150", reveal)}>
         <button type="button" aria-label={playing ? "Pause" : "Play"} onClick={toggle} className="flex size-7 items-center justify-center rounded-[6px] hover:bg-white/15">
           {playing ? <Pause className="size-3.5 fill-current" /> : <Play className="size-3.5 translate-x-px fill-current" />}

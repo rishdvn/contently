@@ -69,12 +69,16 @@ export function listBlocks(category?: BlockCategory): AnyBlockDefinition[] {
 }
 
 /* Width over height for a block's aspect hint. */
-export const aspectRatioOf = (def: AnyBlockDefinition) => ({ square: 1, portrait: 4 / 5, landscape: 16 / 9, free: 1 })[def.aspectHint ?? "free"];
+export const aspectRatioOf = (def: AnyBlockDefinition) => ({ square: 1, portrait: 4 / 5, landscape: 16 / 9, strip: 4, free: 1 })[def.aspectHint ?? "free"];
 
-/* Where a block lands when added: centred, as large as its aspect allows within 80% of the artboard. */
+/*
+  Where a block lands when added: centred, as large as its aspect allows within
+  80% of the artboard. A strip runs the artboard's full width, edge to edge, as
+  a band does.
+*/
 export function placementFor(def: AnyBlockDefinition, artW: number, artH: number) {
   const ratio = aspectRatioOf(def);
-  let w = Math.min(artW * 0.8, artH * 0.8 * ratio);
+  let w = Math.min(artW * (def.aspectHint === "strip" ? 1 : 0.8), artH * 0.8 * ratio);
   let h = w / ratio;
   if (h > artH * 0.8) {
     h = artH * 0.8;

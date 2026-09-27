@@ -29,7 +29,8 @@ export type BlockSpec<S extends InputSchema = InputSchema> = {
   defaults: PropsOf<S>;
   /* Seconds a freshly added block lasts in a video. */
   defaultDuration: number;
-  aspectHint?: "square" | "portrait" | "landscape" | "free";
+  /* The box it is added in. A strip is a band across the artboard, 4:1. */
+  aspectHint?: "square" | "portrait" | "landscape" | "strip" | "free";
   /*
     What each content field is for in a template, in the same vocabulary as a
     block's own `role` (`CONTENT_ROLES`). Keys are field paths: a top-level

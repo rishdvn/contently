@@ -46,6 +46,6 @@ export const logoStrip = defineBlock({
   /* A list of images: the role names what each item is. */
   roles: { logos: "logo" },
   defaultDuration: 6,
-  aspectHint: "landscape",
+  aspectHint: "strip",
   preview: "",
 });

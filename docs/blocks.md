@@ -155,7 +155,8 @@ comment at the top of the block.
 
 `aspectHint` sets the box a freshly added block gets (`placementFor`: centred,
 as large as the aspect allows inside 80 % of the artboard). Pick the one the
-design reads best at; `free` is 1:1.
+design reads best at; `free` is 1:1. `strip` is a 4:1 band that runs the
+artboard's full width, for rows such as the Logo strip.
 
 ### Static and video
 

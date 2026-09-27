@@ -187,12 +187,14 @@ function TemplateDetail({ id, onBack }: { id: string; onBack: () => void }) {
 
   return (
     <>
-      <div className="flex flex-col gap-3 px-3 pt-3 pb-3">
-        <div className="flex items-center gap-2">
+      <PanelHeader>
+        <div className="min-w-0 flex-1">
           <button type="button" className="flex h-7 items-center gap-1 rounded-[6px] pr-2 pl-1 text-ui text-ink-secondary hover:bg-[var(--state-hover)] hover:text-ink [&>svg]:size-3.5" onClick={onBack}>
             <ArrowLeft /> Back
           </button>
         </div>
+      </PanelHeader>
+      <div className="flex flex-col gap-3 px-3 pb-3">
         <div className="flex flex-col gap-0.5 px-0.5">
           <div className="truncate text-panels text-ink">{t?.name ?? "\u00a0"}</div>
           <div className="text-cap text-ink-secondary">{t && doc ? `${KIND_LABEL[t.kind] ?? t.kind} · ${doc.width} × ${doc.height} px` : "\u00a0"}</div>

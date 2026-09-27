@@ -241,6 +241,30 @@ A checklist before publishing:
       use (`templates:list` shows them) — they will be the Templates page's
       chips. There is no fixed list yet
 
+## The mock templates
+
+Three published templates, one per kind, are the fixtures the scene picker,
+the Templates page, the API and the MCP are checked against. They are built
+to exercise every code path, not to be the library:
+
+| Template | Kind | Exercises |
+|---|---|---|
+| Product spotlight | Image, 4:5 | `heading` (highlight-style), `body`, `cta`, `image:product`, `image:background`; a Product card (static) and a shape |
+| 3 reasons | Carousel, 3 slides, 4:5 | A `heading` per slide, three `benefit`s, `image:lifestyle` on slide 1, `cta` on slide 3, a Logo strip (`brand`) on every slide |
+| Hook → demo → CTA | Video, 9:16, 3 s / 6 s / 4 s | A `hook` that rises in, `video:background`, an animated Search bar, a Counter with a `body` caption, a held `cta` |
+
+All their media is stock. `scripts/mock-templates.ts` draws them as projects
+in the publisher organisation and makes (or refreshes) the templates, so they
+can be rebuilt on another deployment or after a change; they stay ordinary
+projects, and editing one in the studio and re-running `createFromProject`
+works as for any template. Render the posters after either.
+
+```bash
+npm run mock-templates -- --org org_… --user user_…             # unpublished
+npm run mock-templates -- --org org_… --user user_… --publish
+npm run template-posters
+```
+
 ## Reading templates from code
 
 ```ts

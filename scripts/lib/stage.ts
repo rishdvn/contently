@@ -107,6 +107,7 @@ type StageWindow = Window & {
     load(project: unknown): Promise<void>;
     loadBlock(id: string, mode: "static" | "video"): Promise<void>;
     png(scene: number, scale?: number): Promise<number>;
+    still(scene: number, time: number, scale?: number): Promise<number>;
     mp4(options?: { fps?: number; quality?: "medium" | "high" | "best"; scale?: number }): Promise<number>;
   };
 };
@@ -149,6 +150,11 @@ export async function loadDocument(page: Page, project: unknown) {
 
 export async function png(page: Page, scene: number, scale: number): Promise<Uint8Array> {
   const length = await page.evaluate(([index, at]: readonly [number, number]) => (window as StageWindow).contently!.png(index, at), [scene, scale] as const);
+  return await drain(page, length);
+}
+
+export async function still(page: Page, scene: number, time: number, scale: number): Promise<Uint8Array> {
+  const length = await page.evaluate(([index, at, size]: readonly [number, number, number]) => (window as StageWindow).contently!.still(index, at, size), [scene, time, scale] as const);
   return await drain(page, length);
 }
 

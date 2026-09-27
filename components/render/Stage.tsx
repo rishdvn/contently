@@ -21,8 +21,8 @@ import { base64Slice, loadFonts, settle } from "./settle";
 
   - `scripts/block-previews.ts` stages each registered block (`loadBlock`) and
     takes a poster PNG and a preview MP4;
-  - the template poster script stages a template's document (`load`) and takes
-    a PNG per scene.
+  - `scripts/template-posters.ts` stages a template's document (`load`) and
+    takes a PNG per scene (`still`).
 
   It is the render worker's bridge (`RenderBridge`, so the worker's `drain`
   reads from it unchanged) plus the three members below. Nothing is fetched:
@@ -47,6 +47,9 @@ export type StageBridge = RenderBridge & {
   /* Put one block on the stage as its picker preview shows it: `static` for the
      poster (an image project), `video` for the preview (a video project). */
   loadBlock(id: string, mode: "static" | "video"): Promise<void>;
+  /* `png` at a moment in the scene rather than its start: a video scene's
+     poster, taken once its blocks have arrived. Ignored by stills projects. */
+  still(scene: number, time: number, scale?: number): Promise<number>;
 };
 
 /* A one-block project laid out by `BLOCK_PREVIEW`. */
@@ -95,11 +98,11 @@ export function Stage() {
       await settle();
     };
 
-    const showScene = async (index: number) => {
+    const showScene = async (index: number, time = 0) => {
       const p = useEditor.getState().project;
       const scene = p.slides[index];
       if (!current || !scene) throw new Error(`Nothing staged has a scene ${index}`);
-      useEditor.setState({ activeSlideId: scene.id, time: 0 });
+      useEditor.setState({ activeSlideId: scene.id, time });
       await settle();
       if (root.current) await waitForPaintableMedia(root.current);
       await settle();
@@ -123,6 +126,10 @@ export function Stage() {
       loadBlock: (id, mode) => show(blockPreviewProject(id, mode)),
       png: async (index, scale = 1) => {
         const { p, scene } = await showScene(index);
+        return await stage(await slideToBlob(p, scene.id, "png", scale));
+      },
+      still: async (index, time, scale = 1) => {
+        const { p, scene } = await showScene(index, time);
         return await stage(await slideToBlob(p, scene.id, "png", scale));
       },
       mp4: async (options) => {

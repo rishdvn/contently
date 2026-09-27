@@ -71,8 +71,9 @@ export function StockPanel() {
   and searchable. Clicking a row adds it to the timeline; its artwork previews
   it. With no search and no filter the tab browses the way Butter's does:
   recently used tracks, then a short section per mood (for sound effects, per
-  category) whose "See more" applies that filter. The catalog is the Convex index of Soundstripe plus the seeded CC0 set (`convex/audio/*`);
-  playback, preview and the lane alike, goes through `lib/editor/audio.ts`.
+  category) whose "See more" applies that filter. The catalog is the Convex
+  index of Soundstripe plus the seeded CC0 set (`convex/audio/*`); playback,
+  preview and the lane alike, goes through `lib/editor/audio.ts`.
 */
 
 type AudioKind = "music" | "sfx";
@@ -284,9 +285,15 @@ function LoadMore({ onVisible }: { onVisible: () => void }) {
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    const observer = new IntersectionObserver((entries) => {
-      if (entries.some((e) => e.isIntersecting)) onVisible();
-    }, { rootMargin: "240px" });
+    /* Rooted on the panel's scroller, as the browse sections are: against the
+       window the margin is clipped away and the next page waits until the
+       end of the list is actually on screen. */
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) onVisible();
+      },
+      { root: scrollParent(el), rootMargin: "240px 0px" },
+    );
     observer.observe(el);
     return () => observer.disconnect();
   }, [onVisible]);

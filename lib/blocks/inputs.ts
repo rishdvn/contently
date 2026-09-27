@@ -84,6 +84,18 @@ export type ValueOf<I> = I extends TextInput | ColorInput
 
 export type PropsOf<S extends InputSchema> = { [K in keyof S]: ValueOf<S[K]> };
 
+/*
+  Names for a schema's fields, for a definition's `roles`: a top-level input
+  (`contactName`), a field of an object input (`product.name`), or a field of
+  every item in a list of objects (`messages[].text`). A typo is a type error.
+*/
+export type FieldPath<S extends InputSchema> = {
+  [K in keyof S & string]:
+    | K
+    | (S[K] extends ListInput<infer I> ? (I extends ObjectInput<infer F> ? `${K}[].${keyof F & string}` : never) : never)
+    | (S[K] extends ObjectInput<infer F> ? `${K}.${keyof F & string}` : never);
+}[keyof S & string];
+
 /* What a document stores: whatever the schema says, as JSON. */
 export type Props = Record<string, unknown>;
 

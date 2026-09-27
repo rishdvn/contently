@@ -18,5 +18,5 @@
   },
   /* The render scripts in `scripts/` drive the same browser code, so they run
      under this package's `tsx` and are checked here, not by the app. */
-  "include": ["src/**/*.ts", "../../scripts/lib/stage.ts", "../../scripts/block-previews.ts"]
+  "include": ["src/**/*.ts", "../../scripts/lib/stage.ts", "../../scripts/block-previews.ts", "../../scripts/template-posters.ts"]
 }

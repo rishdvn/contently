@@ -55,6 +55,34 @@ export type Effect = {
 
 export type Animation = "none" | "pan" | "zoom" | "fade" | "rise";
 
+/*
+  What a block is *for* in a template: the slot a person, the API or an AI
+  fills when it replaces the template's content with its own. A closed list,
+  because every consumer — the inspector label, `docs/templates.md`, the MCP's
+  writing guidance — has to know what each one means. Optional: most blocks in
+  most projects have none, and a template only needs roles on the blocks whose
+  content is meant to change.
+*/
+export const CONTENT_ROLES = [
+  "heading",
+  "subheading",
+  "body",
+  "benefit",
+  "cta",
+  "price",
+  "brand",
+  "quote",
+  "author",
+  "hook",
+  "logo",
+  "image:product",
+  "image:lifestyle",
+  "image:background",
+  "video:background",
+] as const;
+
+export type ContentRole = (typeof CONTENT_ROLES)[number];
+
 export type BlockBase = {
   id: string;
   name?: string;
@@ -79,6 +107,8 @@ export type BlockBase = {
     tag, not a container — so z-order and export stay a single list.
   */
   groupId?: string;
+  /* The block's slot in a template (`CONTENT_ROLES`, `docs/templates.md`). */
+  role?: ContentRole;
 };
 
 export type Gradient = {

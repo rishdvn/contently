@@ -34,5 +34,5 @@
      `npm run check`; typechecking it against the browser's libs here would ask
      it to be something it is not. The render scripts import the worker and run
      under its `tsx`, so they are checked with it too. */
-  "exclude": ["node_modules", "workers", "scripts/lib/stage.ts", "scripts/block-previews.ts"]
+  "exclude": ["node_modules", "workers", "scripts/lib/stage.ts", "scripts/block-previews.ts", "scripts/template-posters.ts"]
 }

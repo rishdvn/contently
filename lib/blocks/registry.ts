@@ -1,6 +1,8 @@
 import type { ReactNode } from "react";
 
-import type { InputSchema, Props, PropsOf } from "./inputs";
+import type { ContentRole } from "@/lib/editor/types";
+
+import type { FieldPath, InputSchema, Props, PropsOf } from "./inputs";
 
 /*
   The block platform's contract. A block is a render function plus the schema of
@@ -44,6 +46,14 @@ export type BlockDefinition<S extends InputSchema = InputSchema> = {
     rather than from timers or CSS transitions. Hooks belong in child components.
   */
   render: (props: PropsOf<S>, ctx: RenderContext) => ReactNode;
+  /*
+    What each content field is for in a template, in the same vocabulary as a
+    block's own `role` (`CONTENT_ROLES`). Keys are field paths: a top-level
+    input by name (`contactName`), a field inside list items with `[]`
+    (`messages[].text`), a field of an object input with `.`. Fields left out
+    are styling, not content.
+  */
+  roles?: Partial<Record<FieldPath<S>, ContentRole>>;
   /* The frame shown in static mode and in thumbnails. Default: settled (1). */
   poster?: { progress: number };
   /*
@@ -116,6 +126,6 @@ export const BLOCK_PREVIEW = {
   also hashes the block's source folder.
 */
 export function definitionFingerprint(def: AnyBlockDefinition): string {
-  const { id, name, category, tags, inputs, defaults, defaultDuration, aspectHint, poster } = def;
-  return JSON.stringify({ id, name, category, tags, inputs, defaults, defaultDuration, aspectHint, poster, BLOCK_PREVIEW });
+  const { id, name, category, tags, inputs, defaults, defaultDuration, aspectHint, poster, roles } = def;
+  return JSON.stringify({ id, name, category, tags, inputs, defaults, defaultDuration, aspectHint, poster, roles, BLOCK_PREVIEW });
 }

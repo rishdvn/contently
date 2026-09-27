@@ -220,6 +220,21 @@ export const publish = mutation({
   },
 });
 
+/*
+  Delete a template and its posters, for whoever runs the deployment
+  (`npx convex run templates:remove '{"id":"k57…"}'`): clearing out test
+  templates. Projects made from it are copies and are untouched.
+*/
+export const remove = internalMutation({
+  args: { id: v.id("templates") },
+  handler: async (ctx, { id }) => {
+    const row = await ctx.db.get(id);
+    if (!row) fail("missing", "No such template");
+    for (const file of new Set([...row.scenePosters, ...(row.poster ? [row.poster] : [])])) await ctx.storage.delete(file);
+    await ctx.db.delete(id);
+  },
+});
+
 /* ── The poster script's steps, run through `npx convex run` ──────────── */
 
 /* Templates to render posters for, with media resolved so the stage page can

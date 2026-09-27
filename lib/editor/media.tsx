@@ -4,6 +4,8 @@ import { useQuery } from "convex/react";
 import { useEffect, useMemo, useSyncExternalStore } from "react";
 
 import { api } from "@/convex/_generated/api";
+import { getBlock } from "@/lib/blocks";
+import { mapMedia } from "@/lib/blocks/inputs";
 
 import type { Project } from "./types";
 
@@ -145,6 +147,14 @@ export function mediaIdsIn(project: Project): string[] {
     if (slide.background.type === "image" && slide.background.mediaId) ids.add(slide.background.mediaId);
     for (const block of slide.blocks) {
       if ((block.type === "image" || block.type === "video") && block.mediaId) ids.add(block.mediaId);
+      /* Catalog blocks keep media inside their props, wherever their schema puts it. */
+      const def = block.type === "component" ? getBlock(block.componentId) : undefined;
+      if (block.type === "component" && def) {
+        mapMedia(def.inputs, block.props, (m) => {
+          if (m.mediaId) ids.add(m.mediaId);
+          return m;
+        });
+      }
     }
   }
   return [...ids];

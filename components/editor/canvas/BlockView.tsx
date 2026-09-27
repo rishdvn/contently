@@ -1,11 +1,13 @@
 "use client";
 
-import { memo, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
+import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 
+import { getBlock, type RenderContext } from "@/lib/blocks";
+import { coerceProps } from "@/lib/blocks/inputs";
 import { useMediaPoster, useMediaUrl } from "@/lib/editor/media";
 import { useEditor } from "@/lib/editor/store";
 import { effectOverlays, filterCss, flipStyle, frameStyle, gradientCss, highlightStyle, shadowCss, textStyle } from "@/lib/editor/style";
-import type { Block, ImageBlock, ShapeBlock, TextBlock, VideoBlock } from "@/lib/editor/types";
+import { NEUTRAL_ADJUSTMENTS, type Block, type ComponentBlock, type ImageBlock, type ShapeBlock, type TextBlock, type VideoBlock } from "@/lib/editor/types";
 
 import { usePlaybackOverride } from "./playback";
 
@@ -55,6 +57,8 @@ export const BlockView = memo(function BlockView({
             <ImageContent block={block} />
           ) : block.type === "video" ? (
             <VideoContent block={block} />
+          ) : block.type === "component" ? (
+            <ComponentContent block={block} video={isVideoProject} time={time} />
           ) : (
             <ShapeContent block={block} />
           )}
@@ -316,6 +320,63 @@ function VideoContent({ block }: { block: VideoBlock }) {
         />
       ) : null}
     </MediaFrame>
+  );
+}
+
+/* ----------------------------------------------------------- component --- */
+
+/*
+  A catalog block, drawn by its registered definition. The clock is the one
+  `animationStyle` uses: in a video, progress runs 0 → 1 between the block's in
+  and out points; anywhere else the block shows its poster frame. Props pass
+  through the schema first, so a document written by an older schema or an API
+  caller still renders.
+*/
+function ComponentContent({ block, video, time }: { block: ComponentBlock; video: boolean; time: number }) {
+  const def = getBlock(block.componentId);
+  const props = useMemo(() => (def ? coerceProps(def.inputs, block.props) : null), [def, block.props]);
+  const ref = useRef<HTMLDivElement>(null);
+  const live = useLiveSize(ref);
+  if (!def || !props) return <UnknownComponent id={block.componentId} />;
+
+  const duration = video ? Math.max(0.001, block.end - block.start) : def.defaultDuration;
+  const progress = video ? Math.min(1, Math.max(0, (time - block.start) / duration)) : (def.poster?.progress ?? 1);
+  /* Mid-gesture the gizmo resizes the element before the store hears of it; lay out to what is on screen. */
+  const width = live && live.w !== block.w ? live.w : block.w;
+  const height = live && live.h !== block.h ? live.h : block.h;
+  const ctx: RenderContext = { mode: video ? "video" : "static", progress, time: progress * duration, duration, width, height };
+  const overlays = effectOverlays(block.effects);
+
+  return (
+    <div ref={ref} className="relative size-full" style={{ filter: shadowCss(block.shadow) ? `drop-shadow(${shadowCss(block.shadow)})` : undefined }}>
+      <div className="absolute inset-0" style={{ filter: filterCss(NEUTRAL_ADJUSTMENTS, block.effects) }}>
+        {def.render(props, ctx)}
+      </div>
+      {overlays.map((o, i) => (
+        <div key={i} className="pointer-events-none absolute inset-0" style={o} />
+      ))}
+    </div>
+  );
+}
+
+/* The element's layout size (unaffected by zoom transforms), tracked as it changes. */
+function useLiveSize(ref: React.RefObject<HTMLDivElement | null>) {
+  const [size, setSize] = useState<{ w: number; h: number } | null>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const observer = new ResizeObserver(() => setSize({ w: el.offsetWidth, h: el.offsetHeight }));
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [ref]);
+  return size;
+}
+
+function UnknownComponent({ id }: { id: string }) {
+  return (
+    <div className="flex size-full items-center justify-center bg-[#1d1d1d] text-center text-ink-disabled" style={{ fontSize: 28 }}>
+      Unknown block “{id}”
+    </div>
   );
 }
 

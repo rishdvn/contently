@@ -7,6 +7,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronUp,
+  Component,
   Copy,
   Eye,
   EyeOff,
@@ -33,6 +34,7 @@ import { create } from "zustand";
 
 import { Menu, MenuDivider, MenuItem } from "@/components/ui/menu";
 import { Tooltip } from "@/components/ui/tooltip";
+import { getBlock } from "@/lib/blocks";
 import { cn } from "@/lib/cn";
 import { formatTime, sceneAt, sceneOffsets, totalDuration } from "@/lib/editor/geometry";
 import { useEditor } from "@/lib/editor/store";
@@ -903,11 +905,13 @@ const LAYER_TINT: Record<Block["type"], string> = {
   image: "rgb(96 165 250 / 0.35)",
   video: "rgb(110 232 110 / 0.35)",
   shape: "rgb(246 200 221 / 0.35)",
+  component: "rgb(255 154 60 / 0.35)",
 };
 
 function layerLabel(b: Block) {
   if (b.name) return b.name;
   if (b.type === "text") return b.text.replace(/\s+/g, " ").trim().slice(0, 28) || "Text";
+  if (b.type === "component") return getBlock(b.componentId)?.name ?? "Block";
   return { image: "Image", video: "Video", shape: "Shape" }[b.type];
 }
 
@@ -1141,6 +1145,7 @@ function LayerBar({
         }}
       >
         {block.groupId ? <Group className="ml-1.5 size-3 shrink-0 text-white/70" aria-label="In a group" /> : null}
+        {block.type === "component" ? <Component className="ml-1.5 size-3 shrink-0 text-white/70" aria-label="Block" /> : null}
         <span className={cn("pointer-events-none truncate px-2 text-[10px] leading-none font-medium tracking-[0.3px] text-white/90", block.hidden && "line-through opacity-60")}>{layerLabel(block)}</span>
         <span className="flex-1" />
         {/* The reference's pill affordances: menu, lock and visibility, shown on hover at the right end. */}

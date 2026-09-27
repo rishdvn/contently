@@ -5,6 +5,8 @@ import { temporal, type TemporalState } from "zundo";
 import { useStoreWithEqualityFn } from "zustand/traditional";
 import { shallow } from "zustand/shallow";
 
+import { setIn } from "@/lib/blocks/inputs";
+
 import { cloneBlock, project as makeProject, slide as makeSlide, uid } from "./factory";
 import {
   ASPECTS,
@@ -21,6 +23,13 @@ import {
 export type LeftTab = "templates" | "blocks" | "text" | "stock" | "audio" | "uploads";
 
 export type InspectorTab = "design" | "effects";
+
+/*
+  An image or video input on a catalog block that asked the Uploads panel for
+  media. The next upload the user clicks lands at `path` in that block's props
+  instead of becoming a block of its own.
+*/
+export type MediaTarget = { blockId: string; path: (string | number)[]; kind: "image" | "video" };
 
 type Tracked = { project: Project };
 
@@ -41,6 +50,7 @@ type EditorState = Tracked & {
   time: number;
   muted: boolean;
   dialog: "export" | "share" | null;
+  mediaTarget: MediaTarget | null;
 
   load: (p: Project) => void;
   newProject: (kind: ProjectKind) => Project;
@@ -62,6 +72,8 @@ type EditorState = Tracked & {
   addBlocks: (blocks: Block[], slideId?: string) => void;
   updateBlock: (id: string, patch: Partial<Block>) => void;
   updateBlocks: (patches: Record<string, Partial<Block>>) => void;
+  /* Set one input of a catalog block; `path` walks into lists and objects. */
+  setComponentProp: (id: string, path: (string | number)[], value: unknown) => void;
   removeBlocks: (ids: string[]) => void;
   duplicateBlocks: (ids: string[]) => void;
   reorder: (id: string, action: "front" | "back" | "forward" | "backward") => void;
@@ -88,6 +100,7 @@ type EditorState = Tracked & {
   setTime: (t: number) => void;
   setMuted: (v: boolean) => void;
   setDialog: (d: EditorState["dialog"]) => void;
+  setMediaTarget: (t: MediaTarget | null) => void;
 };
 
 const touch = (p: Project): Project => ({ ...p, updatedAt: Date.now() });
@@ -168,6 +181,7 @@ export const useEditor = create<EditorState>()(
       time: 0,
       muted: false,
       dialog: null,
+      mediaTarget: null,
 
       load: (p) =>
         set({
@@ -269,6 +283,10 @@ export const useEditor = create<EditorState>()(
       updateBlocks: (patches) =>
         set((s) => ({
           project: mapBlocks(s.project, (b) => (patches[b.id] ? ({ ...b, ...patches[b.id] } as Block) : b)),
+        })),
+      setComponentProp: (id, path, value) =>
+        set((s) => ({
+          project: mapBlocks(s.project, (b) => (b.id === id && b.type === "component" ? { ...b, props: setIn(b.props, path, value) } : b)),
         })),
       removeBlocks: (ids) =>
         set((s) => {
@@ -385,6 +403,7 @@ export const useEditor = create<EditorState>()(
       setTime: (t) => set({ time: Math.max(0, t) }),
       setMuted: (v) => set({ muted: v }),
       setDialog: (d) => set({ dialog: d }),
+      setMediaTarget: (t) => set({ mediaTarget: t }),
     }),
     {
       partialize: (s): Tracked => ({ project: s.project }),

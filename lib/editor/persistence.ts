@@ -8,6 +8,8 @@ import { useCallback, useMemo, useSyncExternalStore } from "react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { useActiveOrg } from "@/lib/auth/useActiveOrg";
+import { getBlock } from "@/lib/blocks";
+import { mapMedia } from "@/lib/blocks/inputs";
 
 import type { AspectId, Project, ProjectKind } from "./types";
 
@@ -125,7 +127,11 @@ function stripVolatile(p: Project): Project {
     slides: p.slides.map((s) => ({
       ...s,
       background: s.background.type === "image" ? scrub(s.background) : s.background,
-      blocks: s.blocks.map((b) => (b.type === "image" || b.type === "video" ? scrub(b) : b)),
+      blocks: s.blocks.map((b) => {
+        if (b.type === "image" || b.type === "video") return scrub(b);
+        const def = b.type === "component" ? getBlock(b.componentId) : undefined;
+        return b.type === "component" && def ? { ...b, props: mapMedia(def.inputs, b.props, scrub) } : b;
+      }),
     })),
   };
 }

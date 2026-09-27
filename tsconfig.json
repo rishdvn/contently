@@ -30,9 +30,10 @@
     ".next/dev/types/**/*.ts",
     "**/*.mts"
   ],
-  /* `workers/` is a Node service with its own compiler settings and its own
-     `npm run check`; typechecking it against the browser's libs here would ask
-     it to be something it is not. The render scripts import the worker and run
-     under its `tsx`, so they are checked with it too. */
-  "exclude": ["node_modules", "workers", "scripts/lib/stage.ts", "scripts/block-previews.ts", "scripts/template-posters.ts"]
+  /* `workers/` and `packages/` are Node services and packages with their own
+     compiler settings and their own `npm run check`; typechecking them against
+     the browser's libs here would ask them to be something they are not. The
+     render scripts import the worker and run under its `tsx`, so they are
+     checked with it too. */
+  "exclude": ["node_modules", "workers", "packages", "scripts/lib/stage.ts", "scripts/block-previews.ts", "scripts/template-posters.ts"]
 }

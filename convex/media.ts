@@ -1,7 +1,7 @@
 import { v } from "convex/values";
 
 import type { Doc } from "./_generated/dataModel";
-import { mutation, query, type QueryCtx } from "./_generated/server";
+import { internalMutation, mutation, query, type QueryCtx } from "./_generated/server";
 import { requireOrg, requireUser, tryOrg, tryUser } from "./lib/auth";
 import { stockCategory } from "./stock/provider";
 
@@ -30,6 +30,10 @@ export type MediaItem = {
   duration?: number;
   url: string | null;
   posterUrl: string | null;
+  /* Videos: the small hover rendition, for library grids only. Null when there
+     is none (uploads, and stock the import has not processed), in which case a
+     grid plays `url`. The canvas, previews and export always use `url`. */
+  previewUrl: string | null;
   tags: string[];
   source: "upload" | "stock";
   /* Stock only: our taxonomy slugs, and who to credit. */
@@ -39,9 +43,10 @@ export type MediaItem = {
 };
 
 async function withUrls(ctx: QueryCtx, row: Doc<"media">): Promise<MediaItem> {
-  const [url, posterUrl] = await Promise.all([
+  const [url, posterUrl, previewUrl] = await Promise.all([
     ctx.storage.getUrl(row.storageId),
     row.posterStorageId ? ctx.storage.getUrl(row.posterStorageId) : null,
+    row.previewStorageId ? ctx.storage.getUrl(row.previewStorageId) : null,
   ]);
   return {
     id: row._id,
@@ -52,6 +57,7 @@ async function withUrls(ctx: QueryCtx, row: Doc<"media">): Promise<MediaItem> {
     duration: row.duration,
     url,
     posterUrl,
+    previewUrl,
     tags: row.tags,
     source: row.source,
     categories: row.categories ?? [],
@@ -249,6 +255,7 @@ export const resolve = query({
       height: 0,
       url: null,
       posterUrl: null,
+      previewUrl: null,
       tags: [],
       source: "upload",
       categories: [],
@@ -403,6 +410,62 @@ export const remove = mutation({
 
     await ctx.storage.delete(row.storageId);
     if (row.posterStorageId) await ctx.storage.delete(row.posterStorageId);
+    if (row.previewStorageId) await ctx.storage.delete(row.previewStorageId);
     await ctx.db.delete(mediaId);
+  },
+});
+
+/* ------------------------------------------------------------ re-encode --- */
+
+/*
+  Swap a row's files for re-encoded ones, keeping its id: documents reference
+  media by id, so every project using the clip picks up the new file on its next
+  load with nothing rewritten. Used by the stock import's transcode pass
+  (`scripts/import-stock.ts`), which uploads first and calls this last.
+
+  The row is repointed and the files it replaces are deleted in one
+  transaction, so no reader ever sees a row whose file is gone. `from` is the
+  master the caller encoded from: if the row has moved on since (a second run
+  got there first), nothing changes and the caller's uploads are deleted rather
+  than left billed and unreferenced. Answers whether the swap happened.
+*/
+export const replaceFiles = internalMutation({
+  args: {
+    id: v.id("media"),
+    from: v.id("_storage"),
+    /* Each absent file is left as it is. */
+    storageId: v.optional(v.id("_storage")),
+    posterStorageId: v.optional(v.id("_storage")),
+    previewStorageId: v.optional(v.id("_storage")),
+    codec: v.optional(v.string()),
+    width: v.optional(v.number()),
+    height: v.optional(v.number()),
+    duration: v.optional(v.number()),
+  },
+  handler: async (ctx, { id, from, storageId, posterStorageId, previewStorageId, codec, width, height, duration }) => {
+    const uploads = [storageId, posterStorageId, previewStorageId].filter((file) => file !== undefined);
+    const row = await ctx.db.get(id);
+    if (!row || row.storageId !== from) {
+      for (const file of uploads) await ctx.storage.delete(file);
+      return false;
+    }
+
+    await ctx.db.patch(id, {
+      ...(storageId ? { storageId } : {}),
+      ...(posterStorageId ? { posterStorageId } : {}),
+      ...(previewStorageId ? { previewStorageId } : {}),
+      ...(codec ? { codec } : {}),
+      ...(width && height ? { width, height } : {}),
+      ...(duration ? { duration } : {}),
+    });
+    const replaced = [
+      storageId && row.storageId,
+      posterStorageId && row.posterStorageId,
+      previewStorageId && row.previewStorageId,
+    ];
+    for (const file of replaced) {
+      if (file && !uploads.includes(file)) await ctx.storage.delete(file);
+    }
+    return true;
   },
 });

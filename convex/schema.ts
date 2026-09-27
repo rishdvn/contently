@@ -83,6 +83,13 @@ export default defineSchema({
     duration: v.optional(v.number()),
     /* Poster frame for videos, generated on upload/import. */
     posterStorageId: v.optional(v.id("_storage")),
+    /* Videos: a small muted rendition (360 px short edge, six seconds at most)
+       that library grids play on hover instead of streaming the master. */
+    previewStorageId: v.optional(v.id("_storage")),
+    /* Videos: the master's codec as ffprobe names it ("h264", "hevc"). Absent
+       until something has probed the file, which for stock means the import
+       script has not processed it yet. */
+    codec: v.optional(v.string()),
     name: v.string(),
     tags: v.array(v.string()),
     source: v.union(v.literal("upload"), v.literal("stock")),
@@ -108,7 +115,9 @@ export default defineSchema({
     .index("by_org_kind", ["orgId", "kind"])
     .index("by_source_kind", ["source", "kind"])
     .index("by_sourceRef", ["sourceRef"])
-    .index("by_license", ["license"]),
+    .index("by_license", ["license"])
+    /* Which videos still need a transcode: `codec` absent or not "h264". */
+    .index("by_source_kind_codec", ["source", "kind", "codec"]),
 
   apiKeys: defineTable({
     orgId: v.id("organizations"),

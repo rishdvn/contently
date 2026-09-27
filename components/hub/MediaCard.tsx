@@ -26,9 +26,9 @@ export const MEDIA: LibraryAdapter<MediaItem> = {
 
 /*
   A photo, or a video's poster frame, through Next's image optimiser — the
-  originals are camera files several megabytes each. A video's file is only
-  fetched while it plays, muted and from the start, which is while the card is
-  hovered.
+  originals are camera files several megabytes each. A video is only fetched
+  while it plays, muted and from the start, which is while the card is hovered,
+  and then as its small preview rendition when it has one.
 */
 export function MediaArt({ item, playing, sizes = "(min-width: 1280px) 20vw, 25vw", aspect, className }: { item: MediaItem; playing: boolean; sizes?: string; aspect?: number; className?: string }) {
   const thumb = item.kind === "image" ? item.url : item.posterUrl;
@@ -43,7 +43,7 @@ export function MediaArt({ item, playing, sizes = "(min-width: 1280px) 20vw, 25v
         <span className="absolute inset-0 flex items-center justify-center text-cap text-ink-disabled">Unavailable</span>
       )}
       {item.kind === "video" && playing && item.url ? (
-        <video src={item.url} poster={item.posterUrl ?? undefined} autoPlay muted loop playsInline className="absolute inset-0 size-full object-cover" />
+        <video src={item.previewUrl ?? item.url} poster={item.posterUrl ?? undefined} autoPlay muted loop playsInline className="absolute inset-0 size-full object-cover" />
       ) : null}
     </div>
   );

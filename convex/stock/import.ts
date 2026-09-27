@@ -22,9 +22,13 @@ import { STOCK_CATEGORIES, sourceRefOf, stockCategory, StockProviderError, type 
   anything is downloaded, so a re-run only fetches what is missing. An asset a
   second category also surfaces gains that category rather than a second row.
 
-  Posters are the script's job, not this file's. The Convex runtime cannot
-  decode video; the script runs ffmpeg against each video's Convex URL and
-  hands back a frame and the duration (`pendingPosters` → `setPoster`).
+  Video processing is the script's job, not this file's. The Convex runtime
+  cannot decode video, so a video is stored as the provider made it and the
+  script then downloads it, transcodes it to an H.264 master sized for a
+  1080×1920 frame, cuts a hover preview and a poster, uploads all three and
+  swaps them onto the same row (`pendingVideos` → `uploadUrls` →
+  `media:replaceFiles`). Rows the script has finished carry `codec: "h264"`, a
+  preview and a poster; anything else is still pending.
 */
 
 const PROVIDERS: Record<string, StockProvider> = { dupe };
@@ -81,6 +85,8 @@ export const counts = internalQuery({
     for (const { slug } of STOCK_CATEGORIES) byCategory[slug] = { image: 0, video: 0 };
     const byLicense: Record<string, number> = {};
     let videosWithoutPoster = 0;
+    let videosNotH264 = 0;
+    let videosWithoutPreview = 0;
 
     for (const row of rows) {
       for (const slug of row.categories ?? []) {
@@ -90,6 +96,8 @@ export const counts = internalQuery({
       const license = row.license ?? "(none)";
       byLicense[license] = (byLicense[license] ?? 0) + 1;
       if (row.kind === "video" && !row.posterStorageId) videosWithoutPoster += 1;
+      if (row.kind === "video" && row.codec !== "h264") videosNotH264 += 1;
+      if (row.kind === "video" && !row.previewStorageId) videosWithoutPreview += 1;
     }
 
     return {
@@ -97,6 +105,8 @@ export const counts = internalQuery({
       images: rows.filter((row) => row.kind === "image").length,
       videos: rows.filter((row) => row.kind === "video").length,
       videosWithoutPoster,
+      videosNotH264,
+      videosWithoutPreview,
       byCategory,
       byLicense,
     };
@@ -270,7 +280,56 @@ export const importPage = internalAction({
   },
 });
 
-/* ── Posters ───────────────────────────────────────────────────────────── */
+/* ── Video processing ──────────────────────────────────────────────────── */
+
+/*
+  Stock videos the script has not finished — not yet H.264 (or never probed),
+  or missing a preview or a poster — with a URL to download the master from.
+  `storageId` goes back to `media:replaceFiles` as `from`, so a row another run
+  has already swapped is left alone. `categories` narrows it for a trial run;
+  `ids` asks for those rows whatever their state, so a finished row can be
+  decided again after the rules change.
+*/
+export const pendingVideos = internalQuery({
+  args: { categories: v.optional(v.array(v.string())), ids: v.optional(v.array(v.id("media"))) },
+  handler: async (ctx, { categories, ids }) => {
+    const videos = await ctx.db
+      .query("media")
+      .withIndex("by_source_kind", (q) => q.eq("source", "stock").eq("kind", "video"))
+      .collect();
+    const pending = videos.filter((row) =>
+      ids
+        ? ids.includes(row._id)
+        : (!categories || categories.some((slug) => row.categories?.includes(slug))) &&
+          (row.codec !== "h264" || !row.previewStorageId || !row.posterStorageId),
+    );
+    return await Promise.all(
+      pending.map(async (row) => ({
+        id: row._id,
+        name: row.name,
+        storageId: row.storageId,
+        codec: row.codec ?? null,
+        hasPoster: Boolean(row.posterStorageId),
+        hasPreview: Boolean(row.previewStorageId),
+        url: await ctx.storage.getUrl(row.storageId),
+      })),
+    );
+  },
+});
+
+/* Upload URLs for one video's new files, minted together to save the script a
+   round trip per file. */
+export const uploadUrls = internalMutation({
+  args: { count: v.number() },
+  handler: async (ctx, { count }) =>
+    await Promise.all(Array.from({ length: Math.min(Math.max(count, 1), 5) }, () => ctx.storage.generateUploadUrl())),
+});
+
+/*
+  The poster-only pass that came before `pendingVideos`. Nothing in this tree
+  calls these three any more; they stay while the shared deployment also serves
+  branches whose `scripts/import-stock.ts` still does.
+*/
 
 /* Stock videos still waiting for a poster, with a URL ffmpeg can read. */
 export const pendingPosters = internalQuery({
@@ -340,6 +399,7 @@ export const purge = internalMutation({
     for (const row of rows.slice(0, batch)) {
       await ctx.storage.delete(row.storageId);
       if (row.posterStorageId) await ctx.storage.delete(row.posterStorageId);
+      if (row.previewStorageId) await ctx.storage.delete(row.previewStorageId);
       await ctx.db.delete(row._id);
     }
     return { deleted: Math.min(rows.length, batch), remaining: rows.length > batch };

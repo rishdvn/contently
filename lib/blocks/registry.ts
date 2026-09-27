@@ -46,8 +46,12 @@ export type BlockDefinition<S extends InputSchema = InputSchema> = {
   render: (props: PropsOf<S>, ctx: RenderContext) => ReactNode;
   /* The frame shown in static mode and in thumbnails. Default: settled (1). */
   poster?: { progress: number };
-  /* URL of an animated preview for the picker; empty until the preview generator runs. */
-  preview: string;
+  /*
+    A hand-made animated preview for the picker, overriding the generated one.
+    Normally left out: `scripts/block-previews.ts` renders every block and the
+    panel reads the result through `useBlockPreview` (`docs/blocks.md`).
+  */
+  preview?: string;
 };
 
 /* Stored erased: a block's own code sees typed props, the platform sees JSON. */
@@ -86,4 +90,32 @@ export function placementFor(def: AnyBlockDefinition, artW: number, artH: number
     w = h * ratio;
   }
   return { x: Math.round((artW - w) / 2), y: Math.round((artH - h) / 2), w: Math.round(w), h: Math.round(h) };
+}
+
+/*
+  How `scripts/block-previews.ts` stages a block for its picker preview and
+  poster: centred on a square artboard exactly as `placementFor` would add it
+  to a 1:1 project, over the panel's card colour, encoded at half size. Part of
+  every block's preview hash, so changing a value here re-renders the catalog.
+*/
+export const BLOCK_PREVIEW = {
+  /* Artboard px, square. The block is laid out at studio scale, not tile scale. */
+  artboard: 1080,
+  /* Output px = artboard × scale: 540 × 540. */
+  scale: 0.5,
+  /* Seconds. The block's whole animation is played across this, whatever its
+     `defaultDuration`, so every tile loops at the same pace. */
+  duration: 3,
+  fps: 30,
+  background: "#151515",
+} as const;
+
+/*
+  Everything about a definition that is data rather than code, for the preview
+  hash. The render function cannot be fingerprinted from here, so the script
+  also hashes the block's source folder.
+*/
+export function definitionFingerprint(def: AnyBlockDefinition): string {
+  const { id, name, category, tags, inputs, defaults, defaultDuration, aspectHint, poster } = def;
+  return JSON.stringify({ id, name, category, tags, inputs, defaults, defaultDuration, aspectHint, poster, BLOCK_PREVIEW });
 }

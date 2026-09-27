@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "block-previews": "workers/render/node_modules/.bin/tsx scripts/block-previews.ts"
   },
   "dependencies": {
     "@clerk/nextjs": "^7.9.4",

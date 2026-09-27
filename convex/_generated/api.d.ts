@@ -14,6 +14,7 @@ import type * as audio_index from "../audio/index.js";
 import type * as audio_library from "../audio/library.js";
 import type * as audio_recent from "../audio/recent.js";
 import type * as audio_soundstripe from "../audio/soundstripe.js";
+import type * as blocks from "../blocks.js";
 import type * as clerk_backfill from "../clerk/backfill.js";
 import type * as clerk_mirror from "../clerk/mirror.js";
 import type * as clerk_payloads from "../clerk/payloads.js";
@@ -43,6 +44,7 @@ declare const fullApi: ApiFromModules<{
   "audio/library": typeof audio_library;
   "audio/recent": typeof audio_recent;
   "audio/soundstripe": typeof audio_soundstripe;
+  blocks: typeof blocks;
   "clerk/backfill": typeof clerk_backfill;
   "clerk/mirror": typeof clerk_mirror;
   "clerk/payloads": typeof clerk_payloads;

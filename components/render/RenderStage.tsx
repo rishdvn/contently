@@ -11,6 +11,8 @@ import { waitForPaintableMedia } from "@/lib/editor/media";
 import { useEditor } from "@/lib/editor/store";
 import type { Project } from "@/lib/editor/types";
 
+import { base64Slice, errorMessage as message, loadFonts, settle } from "./settle";
+
 /*
   The page the render worker drives.
 
@@ -39,7 +41,7 @@ export type RenderBridge = {
   /* Rasterise one scene. Resolves with the number of bytes staged for `read`. */
   png(scene: number, scale?: number): Promise<number>;
   /* Encode the whole project. Resolves with the number of bytes staged. */
-  mp4(options?: { fps?: number; quality?: VideoQuality }): Promise<number>;
+  mp4(options?: { fps?: number; quality?: VideoQuality; scale?: number }): Promise<number>;
   /*
     The staged file, base64, in slices. A render is megabytes and the only way
     across the CDP connection is a string, so the worker reads it in pieces
@@ -64,43 +66,6 @@ type Load =
   | { status: "loading" }
   | { status: "error"; message: string }
   | { status: "ready"; project: Project };
-
-const nextFrame = () => new Promise<void>((r) => requestAnimationFrame(() => r()));
-
-/* Two frames: one for React to commit the scene, one for the browser to lay it
-   out and paint it. The video exporter waits the same way. */
-async function settle() {
-  await nextFrame();
-  await nextFrame();
-}
-
-/*
-  Web fonts, before anything is rasterised. `document.fonts.ready` only covers
-  faces the browser has already decided to load, and a scene that is not mounted
-  yet has asked for none of them — so every family the document names is
-  requested explicitly first.
-*/
-async function loadFonts(project: Project, timeoutMs = 15_000) {
-  const wanted = new Set<string>();
-  for (const slide of project.slides) {
-    for (const block of slide.blocks) {
-      if (block.type === "text") wanted.add(`${block.italic ? "italic " : ""}${block.fontWeight} 64px "${block.fontFamily}"`);
-    }
-  }
-  const deadline = new Promise<void>((r) => setTimeout(r, timeoutMs));
-  const fonts = Promise.all([...wanted].map((font) => document.fonts.load(font).catch(() => []))).then(() => document.fonts.ready.then(() => {}));
-  /* A font server that is slow or blocked costs one render its typeface, not
-     the whole job: the page falls back to the system stack, as a browser does. */
-  await Promise.race([fonts, deadline]);
-}
-
-function message(error: unknown) {
-  if (typeof error === "object" && error !== null && "data" in error) {
-    const data = (error as { data?: unknown }).data;
-    if (typeof data === "object" && data !== null && "message" in data) return String((data as { message: unknown }).message);
-  }
-  return error instanceof Error ? error.message : String(error);
-}
 
 export function RenderStage({ projectId, token, scene }: { projectId: string; token: string; scene?: number }) {
   const [load, setLoad] = useState<Load>({ status: "loading" });
@@ -243,6 +208,7 @@ function useBridge(
           audioUrl: async (track) => (track.trackId ? live[track.trackId] : undefined) ?? track.src ?? "",
           fps: options?.fps ?? 30,
           quality: options?.quality ?? "high",
+          scale: options?.scale,
           onProgress: (value) => {
             progress.current = value;
           },
@@ -250,14 +216,8 @@ function useBridge(
         return await stage(blob);
       },
       read: (offset, length) => {
-        const bytes = staged.current;
-        if (!bytes) throw new Error("Nothing has been rendered yet");
-        const slice = bytes.subarray(offset, offset + length);
-        let binary = "";
-        /* In chunks: `String.fromCharCode(...slice)` on a megabyte overflows
-           the argument list. */
-        for (let i = 0; i < slice.length; i += 8192) binary += String.fromCharCode(...slice.subarray(i, i + 8192));
-        return btoa(binary);
+        if (!staged.current) throw new Error("Nothing has been rendered yet");
+        return base64Slice(staged.current, offset, length);
       },
       clear: () => {
         staged.current = null;

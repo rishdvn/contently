@@ -319,8 +319,10 @@ async function shareAccess(ctx: QueryCtx, project: Doc<"projects">, token: strin
 
 /*
   The finished files a viewer can download: the newest completed render of each
-  format, in the order the formats are listed. The render worker writes these;
-  a project nobody has rendered has none, and the viewer shows no button.
+  format, in the order the formats are listed. The render worker writes these
+  (`render.ts`); a project nobody has rendered has none, and the viewer shows
+  no button. Single-scene jobs are left out — the studio asks for those while
+  working on one scene, and a visitor wants the whole project.
 */
 const DOWNLOAD_FORMATS = ["mp4", "carousel-zip", "png"] as const;
 
@@ -331,12 +333,13 @@ async function downloadsFor(ctx: QueryCtx, projectId: Id<"projects">) {
     .order("desc")
     .collect();
 
-  const downloads: { format: (typeof DOWNLOAD_FORMATS)[number]; urls: string[] }[] = [];
+  const downloads: { format: (typeof DOWNLOAD_FORMATS)[number]; files: { name: string; url: string }[] }[] = [];
   for (const format of DOWNLOAD_FORMATS) {
-    const job = jobs.find((j) => j.format === format && j.status === "done" && j.outputStorageIds.length > 0);
+    const job = jobs.find((j) => j.format === format && j.status === "done" && j.scene === undefined && j.outputStorageIds.length > 0);
     if (!job) continue;
-    const urls = (await Promise.all(job.outputStorageIds.map((id) => ctx.storage.getUrl(id)))).filter((u): u is string => !!u);
-    if (urls.length) downloads.push({ format, urls });
+    const urls = await Promise.all(job.outputStorageIds.map((id) => ctx.storage.getUrl(id)));
+    const files = urls.flatMap((url, i) => (url ? [{ url, name: job.outputNames?.[i] ?? `${i + 1}` }] : []));
+    if (files.length) downloads.push({ format, files });
   }
   return downloads;
 }

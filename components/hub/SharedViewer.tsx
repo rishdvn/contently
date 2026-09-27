@@ -36,10 +36,12 @@ export function SharedViewer({ shared, shareUrl }: { shared: SharedProject; shar
     () => "",
   );
 
+  /* One button per file. Several files only happen for PNGs, one per scene,
+     and the worker names those after the scene. */
   const downloads: PreviewDownload[] = shared.downloads.flatMap((d) =>
-    d.urls.map((url, i) => ({
-      url,
-      label: `Download ${FORMAT_LABEL[d.format]}${d.urls.length > 1 ? ` ${i + 1}` : ""}`,
+    d.files.map((file) => ({
+      url: file.url,
+      label: d.files.length > 1 ? `Download ${file.name}` : `Download ${FORMAT_LABEL[d.format]}`,
     })),
   );
 

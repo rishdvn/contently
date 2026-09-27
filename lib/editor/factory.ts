@@ -6,6 +6,7 @@ import {
   type AspectId,
   type Block,
   type BlockBase,
+  type ComponentBlock,
   type ImageBlock,
   type Project,
   type ProjectKind,
@@ -97,6 +98,14 @@ export function shapeBlock(shape: ShapeKind, partial: Partial<ShapeBlock> & Pick
     radius: shape === "rect" ? 24 : 0,
     ...partial,
   };
+}
+
+export function componentBlock(
+  componentId: string,
+  props: Record<string, unknown>,
+  partial: Partial<ComponentBlock> & Pick<BlockBase, "x" | "y" | "w" | "h">,
+): ComponentBlock {
+  return { ...baseBlock(partial), type: "component", componentId, props: structuredClone(props), ...partial };
 }
 
 export function slide(partial: Partial<Slide> = {}): Slide {

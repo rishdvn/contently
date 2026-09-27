@@ -157,9 +157,13 @@ function UploadsLibrary() {
 
   const addBlock = useEditor((s) => s.addBlock);
   const updateBlock = useEditor((s) => s.updateBlock);
+  const setComponentProp = useEditor((s) => s.setComponentProp);
+  const setMediaTarget = useEditor((s) => s.setMediaTarget);
   const selected = useSelectedBlocks();
   const width = useEditor((s) => s.project.width);
   const height = useEditor((s) => s.project.height);
+  /* An image/video input on the selected catalog block that asked for media. */
+  const target = useEditor((s) => (s.mediaTarget && s.selection.length === 1 && s.selection[0] === s.mediaTarget.blockId ? s.mediaTarget : null));
 
   /*
     Uploads run one at a time. Two large clips racing each other make the
@@ -204,6 +208,11 @@ function UploadsLibrary() {
   const place = (item: MediaItem) => {
     if (!item.url) return;
     primeMedia([item]);
+    if (target && target.kind === item.kind) {
+      setComponentProp(target.blockId, target.path, { mediaId: item.id, src: item.url });
+      setMediaTarget(null);
+      return;
+    }
     const one = selected.length === 1 ? selected[0] : null;
     if (one && (one.type === "image" || one.type === "video") && one.type === item.kind) {
       return updateBlock(one.id, { mediaId: item.id, src: item.url });
@@ -288,7 +297,16 @@ function UploadsLibrary() {
             </div>
           )}
         </div>
-        {selected.length === 1 && (selected[0].type === "image" || selected[0].type === "video") ? <p className="mt-2 text-[11px] text-ink-disabled">Click an upload to replace the selected media.</p> : null}
+        {target ? (
+          <p className="mt-2 text-[11px] text-ink-disabled">
+            Click {target.kind === "image" ? "an image" : "a video"} to use it in the selected block.{" "}
+            <button type="button" className="underline hover:text-ink" onClick={() => setMediaTarget(null)}>
+              Cancel
+            </button>
+          </p>
+        ) : selected.length === 1 && (selected[0].type === "image" || selected[0].type === "video") ? (
+          <p className="mt-2 text-[11px] text-ink-disabled">Click an upload to replace the selected media.</p>
+        ) : null}
       </PanelBody>
       {menu ? (
         <MediaMenu

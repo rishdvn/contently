@@ -20,6 +20,8 @@ import {
 import { useState } from "react";
 
 import { Tooltip } from "@/components/ui/tooltip";
+import { getBlock } from "@/lib/blocks";
+import { coerceProps } from "@/lib/blocks/inputs";
 import { cn } from "@/lib/cn";
 import { imageBlock } from "@/lib/editor/factory";
 import { FONTS, WEIGHT_LABELS, fontDef, nearestWeight } from "@/lib/editor/fonts";
@@ -31,6 +33,7 @@ import {
   NEUTRAL_ADJUSTMENTS,
   type Animation,
   type Block,
+  type ComponentBlock,
   type Effect,
   type EffectKind,
   type ImageBlock,
@@ -54,10 +57,14 @@ import {
   SliderField,
   TextField,
 } from "../controls";
+import { SchemaFields } from "../inspector/SchemaFields";
 
 export const INSPECTOR_WIDTH = 348;
 
-const TYPE_LABEL: Record<Block["type"], string> = { text: "Text", image: "Image", video: "Video", shape: "Shape" };
+const TYPE_LABEL: Record<Block["type"], string> = { text: "Text", image: "Image", video: "Video", shape: "Shape", component: "Block" };
+
+/* A catalog block is titled by its own name ("iMessage"), everything else by its type. */
+const blockTitle = (b: Block) => (b.type === "component" ? (getBlock(b.componentId)?.name ?? TYPE_LABEL.component) : TYPE_LABEL[b.type]);
 
 /*
   Context-sensitive properties, top right. Title + close, Design / Effects
@@ -72,7 +79,7 @@ export function Inspector({ bottom }: { bottom: number }) {
   const slide = useActiveSlide();
 
   const one = blocks.length === 1 ? blocks[0] : null;
-  const title = one ? TYPE_LABEL[one.type] : blocks.length > 1 ? `${blocks.length} elements` : slide.name;
+  const title = one ? blockTitle(one) : blocks.length > 1 ? `${blocks.length} elements` : slide.name;
 
   return (
     /*
@@ -118,6 +125,7 @@ export function Inspector({ bottom }: { bottom: number }) {
           {one.type === "text" ? <TextProperties b={one} /> : null}
           {one.type === "image" || one.type === "video" ? <MediaProperties b={one} /> : null}
           {one.type === "shape" ? <ShapeProperties b={one} /> : null}
+          {one.type === "component" ? <ComponentProperties b={one} /> : null}
           <CommonProperties blocks={[one]} />
         </>
       ) : (
@@ -501,6 +509,38 @@ function ShapeProperties({ b }: { b: ShapeBlock }) {
   );
 }
 
+/* ----------------------------------------------------------- component --- */
+
+/*
+  Everything a catalog block exposes comes from its schema. Media inputs borrow
+  the Uploads panel: asking for an image opens it with this input as the target,
+  and the next upload picked lands here instead of on the canvas.
+*/
+function ComponentProperties({ b }: { b: ComponentBlock }) {
+  const setComponentProp = useEditor((s) => s.setComponentProp);
+  const setMediaTarget = useEditor((s) => s.setMediaTarget);
+  const mediaTarget = useEditor((s) => s.mediaTarget);
+  const setLeftTab = useEditor((s) => s.setLeftTab);
+  const brand = useEditor((s) => s.brandColors);
+  const def = getBlock(b.componentId);
+  if (!def) {
+    return <Card className="px-3 py-3 text-cap text-ink-secondary">This block (“{b.componentId}”) isn&rsquo;t in the catalog, so it can&rsquo;t be edited.</Card>;
+  }
+  return (
+    <SchemaFields
+      schema={def.inputs}
+      value={coerceProps(def.inputs, b.props)}
+      onChange={(path, v) => setComponentProp(b.id, path, v)}
+      onPickMedia={(path, kind) => {
+        setMediaTarget({ blockId: b.id, path, kind });
+        setLeftTab("uploads");
+      }}
+      pendingMedia={mediaTarget?.blockId === b.id ? mediaTarget.path : null}
+      brandColors={brand}
+    />
+  );
+}
+
 /* -------------------------------------------------------------- common --- */
 
 function CommonProperties({ blocks }: { blocks: Block[] }) {
@@ -662,7 +702,7 @@ function EffectsTab({ blocks }: { blocks: Block[] }) {
 
   return (
     <>
-      <Group label={TYPE_LABEL[b.type]} defaultOpen>
+      <Group label={blockTitle(b)} defaultOpen>
         {b.effects.map((e) => (
           <Card key={e.kind} className="flex flex-col gap-1.5 bg-raised p-2">
             <div className="flex items-center justify-between">

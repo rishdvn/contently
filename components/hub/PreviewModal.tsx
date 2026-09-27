@@ -198,8 +198,9 @@ function contents(p: Project) {
     image: ["Image", "Images"],
     video: ["Video clip", "Video clips"],
     shape: ["Shape", "Shapes"],
+    component: ["Block", "Blocks"],
   };
-  const out = (["text", "image", "video", "shape"] as const).filter((t) => counts[t]).map((t) => `${counts[t]} ${label[t][counts[t] === 1 ? 0 : 1]}`);
+  const out = (["text", "image", "video", "shape", "component"] as const).filter((t) => counts[t]).map((t) => `${counts[t]} ${label[t][counts[t] === 1 ? 0 : 1]}`);
   return out.length ? out : ["Empty document"];
 }
 

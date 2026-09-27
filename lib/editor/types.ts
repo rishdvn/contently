@@ -161,7 +161,19 @@ export type ShapeBlock = BlockBase & {
   radius: number;
 };
 
-export type Block = TextBlock | ImageBlock | VideoBlock | ShapeBlock;
+/*
+  A block from the catalog (`lib/blocks`): an iMessage thread, a product card.
+  `componentId` names its registered definition and `props` holds the values of
+  that definition's inputs, as JSON. The definition owns how it looks and moves;
+  the document owns only geometry, timing and content.
+*/
+export type ComponentBlock = BlockBase & {
+  type: "component";
+  componentId: string;
+  props: Record<string, unknown>;
+};
+
+export type Block = TextBlock | ImageBlock | VideoBlock | ShapeBlock | ComponentBlock;
 export type BlockType = Block["type"];
 
 export type Background =

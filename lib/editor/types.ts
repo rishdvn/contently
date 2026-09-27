@@ -194,9 +194,21 @@ export type Slide = {
 export type AudioTrack = {
   id: string;
   title: string;
+  /* Seconds on the project timeline. */
   start: number;
   duration: number;
+  /* 0–100. */
   volume: number;
+  /* Seconds into the source at which the pill begins: dragging the pill's left
+     edge trims the head of the file rather than sliding it. */
+  offset?: number;
+  /* Seconds, 0–3, ramped linearly in playback and in the export mix. */
+  fadeIn?: number;
+  fadeOut?: number;
+  muted?: boolean;
+  /* The file's own length, so a trim cannot run past the end of it. Absent on
+     tracks added before it was recorded; those trim freely. */
+  sourceDuration?: number;
   /*
     The `audioTracks` row this came from. Library audio is played by id, through
     `getPlayableUrl`, because its CDN URLs expire within a week; `src` is only

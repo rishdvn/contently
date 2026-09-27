@@ -4,7 +4,7 @@ import { useConvex, useMutation, useQueries, useQuery } from "convex/react";
 import type { FunctionArgs, FunctionReturnType } from "convex/server";
 import { AudioLines, ChevronDown, ChevronLeft, ChevronRight, CircleAlert, ImageDown, LoaderCircle, Music, Pause, Play, Trash2, Upload, Video, X } from "lucide-react";
 import Image from "next/image";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { Chip, ChipRow } from "@/components/ui/chip";
@@ -172,14 +172,23 @@ function ChipScroll({ side, onClick }: { side: "start" | "end"; onClick: () => v
 */
 function StockResults({ args, searched }: { args: StockSearch; searched: boolean }) {
   const [pages, setPages] = useState(1);
-  const results = useQueries(
-    Object.fromEntries(
-      Array.from({ length: pages }, (_, page) => [
-        String(page),
-        { query: api.media.searchStock, args: { ...args, cursor: page * STOCK_PAGE_SIZE, pageSize: STOCK_PAGE_SIZE } },
-      ]),
-    ),
-  ) as Record<string, FunctionReturnType<typeof api.media.searchStock> | undefined | Error>;
+  /* `useQueries` resubscribes whenever its argument changes identity. */
+  const { kind, category, q } = args;
+  const requests = useMemo(
+    () =>
+      Object.fromEntries(
+        Array.from({ length: pages }, (_, page) => [
+          String(page),
+          {
+            query: api.media.searchStock,
+            /* Unset filters are left out: a query's arguments cannot hold `undefined`. */
+            args: { kind, ...(category ? { category } : {}), ...(q ? { q } : {}), cursor: page * STOCK_PAGE_SIZE, pageSize: STOCK_PAGE_SIZE },
+          },
+        ]),
+      ),
+    [kind, category, q, pages],
+  );
+  const results = useQueries(requests) as Record<string, FunctionReturnType<typeof api.media.searchStock> | undefined | Error>;
 
   /* Pages in order, stopping at the first still on its way. */
   const loaded: FunctionReturnType<typeof api.media.searchStock>[] = [];
@@ -257,14 +266,13 @@ function StockTile({ item }: { item: MediaItem }) {
   const [hover, setHover] = useState(false);
   const [added, setAdded] = useState<"block" | "background" | null>(null);
   const addedTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
-  const place = usePlaceStock();
   const thumb = item.kind === "image" ? item.url : item.posterUrl;
   const credit = item.credit?.name ?? item.credit?.handle;
   const kindLabel = item.kind === "image" ? "photo" : "video";
 
   const act = (as: "block" | "background") => {
     if (!item.url) return;
-    place(item, as);
+    placeStock(item, as);
     setAdded(as);
     clearTimeout(addedTimer.current);
     addedTimer.current = setTimeout(() => setAdded(null), 1200);
@@ -273,6 +281,7 @@ function StockTile({ item }: { item: MediaItem }) {
   return (
     <div
       role="listitem"
+      data-media-id={item.id}
       className="group relative overflow-hidden rounded-[10px] bg-card"
       style={{ aspectRatio: tileRatio(item) }}
       onPointerEnter={() => setHover(true)}
@@ -329,38 +338,32 @@ function StockTile({ item }: { item: MediaItem }) {
   background cannot be a video, so a video goes in as the same covering block
   sent to the back, beneath everything already there.
 */
-function usePlaceStock() {
-  const addBlock = useEditor((s) => s.addBlock);
-  const moveBlockTo = useEditor((s) => s.moveBlockTo);
-  const setBackground = useEditor((s) => s.setBackground);
-  const setComponentProp = useEditor((s) => s.setComponentProp);
-  const setMediaTarget = useEditor((s) => s.setMediaTarget);
+function placeStock(item: MediaItem, as: "block" | "background") {
+  if (!item.url) return;
+  /* Read at the click rather than subscribed to: a panel of tiles has no use
+     for re-rendering on every edit. */
+  const { project, activeSlideId, mediaTarget, selection, addBlock, moveBlockTo, setBackground, setComponentProp, setMediaTarget } = useEditor.getState();
+  primeMedia([item]);
 
-  return (item: MediaItem, as: "block" | "background") => {
-    if (!item.url) return;
-    const { project, activeSlideId, mediaTarget, selection } = useEditor.getState();
-    primeMedia([item]);
+  if (as === "background" && item.kind === "image") {
+    setBackground(activeSlideId, { type: "image", mediaId: item.id, src: item.url, focalX: 50, focalY: 50, adjustments: { ...NEUTRAL_ADJUSTMENTS } });
+    return;
+  }
+  const target = mediaTarget && selection.length === 1 && selection[0] === mediaTarget.blockId ? mediaTarget : null;
+  if (as === "block" && target && target.kind === item.kind) {
+    setComponentProp(target.blockId, target.path, { mediaId: item.id, src: item.url });
+    setMediaTarget(null);
+    return;
+  }
 
-    if (as === "background" && item.kind === "image") {
-      setBackground(activeSlideId, { type: "image", mediaId: item.id, src: item.url, focalX: 50, focalY: 50, adjustments: { ...NEUTRAL_ADJUSTMENTS } });
-      return;
-    }
-    const target = mediaTarget && selection.length === 1 && selection[0] === mediaTarget.blockId ? mediaTarget : null;
-    if (as === "block" && target && target.kind === item.kind) {
-      setComponentProp(target.blockId, target.path, { mediaId: item.id, src: item.url });
-      setMediaTarget(null);
-      return;
-    }
-
-    const common = { mediaId: item.id, src: item.url, x: 0, y: 0, w: project.width, h: project.height };
-    const block =
-      item.kind === "video"
-        ? videoBlock({ ...common, sourceDuration: item.duration, ...(as === "background" ? { name: "Background video" } : {}) })
-        : imageBlock(common);
-    addBlock(block);
-    /* Inside the history's coalescing window, so one undo takes back both. */
-    if (as === "background") moveBlockTo(block.id, 0);
-  };
+  const common = { mediaId: item.id, src: item.url, x: 0, y: 0, w: project.width, h: project.height };
+  const block =
+    item.kind === "video"
+      ? videoBlock({ ...common, sourceDuration: item.duration, ...(as === "background" ? { name: "Background video" } : {}) })
+      : imageBlock(common);
+  addBlock(block);
+  /* Inside the history's coalescing window, so one undo takes back both. */
+  if (as === "background") moveBlockTo(block.id, 0);
 }
 
 /* ---------------------------------------------------------------- Audio --- */

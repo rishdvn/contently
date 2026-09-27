@@ -244,6 +244,39 @@ export function useProjectActions(): ProjectActions {
   };
 }
 
+/*
+  The Share flyout's switch. `token` is `undefined` while loading, `null` while
+  the project is members-only, and the live token while "Anyone with the link"
+  is on. The URL is built here so the studio never has to know the route shape.
+*/
+export type ProjectSharing = {
+  token: string | null | undefined;
+  url: (origin: string) => string;
+  share: () => Promise<void>;
+  unshare: () => Promise<void>;
+};
+
+export function useProjectSharing(id: string): ProjectSharing {
+  const { orgId } = useActiveOrg();
+  const state = useQuery(api.projects.shareState, orgId ? { orgId, id } : "skip");
+  const share = useMutation(api.projects.share);
+  const unshare = useMutation(api.projects.unshare);
+  const token = state === undefined ? undefined : (state?.token ?? null);
+
+  return {
+    token,
+    url: (origin) => `${origin}/p/${id}${token ? `?t=${token}` : ""}`,
+    share: async () => {
+      if (!orgId) noOrg();
+      await share({ orgId, id: id as Id<"projects"> });
+    },
+    unshare: async () => {
+      if (!orgId) noOrg();
+      await unshare({ orgId, id: id as Id<"projects"> });
+    },
+  };
+}
+
 /* ── The one-time import ──────────────────────────────────────────────────
 
   Everything below reads the localStorage the studio used before Convex. It is

@@ -4,24 +4,44 @@ import { Check, Globe, Link2, Lock } from "lucide-react";
 import { useState } from "react";
 
 import { Switch } from "@/components/ui/switch";
+import { useToast } from "@/components/ui/toast";
+import { useProjectSharing } from "@/lib/editor/persistence";
 import { useEditor } from "@/lib/editor/store";
 
 import { Card } from "../controls";
 import { Flyout, PrimaryButton } from "./Flyout";
 
 /*
-  Link sharing and invites. Projects live in this browser, so the link is a
-  bookmark to the editor; the collaborator list is a local stub of the
-  reference's shape.
+  Link sharing and invites. The link opens the read-only viewer at `/p/<id>`:
+  members of the organisation can always open it, and "Anyone with the link"
+  adds a revocable token that lets everyone else in, signed in or not. The
+  collaborator list is still a local stub of the reference's shape.
 */
 export function ShareDialog() {
   const id = useEditor((s) => s.project.id);
-  const [publicLink, setPublicLink] = useState(true);
+  const sharing = useProjectSharing(id);
+  const toast = useToast();
+  /* The switch moves on click; the query catches up when the mutation lands. */
+  const [pending, setPending] = useState<boolean | null>(null);
+  const publicLink = pending ?? !!sharing.token;
   const [copied, setCopied] = useState(false);
   const [email, setEmail] = useState("");
   const [invited, setInvited] = useState<string[]>([]);
 
-  const url = typeof window !== "undefined" ? `${window.location.origin}/editor/${id}` : "";
+  const url = typeof window !== "undefined" ? sharing.url(window.location.origin) : "";
+
+  const setPublic = async (on: boolean) => {
+    if (pending !== null) return;
+    setPending(on);
+    try {
+      await (on ? sharing.share() : sharing.unshare());
+    } catch (error) {
+      console.error(error);
+      toast({ title: on ? "Couldn't turn on link sharing" : "Couldn't turn off link sharing", description: "Check your connection and try again." });
+    } finally {
+      setPending(null);
+    }
+  };
 
   const copy = async () => {
     try {
@@ -45,15 +65,15 @@ export function ShareDialog() {
       <Card className="flex items-center gap-2.5 px-2.5 py-2">
         <span className="flex size-8 items-center justify-center rounded-[8px] bg-raised text-ink-secondary">{publicLink ? <Globe className="size-4" /> : <Lock className="size-4" />}</span>
         <div className="min-w-0 flex-1">
-          <div className="text-ui text-ink">{publicLink ? "Anyone with the link" : "Only invited people"}</div>
-          <div className="text-cap text-ink-secondary">{publicLink ? "Can view this project" : "Link is private"}</div>
+          <div className="text-ui text-ink">{publicLink ? "Anyone with the link" : "Only your organisation"}</div>
+          <div className="text-cap text-ink-secondary">{publicLink ? "Can view, no sign-in needed" : "Members can view the link"}</div>
         </div>
-        <Switch checked={publicLink} onCheckedChange={setPublicLink} />
+        <Switch checked={publicLink} onCheckedChange={setPublic} disabled={sharing.token === undefined} />
       </Card>
 
       <div className="flex items-center gap-1.5">
-        <input readOnly value={url} onFocus={(e) => e.currentTarget.select()} className="h-8 min-w-0 flex-1 rounded-[8px] bg-raised px-2 text-cap text-ink-secondary outline-none" aria-label="Project link" />
-        <button type="button" className="flex h-8 shrink-0 items-center gap-1.5 rounded-[8px] bg-raised px-2.5 text-ui text-ink hover:bg-line-strong" onClick={copy}>
+        <input readOnly value={url} onFocus={(e) => e.currentTarget.select()} className="h-8 min-w-0 flex-1 rounded-[8px] bg-raised px-2 text-cap text-ink-secondary outline-none" aria-label="Share link" />
+        <button type="button" disabled={!url || pending !== null} className="flex h-8 shrink-0 items-center gap-1.5 rounded-[8px] bg-raised px-2.5 text-ui text-ink hover:bg-line-strong disabled:text-ink-disabled" onClick={copy}>
           {copied ? <Check className="size-3.5" /> : <Link2 className="size-3.5" />}
           {copied ? "Copied" : "Copy"}
         </button>

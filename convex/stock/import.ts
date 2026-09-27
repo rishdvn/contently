@@ -286,19 +286,22 @@ export const importPage = internalAction({
   Stock videos the script has not finished — not yet H.264 (or never probed),
   or missing a preview or a poster — with a URL to download the master from.
   `storageId` goes back to `media:replaceFiles` as `from`, so a row another run
-  has already swapped is left alone. `categories` narrows it for a trial run.
+  has already swapped is left alone. `categories` narrows it for a trial run;
+  `ids` asks for those rows whatever their state, so a finished row can be
+  decided again after the rules change.
 */
 export const pendingVideos = internalQuery({
-  args: { categories: v.optional(v.array(v.string())) },
-  handler: async (ctx, { categories }) => {
+  args: { categories: v.optional(v.array(v.string())), ids: v.optional(v.array(v.id("media"))) },
+  handler: async (ctx, { categories, ids }) => {
     const videos = await ctx.db
       .query("media")
       .withIndex("by_source_kind", (q) => q.eq("source", "stock").eq("kind", "video"))
       .collect();
-    const pending = videos.filter(
-      (row) =>
-        (!categories || categories.some((slug) => row.categories?.includes(slug))) &&
-        (row.codec !== "h264" || !row.previewStorageId || !row.posterStorageId),
+    const pending = videos.filter((row) =>
+      ids
+        ? ids.includes(row._id)
+        : (!categories || categories.some((slug) => row.categories?.includes(slug))) &&
+          (row.codec !== "h264" || !row.previewStorageId || !row.posterStorageId),
     );
     return await Promise.all(
       pending.map(async (row) => ({

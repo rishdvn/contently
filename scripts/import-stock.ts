@@ -7,6 +7,7 @@
       node scripts/import-stock.ts --categories cafe,gym --photos 10 --videos 3
       node scripts/import-stock.ts --transcode                    # videos only, no import
       node scripts/import-stock.ts --transcode --categories cafe --limit 3
+      node scripts/import-stock.ts --transcode --recheck <mediaId>,<mediaId>  # finished rows, decided again
       node scripts/import-stock.ts -- --prod                      # flags after -- go to `npx convex run`
 
   Which deployment it writes to is whatever `npx convex run` would pick: the
@@ -160,11 +161,20 @@ function importAll(): boolean {
     at most. Library grids play it instead of streaming the master.
   - The poster, cut from the master.
 
-  A master that is already H.264, SDR and no larger than the rule allows is
-  kept as it is and only gains what it lacks.
+  A master that is already H.264, SDR, no larger than the rule allows and not
+  far over the bitrate ceiling is kept as it is and only gains what it lacks.
 */
 
 const FRAME = { width: 1080, height: 1920 };
+/* CRF 20 is the target, but grainy footage (sand, water, low light) can take it
+   past 20 Mbps at 1080×1920. The ceiling scales with pixel count, so a
+   landscape master's middle crop gets what a portrait frame would. An H.264
+   source well over it is encoded again even when it is the right size;
+   one a little over is kept rather than lose a generation for a few percent. */
+const MAX_BITRATE_AT_FRAME = 10e6;
+const REENCODE_OVER_CEILING = 1.25;
+const ceiling = (size: { width: number; height: number }) =>
+  Math.round((MAX_BITRATE_AT_FRAME * size.width * size.height) / (FRAME.width * FRAME.height));
 const PREVIEW = { shortEdge: 360, seconds: 6, bitrate: "800k", maxrate: "1000k", bufsize: "1600k", fps: 30 };
 const PLAYABLE_PIXELS = ["yuv420p", "yuvj420p"];
 const HDR_TRANSFERS = ["arib-std-b67", "smpte2084"];
@@ -239,6 +249,7 @@ function ffmpeg(args: string[]) {
 }
 
 function encodeMaster(source: string, out: string, info: ReturnType<typeof probe>, size: { width: number; height: number }) {
+  const maxrate = ceiling(size);
   const filters = [];
   /* ffmpeg rotates sideways phone footage before these run, so the size is in
      painted dimensions. */
@@ -258,6 +269,7 @@ function encodeMaster(source: string, out: string, info: ReturnType<typeof probe
     "-map", "0:v:0", "-map", "0:a:0?",
     "-vf", filters.join(","),
     "-c:v", "libx264", "-profile:v", "high", "-preset", "medium", "-crf", "20",
+    "-maxrate", String(maxrate), "-bufsize", String(maxrate * 2),
     ...(info.hdr ? ["-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709"] : []),
     ...(info.audio ? ["-c:a", "aac", "-b:a", "128k"] : []),
     /* Camera metadata (location among it) has no business in a stock file. */
@@ -317,7 +329,9 @@ async function processVideo(video: Pending & { url: string }, dir: string, total
   await download(video.url, source);
   const info = probe(source);
   const size = masterSize(info.width, info.height);
+  const bitrate = info.duration ? (statSync(source).size * 8) / info.duration : 0;
   const transcode =
+    bitrate > ceiling(size) * REENCODE_OVER_CEILING ||
     info.codec !== "h264" || !PLAYABLE_PIXELS.includes(info.pixels) || info.hdr || size.width !== info.width || size.height !== info.height;
 
   let master = source;
@@ -335,7 +349,8 @@ async function processVideo(video: Pending & { url: string }, dir: string, total
   /* Upload last and swap straight after, so a stop between the two leaves as
      little behind as possible. */
   const files = [transcode ? master : undefined, poster, preview];
-  const urls = run<string[]>("stock/import:uploadUrls", { count: files.filter(Boolean).length });
+  const count = files.filter(Boolean).length;
+  const urls = count ? run<string[]>("stock/import:uploadUrls", { count }) : [];
   const [storageId, posterStorageId, previewStorageId] = await Promise.all(
     files.map((file, index) =>
       file ? upload(urls.shift()!, file, index === 1 ? "image/jpeg" : "video/mp4") : Promise.resolve(undefined),
@@ -376,7 +391,8 @@ async function videos() {
   }
 
   const categories = option("categories")?.split(",").map((slug) => slug.trim());
-  const all = run<Pending[]>("stock/import:pendingVideos", categories ? { categories } : {});
+  const recheck = option("recheck")?.split(",").map((id) => id.trim());
+  const all = run<Pending[]>("stock/import:pendingVideos", recheck ? { ids: recheck } : categories ? { categories } : {});
   const pending = limit === undefined ? all : all.slice(0, limit);
   if (pending.length === 0) {
     console.log("videos: every one is H.264 with a preview and a poster");

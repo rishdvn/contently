@@ -138,7 +138,7 @@ export function RenderStage({ projectId, token, scene }: { projectId: string; to
 
   /* The bridge exists from the first paint so a worker that arrives early can
      read `status` instead of polling for the property itself. */
-  useBridge(project, load.status === "error" ? load.message : null, ready, root);
+  useBridge(project, load.status === "error" ? load.message : null, ready, root, { projectId, token });
 
   useEffect(() => {
     if (!project) return;
@@ -183,7 +183,14 @@ export function RenderStage({ projectId, token, scene }: { projectId: string; to
   is bytes on their way out of the page, nothing renders from it, and a render
   that re-rendered the tree for every megabyte would be measuring itself.
 */
-function useBridge(project: Project | null, error: string | null, ready: boolean, root: React.RefObject<HTMLDivElement | null>) {
+function useBridge(
+  project: Project | null,
+  error: string | null,
+  ready: boolean,
+  root: React.RefObject<HTMLDivElement | null>,
+  /* The render's own authorisation, for the one call the MP4 path makes back to Convex. */
+  auth: { projectId: string; token: string },
+) {
   const staged = useRef<Uint8Array | null>(null);
   const progress = useRef(0);
 
@@ -228,7 +235,12 @@ function useBridge(project: Project | null, error: string | null, ready: boolean
       mp4: async (options) => {
         const p = useEditor.getState().project;
         progress.current = 0;
+        /* Library audio at live URLs, asked for now rather than at load: a
+           signature can lapse while a job waits in the queue. Without an answer
+           the saved URL is tried, and the export names a track that fails. */
+        const live = p.audio.some((t) => t.trackId) && convexUrl ? await new ConvexHttpClient(convexUrl).action(api.render.audioUrls, { projectId: auth.projectId, token: auth.token }).catch(() => ({}) as Record<string, string>) : {};
         const blob = await renderVideo(p, {
+          audioUrl: async (track) => (track.trackId ? live[track.trackId] : undefined) ?? track.src ?? "",
           fps: options?.fps ?? 30,
           quality: options?.quality ?? "high",
           onProgress: (value) => {
@@ -256,5 +268,5 @@ function useBridge(project: Project | null, error: string | null, ready: boolean
     return () => {
       if (window.contently === bridge) delete window.contently;
     };
-  }, [project, error, ready, root]);
+  }, [project, error, ready, root, auth.projectId, auth.token]);
 }

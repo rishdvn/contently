@@ -1,7 +1,9 @@
 import { ConvexError, v } from "convex/values";
 
 import type { Doc, Id } from "./_generated/dataModel";
-import { internalMutation, mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
+import { internal } from "./_generated/api";
+import { action, internalMutation, internalQuery, mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
+import { liveUrl } from "./audio/library";
 import { requireOrg, tryOrg } from "./lib/auth";
 import { withResolvedMedia, type DocumentLike } from "./lib/documentMedia";
 
@@ -178,6 +180,57 @@ export const document = query({
       height: project.height,
       document: await withResolvedMedia(ctx, project.orgId, project.document),
     };
+  },
+});
+
+/*
+  Live URLs for the library audio a project uses, for the render route's MP4.
+
+  The studio asks `audio/library:getPlayableUrl` for these, as the signed-in
+  user; the render route has no user, and a Soundstripe URL saved in the
+  document more than a week ago no longer plays. The token stands in for the
+  session here as it does for `document`, and only tracks the project itself
+  uses are answered for — a render token is not a key to the catalog.
+
+  A track that cannot be resolved is left out of the answer: the page then
+  falls back to the URL saved in the document, and if that fails too, the
+  export fails naming the track.
+*/
+export const audioUrls = action({
+  args: { projectId: v.string(), token: v.string() },
+  returns: v.record(v.string(), v.string()),
+  handler: async (ctx, { projectId, token }): Promise<Record<string, string>> => {
+    const subject = await tokenSubject(token, Date.now());
+    if (!subject || subject !== projectId) fail("forbidden", "The render token does not cover this project, or it has expired");
+
+    const trackIds: Id<"audioTracks">[] = await ctx.runQuery(internal.render.audioTrackIds, { projectId });
+    const urls: Record<string, string> = {};
+    for (const trackId of trackIds) {
+      try {
+        const row = await ctx.runQuery(internal.audio.library.playbackRowForRender, { trackId });
+        urls[trackId] = (await liveUrl(ctx, trackId, row)).url;
+      } catch (error) {
+        console.warn(`render ${projectId}: no live URL for audio track ${trackId}:`, error instanceof Error ? error.message : error);
+      }
+    }
+    return urls;
+  },
+});
+
+/* The library tracks on a project's audio lane, deduplicated. Ids that are not
+   (or are no longer) `audioTracks` ids are dropped rather than trusted. */
+export const audioTrackIds = internalQuery({
+  args: { projectId: v.string() },
+  handler: async (ctx, { projectId }): Promise<Id<"audioTracks">[]> => {
+    const id = ctx.db.normalizeId("projects", projectId);
+    const project = id ? await ctx.db.get(id) : null;
+    const audio = (project?.document as { audio?: { trackId?: unknown }[] } | undefined)?.audio ?? [];
+    const ids = new Set<Id<"audioTracks">>();
+    for (const track of audio) {
+      const trackId = typeof track?.trackId === "string" ? ctx.db.normalizeId("audioTracks", track.trackId) : null;
+      if (trackId) ids.add(trackId);
+    }
+    return [...ids];
   },
 });
 

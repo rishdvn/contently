@@ -4,11 +4,12 @@ How to author a template, and what one is. Written for two readers: a person
 building a template in the studio, and the code (the scene picker, the
 Templates page, the API and the MCP) that has to replace its content well.
 
-A **template** is a project frozen as a starting point, shared by every
-organisation. Its content is meant to be replaced — by a person picking scenes
-in the studio, or by an AI filling it with a brand's words and pictures through
-the API — so a template is judged by how well it survives that, not only by
-how it looks on the day it was made.
+A **template** is a project frozen as a starting point. Contently's own
+templates are published to every organisation; any organisation can also keep
+private ones of its own. Its content is meant to be replaced — by a person
+picking scenes in the studio, or by an AI filling it with a brand's words and
+pictures through the API — so a template is judged by how well it survives
+that, not only by how it looks on the day it was made.
 
 | | |
 |---|---|
@@ -29,8 +30,8 @@ One row in `templates`:
 | `name`, `kind`, `aspect` | From the project; `kind` is `image`, `carousel` or `video` |
 | `categories[]`, `tags[]` | Categories are the chips on the Templates page; tags are extra search words |
 | `poster`, `scenePosters[]` | PNGs rendered by `scripts/template-posters.ts`, one per scene, in order |
-| `published` | Off: visible only to the organisation it came from. On: to everyone |
-| `orgId`, `sourceProjectId`, `createdBy` | Where it came from. That organisation's admins update and publish it |
+| `published` | Off: visible only to the organisation it came from. On: to everyone. Only the publisher organisation publishes (below) |
+| `orgId`, `sourceProjectId`, `createdBy` | Where it came from. That organisation's admins update it and can unpublish it |
 
 Media in `document` keeps its `media` ids. Every read resolves them against the
 source organisation and hands back plain URLs, so a template's photos show for
@@ -195,7 +196,38 @@ crop keeps them.
    look finished, nothing half-animated.
    Your unpublished templates are in `templates:list` with `{ "drafts": true }`.
 6. **Publish.** `templates:publish` with `{ orgId, id }` (`published: false`
-   takes it back), the same way as step 3.
+   takes it back), the same way as step 3. Only the publisher organisation
+   can publish ("Who can publish", below); anywhere else, stop at step 5 and
+   the template stays your organisation's own.
+
+## Who can publish
+
+A published template is shown to every customer, so the shared library is
+Contently's alone:
+
+- **Publishing** needs an admin (`org:admin`) of the **publisher
+  organisation**, the Clerk organisation whose id is in the Convex environment
+  variable `TEMPLATE_PUBLISHER_ORG`. Anyone else gets `forbidden`. With the
+  variable unset, nobody can publish.
+- **Making and updating** a template (`createFromProject`) is open to the
+  admins of any organisation. Its templates stay **private**: that
+  organisation sees them in its Templates flyout and on its Templates page
+  (`list` with `drafts: true`), and nobody else does.
+- **Unpublishing** (`published: false`) is open to the template's own
+  organisation's admins, so whoever owns a public template can always take it
+  back.
+
+To name the publisher, take the organisation's `org_…` id (Clerk dashboard, or
+`window.Clerk.organization.id` while it is the active organisation) and set it
+on the deployment:
+
+```bash
+npx convex env set TEMPLATE_PUBLISHER_ORG org_…
+npx convex env get TEMPLATE_PUBLISHER_ORG     # check
+```
+
+It takes effect on the next function call; nothing needs redeploying. Build
+the library's templates in that organisation, so its admins own them.
 
 A checklist before publishing:
 
@@ -223,5 +255,6 @@ const t = useQuery(api.templates.get, { id });
 //   fields, on catalog blocks → [{ path: "messages[2].text", field: "messages[].text", role, kind, current?, media? }]
 ```
 
-Both need a signed-in user. `createFromProject` and `publish` need an admin
-of the template's organisation (`org:admin` in Clerk).
+Both need a signed-in user. `createFromProject` needs an admin of the
+project's organisation (`org:admin` in Clerk); `publish`, an admin of the
+publisher organisation ("Who can publish").

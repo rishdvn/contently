@@ -14,8 +14,12 @@ import { withResolvedMedia } from "./lib/documentMedia";
 
   - Anyone signed in reads published templates (`list`, `get`).
   - A template is made from a project (`createFromProject`) by an admin of the
-    project's organisation, and only that organisation's admins update or
-    publish it. Unpublished, it is visible to that organisation alone.
+    project's organisation, and only that organisation's admins update it.
+    Unpublished, it is visible to that organisation alone: any organisation
+    can keep private templates.
+  - Publishing puts a template in front of every customer, so only admins of
+    the publisher organisation (Contently's own, `TEMPLATE_PUBLISHER_ORG`)
+    can publish. Any template's own admins can take it back.
   - Media in the document is resolved against the source organisation on every
     read, so a template's photos show for everyone without anyone else being
     let into that organisation's library.
@@ -128,7 +132,7 @@ export const get = query({
 
 async function requireAdmin(ctx: QueryCtx, clerkOrgId: string) {
   const context = await requireOrg(ctx, clerkOrgId);
-  if (context.membership.role !== ADMIN) fail("forbidden", "Only an organisation admin can make or publish templates");
+  if (context.membership.role !== ADMIN) fail("forbidden", "Only an organisation admin can make, change or publish templates");
   return context;
 }
 
@@ -190,11 +194,25 @@ export const createFromProject = mutation({
   },
 });
 
-/* Show it to every organisation, or take it back. */
+/*
+  The Clerk id of the organisation that publishes the shared library, set with
+  `npx convex env set TEMPLATE_PUBLISHER_ORG org_…`. Unset, nobody can publish.
+*/
+const publisherOrg = () => process.env.TEMPLATE_PUBLISHER_ORG?.trim() || undefined;
+
+/*
+  Show it to every organisation, or take it back. Publishing is for the
+  publisher organisation's admins only; unpublishing, for the template's own.
+*/
 export const publish = mutation({
   args: { orgId: v.string(), id: v.string(), published: v.optional(v.boolean()) },
   handler: async (ctx, { orgId, id, published = true }) => {
     const { org } = await requireAdmin(ctx, orgId);
+    if (published) {
+      const publisher = publisherOrg();
+      if (!publisher) fail("forbidden", "Publishing is switched off: TEMPLATE_PUBLISHER_ORG is not set on this deployment");
+      if (orgId !== publisher) fail("forbidden", "Only Contently publishes to the shared template library. Your organisation's templates stay private to it");
+    }
     const tid = ctx.db.normalizeId("templates", id);
     const row = tid ? await ctx.db.get(tid) : null;
     if (!row || row.orgId !== org._id) fail("missing", "No such template in this organisation");

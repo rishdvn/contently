@@ -3,18 +3,20 @@ import type { QueryCtx } from "../_generated/server";
 
 /*
   A project document with its `media` ids swapped for the URLs they resolve to
-  right now, for readers that have no Clerk session to resolve them with.
+  right now, for readers that have no Clerk session to resolve them with: the
+  render worker (`render.document`) and a visitor on a share link
+  (`projects.getShared`).
 
   The studio and the hub resolve ids in the browser through `media.resolve`,
-  which is authorised by membership. A visitor on a share link is not a member,
-  so the answer there would be "no such media" for every photo. Resolving here
-  instead, against the project's own org, hands out exactly the files the
-  project shows and nothing else.
+  which is authorised by membership, so for either of these readers the answer
+  there would be "no such media" for every photo. Resolving here instead,
+  against the project's own org, hands out exactly the files the project shows
+  and nothing else.
 */
 
 type MediaRef = { kind: "block"; slide: number; block: number } | { kind: "background"; slide: number };
 
-type DocumentLike = {
+export type DocumentLike = {
   slides?: {
     background?: { type?: string; mediaId?: string; src?: string };
     blocks?: { type?: string; mediaId?: string; src?: string }[];

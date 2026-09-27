@@ -2,7 +2,7 @@ import { ConvexError, v } from "convex/values";
 
 import { internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
-import { action, internalMutation, internalQuery, query, type QueryCtx } from "../_generated/server";
+import { action, internalMutation, internalQuery, query, type ActionCtx, type QueryCtx } from "../_generated/server";
 import { requireUser } from "../lib/auth";
 import { expiryOf, getSong, getSoundEffect, hasApiKey } from "./soundstripe";
 
@@ -209,13 +209,25 @@ const REFRESH_MARGIN_MS = 15 * 60 * 1000;
    and gives up. */
 type PlaybackRow = (PlayableTrack & { externalId: string }) | null;
 
+async function playbackRowOf(ctx: QueryCtx, trackId: Id<"audioTracks">): Promise<PlaybackRow> {
+  const track = await ctx.db.get(trackId);
+  return track ? { ...(await serialise(ctx, track)), externalId: track.externalId } : null;
+}
+
 export const playbackRow = internalQuery({
   args: { trackId: v.id("audioTracks") },
   handler: async (ctx, { trackId }): Promise<PlaybackRow> => {
     await requireUser(ctx);
-    const track = await ctx.db.get(trackId);
-    return track ? { ...(await serialise(ctx, track)), externalId: track.externalId } : null;
+    return await playbackRowOf(ctx, trackId);
   },
+});
+
+/* The same row for a caller with no user — the render route, whose render token
+   is checked by its own action before it gets here. Internal, so nothing
+   outside this deployment can reach it. */
+export const playbackRowForRender = internalQuery({
+  args: { trackId: v.id("audioTracks") },
+  handler: async (ctx, { trackId }): Promise<PlaybackRow> => await playbackRowOf(ctx, trackId),
 });
 
 export const storeRefreshedUrl = internalMutation({
@@ -255,43 +267,54 @@ export const getPlayableUrl = action({
     expiresAt: v.union(v.number(), v.null()),
     refreshed: v.boolean(),
   }),
-  handler: async (ctx, { trackId }): Promise<{ url: string; expiresAt: number | null; refreshed: boolean }> => {
+  handler: async (ctx, { trackId }): Promise<LiveUrl> => {
     const track: PlaybackRow = await ctx.runQuery(internal.audio.library.playbackRow, { trackId });
-    if (!track) throw new ConvexError({ kind: "audio", code: "not-found", message: "No such track" });
-
-    const now = Date.now();
-    const cached = track.previewUrl;
-    if (cached && (track.previewExpiresAt ?? Infinity) - now > REFRESH_MARGIN_MS) {
-      return { url: cached, expiresAt: track.previewExpiresAt, refreshed: false };
-    }
-
-    /* A `cc0` upload with no file, or any provider we cannot re-sign for. */
-    if (track.provider !== "soundstripe" || !hasApiKey()) {
-      if (cached) return { url: cached, expiresAt: track.previewExpiresAt, refreshed: false };
-      throw new ConvexError({
-        kind: "audio",
-        code: "unplayable",
-        message: `No playable file for this ${track.provider} track`,
-      });
-    }
-
-    const fresh =
-      track.kind === "music" ? await getSong(track.externalId, now) : await getSoundEffect(track.externalId, now);
-    if (!fresh.previewUrl) {
-      throw new ConvexError({
-        kind: "audio",
-        code: "unplayable",
-        message: "Soundstripe returned no audio file for this track",
-      });
-    }
-
-    const expiresAt = fresh.previewExpiresAt ?? expiryOf(fresh.previewUrl, now) ?? null;
-    await ctx.runMutation(internal.audio.library.storeRefreshedUrl, {
-      trackId,
-      previewUrl: fresh.previewUrl,
-      previewExpiresAt: expiresAt ?? undefined,
-      duration: fresh.duration,
-    });
-    return { url: fresh.previewUrl, expiresAt, refreshed: true };
+    return await liveUrl(ctx, trackId, track);
   },
 });
+
+export type LiveUrl = { url: string; expiresAt: number | null; refreshed: boolean };
+
+/*
+  A row's URL, re-signed if it is about to expire — `getPlayableUrl`'s answer,
+  shared with the render route's `render.audioUrls` so there is one copy of the
+  refresh and both callers get the same URL for the same track.
+*/
+export async function liveUrl(ctx: ActionCtx, trackId: Id<"audioTracks">, track: PlaybackRow): Promise<LiveUrl> {
+  if (!track) throw new ConvexError({ kind: "audio", code: "not-found", message: "No such track" });
+
+  const now = Date.now();
+  const cached = track.previewUrl;
+  if (cached && (track.previewExpiresAt ?? Infinity) - now > REFRESH_MARGIN_MS) {
+    return { url: cached, expiresAt: track.previewExpiresAt, refreshed: false };
+  }
+
+  /* A `cc0` upload with no file, or any provider we cannot re-sign for. */
+  if (track.provider !== "soundstripe" || !hasApiKey()) {
+    if (cached) return { url: cached, expiresAt: track.previewExpiresAt, refreshed: false };
+    throw new ConvexError({
+      kind: "audio",
+      code: "unplayable",
+      message: `No playable file for this ${track.provider} track`,
+    });
+  }
+
+  const fresh =
+    track.kind === "music" ? await getSong(track.externalId, now) : await getSoundEffect(track.externalId, now);
+  if (!fresh.previewUrl) {
+    throw new ConvexError({
+      kind: "audio",
+      code: "unplayable",
+      message: "Soundstripe returned no audio file for this track",
+    });
+  }
+
+  const expiresAt = fresh.previewExpiresAt ?? expiryOf(fresh.previewUrl, now) ?? null;
+  await ctx.runMutation(internal.audio.library.storeRefreshedUrl, {
+    trackId,
+    previewUrl: fresh.previewUrl,
+    previewExpiresAt: expiresAt ?? undefined,
+    duration: fresh.duration,
+  });
+  return { url: fresh.previewUrl, expiresAt, refreshed: true };
+}

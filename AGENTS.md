@@ -43,6 +43,10 @@ Hot files that most tickets touch: `Bottom.tsx`, `Gizmo.tsx`, `Inspector.tsx`, `
    - A headless Playwright pass of the behaviour you changed (see below), with stills or a recording attached.
 6. Mark it ready only once those pass. If they don't, **leave it as a draft** and say plainly what is failing and what you tried. Draft means "still mine"; ready means "yours to review". Never mark a PR ready to signal that you have run out of ideas.
 
+### Stacked PRs
+
+If your ticket needs code from another PR that hasn't merged, stack it: branch from that PR's branch, open your PR against it (`gh stack` helps), and say so at the top of the description. PRs are squash-merged, so once the one underneath lands, its commits are not in `main` under the same hashes. Rebase the next one with `git rebase --onto origin/main <old base tip>` (the old base branch's last commit), then retarget the PR to `main`. A plain `git rebase origin/main` replays the base's commits again and conflicts with their squashed copy.
+
 ### Linear looks after itself
 
 Status follows the PR, so don't set it by hand:
@@ -55,6 +59,8 @@ Status follows the PR, so don't set it by hand:
 
 A ticket sitting In Progress with no PR attached means something went wrong — a branch pushed without a PR, or a body missing `Closes CRE-<id>`. Fix the PR; don't drag the ticket.
 
+**Linking a ticket from someone else's PR can stall it.** If a ticket's own PR merges while another open PR links the same ticket as contributing (`Part of`, `Ref`), Linear keeps the ticket in In Review, and it stays there even after that other PR merges too. Last round a finished ticket sat in In Review for exactly this reason. So in a PR that may merge later than a sibling ticket's own PR, don't link the sibling at all: name it in words ("the Stock slot ticket"), or put `skip` before the id.
+
 ### Never write a closing keyword next to another ticket's id
 
 Linear scans the PR title, body and commit messages for a keyword beside an issue id. **It does not read context.** Backticks, quotation marks, an example, a sentence explaining the convention — all invisible. If the pair is in the text, the ticket closes when the PR merges.
@@ -66,11 +72,23 @@ So: **a closing keyword is only ever for the one ticket this PR completes.** To 
 | Intent | Write | Effect |
 |---|---|---|
 | This PR completes it | `Closes CRE-<id>` | Links, and closes on merge |
-| This PR contributes to it | `Part of CRE-<id>`, `Ref CRE-<id>` | Links, never closes |
+| This PR contributes to it | `Part of CRE-<id>`, `Ref CRE-<id>` | Links, never closes; can hold the ticket in In Review (see above) |
 | Just pointing at it | `CRE-<id>` alone, no keyword nearby | Links from the title only; inert in the body |
 | Don't touch it at all | `skip CRE-<id>` | Suppresses linking entirely |
 
 Closing keywords are `close`, `fix`, `resolve`, `complete`, `implement` and their tenses. When in doubt, name the ticket in words ("the render-worker ticket") and put the id nowhere near a verb.
+
+## The Convex deployment is shared with production
+
+`chatty-giraffe-3` is the **only** Convex deployment. Every workspace, every Vercel preview **and production** use it, and a push (`npx convex dev --once`, `npx convex deploy`) replaces *all* functions and the schema with the ones in your tree. Most UI work needs no push. Until production has a deployment of its own (the production-deployment ticket, CRE-71), when yours does:
+
+1. Push only from a branch rebased on current `main`.
+2. Keep schema changes **additive**: new tables, new optional fields, new functions. Never remove or rename a function, field, index or table that `main` uses, and never make an existing field required.
+3. Right before pushing, compare `npx convex function-spec` with your tree. Functions on the deployment that your tree doesn't have belong to another workspace's unmerged branch. Push from a temporary worktree that also contains their `convex/` files, so you don't delete them, and say in your PR which branches you folded in.
+4. Keep test data in your own test org. Don't rewrite production projects, media or templates beyond what your ticket asks.
+5. Push as rarely as you can.
+
+After a batch of PRs merges, push `main`'s `convex/`, so the deployment is `main` again rather than the last branch that happened to push.
 
 ## Verifying behaviour
 
@@ -136,3 +154,7 @@ What is worth recording: the gesture or flow the ticket asked for, end to end. W
 ## Merging
 
 `main` is the integration branch. Merge approved PRs one at a time in dependency order: rebase onto current `main`, re-run the checks, then fast-forward or squash-merge. After a batch lands, walk the key flows on the production deploy once.
+
+- **Stacked PRs:** after each merge, rebase the next PR in the stack with `--onto` (see "Stacked PRs" above) before re-running its checks.
+- **Convex:** after the batch, push `main`'s `convex/` (see "The Convex deployment is shared with production").
+- **Blocks:** after a PR that adds or changes a block merges, run `npm run block-previews` from `main` against the deployment (`--only <id>` for one block). Until it runs, the Blocks panel has no stored preview for that block and falls back to drawing it live. Don't run it from an unmerged branch: it writes the previews every workspace and production read.

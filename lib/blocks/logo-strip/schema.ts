@@ -11,5 +11,14 @@ export const inputs = {
     ],
   }),
   gap: input.number({ label: "Spacing", min: 0, max: 200, step: 10, unit: "%", default: 80 }),
-  grayscale: input.boolean({ label: "Grayscale", default: true }),
+  /* Logos come in every colour; a strip usually wants them in one. */
+  tone: input.select({
+    label: "Colour",
+    options: [
+      { value: "white", label: "White" },
+      { value: "black", label: "Black" },
+      { value: "grayscale", label: "Grayscale" },
+      { value: "original", label: "Original" },
+    ],
+  }),
 };

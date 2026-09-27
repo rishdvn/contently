@@ -79,7 +79,11 @@ export function videoBlock(partial: Partial<VideoBlock> & Pick<VideoBlock, "src"
     focalY: 50,
     radius: 0,
     adjustments: { ...NEUTRAL_ADJUSTMENTS },
-    muted: true,
+    /* A clip keeps its own sound, as in Butter: an uploaded talking head that
+       plays and exports silent until someone finds a toggle reads as broken.
+       Places where sound would be noise mute it themselves — hub previews
+       globally, stills and carousels in `BlockView`. */
+    muted: false,
     loop: true,
     trimStart: 0,
     volume: 100,

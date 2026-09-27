@@ -237,6 +237,19 @@ export default defineSchema({
     .index("by_provider_fetchedAt", ["provider", "fetchedAt"])
     .searchIndex("by_text", { searchField: "searchText", filterFields: ["kind", "provider"] }),
 
+  /* The Audio flyout's "Recently used", per person and per tab: one row per
+     track a user previewed or added, bumped on every use, capped in
+     `audio/recent.ts`. The track itself stays in `audioTracks`; a row whose
+     track was pruned from the catalog is skipped when read. */
+  audioRecent: defineTable({
+    userId: v.id("users"),
+    kind: v.union(v.literal("music"), v.literal("sfx")),
+    trackId: v.id("audioTracks"),
+    usedAt: v.number(),
+  })
+    .index("by_user_kind_usedAt", ["userId", "kind", "usedAt"])
+    .index("by_user_track", ["userId", "trackId"]),
+
   /* The filter chips above the audio list. Recomputed at the end of an index
      run rather than derived per request: counting moods across the whole
      catalog on every keystroke would read every track row. */

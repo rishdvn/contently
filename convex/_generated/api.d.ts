@@ -12,6 +12,7 @@ import type * as audio_cc0 from "../audio/cc0.js";
 import type * as audio_cc0Manifest from "../audio/cc0Manifest.js";
 import type * as audio_index from "../audio/index.js";
 import type * as audio_library from "../audio/library.js";
+import type * as audio_recent from "../audio/recent.js";
 import type * as audio_soundstripe from "../audio/soundstripe.js";
 import type * as clerk_backfill from "../clerk/backfill.js";
 import type * as clerk_mirror from "../clerk/mirror.js";
@@ -40,6 +41,7 @@ declare const fullApi: ApiFromModules<{
   "audio/cc0Manifest": typeof audio_cc0Manifest;
   "audio/index": typeof audio_index;
   "audio/library": typeof audio_library;
+  "audio/recent": typeof audio_recent;
   "audio/soundstripe": typeof audio_soundstripe;
   "clerk/backfill": typeof clerk_backfill;
   "clerk/mirror": typeof clerk_mirror;

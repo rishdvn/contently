@@ -218,7 +218,7 @@ export function useAudioLane() {
          left open over the week a signature lasts. Ask once more, then give up
          rather than looping on a track that has gone for good. */
       el.addEventListener("error", () => {
-        if (player.retried || !trackId) return;
+        if (player.retried || !trackId || players.get(id) !== player) return;
         player.retried = true;
         player.ready = false;
         liveUrls.delete(trackId);
@@ -259,8 +259,11 @@ export function useAudioLane() {
         el.volume = Math.min(Math.max(track.volume / 100, 0), 1);
         el.muted = s.muted;
         const inside = s.playing && now >= track.start && now < track.start + track.duration;
-        if (inside && player.ready) {
-          const at = now - track.start;
+        const at = now - track.start;
+        /* A pill trimmed longer than its file: past the end is silence. Calling
+           `play()` on an ended element would restart it from the top. */
+        const past = Number.isFinite(el.duration) && at >= el.duration;
+        if (inside && player.ready && !past) {
           /* The audio clock and the transport's drift apart slowly; only a real
              gap is worth the audible skip of correcting it. */
           if (Math.abs(el.currentTime - at) > 0.3) el.currentTime = at;

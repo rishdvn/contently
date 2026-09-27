@@ -14,13 +14,13 @@ import { cn } from "@/lib/cn";
 import { project as makeProject } from "@/lib/editor/factory";
 import { googleFontsHref } from "@/lib/editor/fonts";
 import { useProjectActions, useProjectIndex, type ProjectRecord } from "@/lib/editor/persistence";
-import type { Project, ProjectKind } from "@/lib/editor/types";
+import type { ProjectKind } from "@/lib/editor/types";
 
 import { HubNav } from "./HubNav";
 import { ImportLocalProjects } from "./ImportLocalProjects";
 import { CardCaption, LibraryGrid, usePreviewRoute, type LibraryAdapter } from "./LibraryGrid";
 import { PreviewModal } from "./PreviewModal";
-import { projectMeta, ProjectStage, relativeTime, useProjectClock } from "./ProjectPreview";
+import { LiveArt, projectMeta, relativeTime } from "./ProjectPreview";
 
 /*
   The workspace: sidebar, page header with the single filled Create action,
@@ -270,22 +270,6 @@ function ProjectOverlay({ item: p, hover }: { item: ProjectRecord; hover: boolea
           </MenuItem>
         </Menu>
       </div>
-    </>
-  );
-}
-
-/* The card's artwork plus the progress line that runs along its bottom edge while it plays. */
-function LiveArt({ project, playing }: { project: Project; playing: boolean }) {
-  const clock = useProjectClock(project, playing);
-  const progress = clock.total > 0 ? clock.elapsed / clock.total : 0;
-  return (
-    <>
-      <ProjectStage project={project} clock={clock} className="w-full" />
-      {project.kind !== "image" ? (
-        <div className={cn("pointer-events-none absolute inset-x-0 bottom-0 z-10 h-[3px] bg-white/20 transition-opacity duration-150", playing ? "opacity-100" : "opacity-0")}>
-          <div className="h-full bg-spectrum-amber" style={{ width: `${progress * 100}%` }} />
-        </div>
-      ) : null}
     </>
   );
 }

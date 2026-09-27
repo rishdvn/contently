@@ -172,6 +172,8 @@ export function RenderStage({ projectId, token, scene }: { projectId: string; to
       {project && slide ? (
         <Artboard slide={slide} width={project.width} height={project.height} x={0} y={0} interactive={false} />
       ) : null}
+      {/* For the person who opened a worker's URL to see what it saw. */}
+      {load.status === "error" ? <p className="absolute inset-0 flex items-center justify-center p-6 text-center text-ui text-ink-secondary">{load.message}</p> : null}
     </div>
   );
 }

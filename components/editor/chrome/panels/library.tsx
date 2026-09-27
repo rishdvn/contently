@@ -358,7 +358,7 @@ export function BlocksPanel() {
   Adds a catalog block the way Butter does: centred at the largest size its
   aspect allows within 80% of the artboard, and — in a video — starting at the
   playhead for its default length, pulled earlier if the scene would cut it
-  short.
+  short. Shared by the Blocks and Text panels.
 */
 function useAddCatalogBlock() {
   const addBlock = useEditor((s) => s.addBlock);
@@ -376,7 +376,7 @@ function useAddCatalogBlock() {
   One catalog entry. Pointer state rather than a `hover:` variant drives the
   preview, since those are gated on a hover-capable pointer.
 */
-function BlockCard({ def, onAdd }: { def: AnyBlockDefinition; onAdd: () => void }) {
+function BlockCard({ def, onAdd, size = tileSize() }: { def: AnyBlockDefinition; onAdd: () => void; size?: number }) {
   const [hover, setHover] = useState(false);
   return (
     <button
@@ -389,7 +389,7 @@ function BlockCard({ def, onAdd }: { def: AnyBlockDefinition; onAdd: () => void 
       onBlur={() => setHover(false)}
       onClick={onAdd}
     >
-      <BlockPreview def={def} playing={hover} />
+      <BlockPreview def={def} playing={hover} size={size} />
       <span className={cn("pointer-events-none absolute inset-x-0 bottom-0 scrim px-2 pt-5 pb-1.5 text-left text-cap text-white transition-opacity", hover ? "opacity-100" : "opacity-0")}>{def.name}</span>
     </button>
   );
@@ -405,12 +405,12 @@ const tileSize = () => (LEFT_PANEL_WIDTH - 24 - 16) / 3;
   renderer as the canvas, at the size it would be added to this artboard — its
   poster frame at rest and its animation, looping, while hovered.
 */
-function BlockPreview({ def, playing }: { def: AnyBlockDefinition; playing: boolean }) {
+function BlockPreview({ def, playing, size }: { def: AnyBlockDefinition; playing: boolean; size: number }) {
   const artW = useEditor((s) => s.project.width);
   const artH = useEditor((s) => s.project.height);
   const stored = useBlockPreview(def.id);
   const time = useLoopClock(playing && !stored.video, def.defaultDuration);
-  const inner = tileSize() - 12;
+  const inner = size - 12;
   const { w, h } = placementFor(def, artW, artH);
   const scale = Math.min(inner / w, inner / h);
 
@@ -493,6 +493,16 @@ export function TextPanel() {
     return TEXT_PRESETS.filter((p) => p.category === cat);
   }, [q, cat]);
 
+  /*
+    Text blocks from the catalog sit ahead of the presets in the category their
+    tags name ("counters" → Counters), and in search results.
+  */
+  const catalog = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    return listBlocks("Text").filter((b) => (needle ? matchesBlock(b, needle) : b.tags.includes(cat.toLowerCase())));
+  }, [q, cat]);
+  const addCatalogBlock = useAddCatalogBlock();
+
   const add = (p: TextPreset) => addBlock(textFromPreset(p, width, height));
 
   return (
@@ -508,6 +518,9 @@ export function TextPanel() {
         <div className="min-h-0 min-w-0 flex-1 overflow-y-auto">
           <div className="mb-1.5 text-cap text-ink-secondary">{q ? "Results" : cat}</div>
           <div className="grid grid-cols-2 gap-1.5">
+            {catalog.map((def) => (
+              <BlockCard key={def.id} def={def} onAdd={() => addCatalogBlock(def)} size={textTileSize()} />
+            ))}
             {list.map((p) => (
               <button
                 key={p.id}
@@ -521,12 +534,15 @@ export function TextPanel() {
               </button>
             ))}
           </div>
-          {!list.length ? <Empty>No styles match.</Empty> : null}
+          {!list.length && !catalog.length ? <Empty>No styles match.</Empty> : null}
         </div>
       </div>
     </>
   );
 }
+
+/* Two columns beside the category list. A function for the same reason as `tileSize`. */
+const textTileSize = () => (LEFT_PANEL_WIDTH - 24 - 84 - 8 - 6) / 2;
 
 /* A preset rendered at thumbnail scale, using the same style pipeline as the canvas. */
 function PresetPreview({ preset }: { preset: TextPreset }) {

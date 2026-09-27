@@ -1,20 +1,19 @@
 import type { ReactNode } from "react";
 
-import type { ContentRole } from "@/lib/editor/types";
+import { getSpec } from "./catalog";
+import type { InputSchema, Props, PropsOf } from "./inputs";
+import type { AnyBlockSpec, BlockCategory, BlockSpec } from "./spec";
 
-import type { FieldPath, InputSchema, Props, PropsOf } from "./inputs";
+export { BLOCK_CATEGORIES, type BlockCategory } from "./spec";
 
 /*
-  The block platform's contract. A block is a render function plus the schema of
-  its inputs; the studio supplies geometry, timing and the inspector. Blocks live
-  in `lib/blocks/<id>/`, call `registerBlock` once, and are listed by one import
-  line in `lib/blocks/index.ts`.
+  The block platform's contract. A block is its data (`BlockSpec`: the schema of
+  its inputs, defaults, roles) plus a render function; the studio supplies
+  geometry, timing and the inspector. Blocks live in `lib/blocks/<id>/`: the
+  data in `schema.ts`, listed in `catalog.ts` so the server can read it too, and
+  the render in `index.tsx`, which calls `registerBlock` once and is listed by
+  one import line in `lib/blocks/index.ts`.
 */
-
-export type BlockCategory = "Products" | "Carousels" | "Digital" | "Logos" | "Lines" | "Frames" | "Layouts" | "Text";
-
-/* The order categories appear in the Blocks panel. */
-export const BLOCK_CATEGORIES: BlockCategory[] = ["Digital", "Products", "Carousels", "Logos", "Lines", "Frames", "Layouts", "Text"];
 
 export type RenderContext = {
   /* "video" in video projects; "static" for images, carousels and thumbnails. */
@@ -30,50 +29,32 @@ export type RenderContext = {
   height: number;
 };
 
-export type BlockDefinition<S extends InputSchema = InputSchema> = {
-  id: string;
-  name: string;
-  category: BlockCategory;
-  tags: string[];
-  inputs: S;
-  defaults: PropsOf<S>;
-  /* Seconds a freshly added block lasts in a video. */
-  defaultDuration: number;
-  aspectHint?: "square" | "portrait" | "landscape" | "free";
+export type BlockDefinition<S extends InputSchema = InputSchema> = BlockSpec<S> & {
   /*
     Must be a pure function of its arguments: scrubbing, export and hub previews
     all call it with arbitrary times, so anything animated derives from `ctx`
     rather than from timers or CSS transitions. Hooks belong in child components.
   */
   render: (props: PropsOf<S>, ctx: RenderContext) => ReactNode;
-  /*
-    What each content field is for in a template, in the same vocabulary as a
-    block's own `role` (`CONTENT_ROLES`). Keys are field paths: a top-level
-    input by name (`contactName`), a field inside list items with `[]`
-    (`messages[].text`), a field of an object input with `.`. Fields left out
-    are styling, not content.
-  */
-  roles?: Partial<Record<FieldPath<S>, ContentRole>>;
-  /* The frame shown in static mode and in thumbnails. Default: settled (1). */
-  poster?: { progress: number };
-  /*
-    A hand-made animated preview for the picker, overriding the generated one.
-    Normally left out: `scripts/block-previews.ts` renders every block and the
-    panel reads the result through `useBlockPreview` (`docs/blocks.md`).
-  */
-  preview?: string;
 };
 
 /* Stored erased: a block's own code sees typed props, the platform sees JSON. */
-export type AnyBlockDefinition = Omit<BlockDefinition, "render" | "defaults"> & {
-  defaults: Props;
+export type AnyBlockDefinition = AnyBlockSpec & {
   render: (props: Props, ctx: RenderContext) => ReactNode;
 };
 
 const blocks = new Map<string, AnyBlockDefinition>();
 
-/* Registering an id twice replaces it, which is what fast refresh needs. */
+/*
+  Registering an id twice replaces it, which is what fast refresh needs. The
+  spec has to be the one in the catalog: a block the server cannot see would
+  pass through the API unvalidated, so leaving it out is a crash in
+  development rather than a quiet gap.
+*/
 export function registerBlock<S extends InputSchema>(def: BlockDefinition<S>): BlockDefinition<S> {
+  if (process.env.NODE_ENV !== "production" && getSpec(def.id)?.inputs !== def.inputs) {
+    throw new Error(`Block "${def.id}" is not in lib/blocks/catalog.ts, or is registered with other inputs than its spec there`);
+  }
   blocks.set(def.id, def as unknown as AnyBlockDefinition);
   return def;
 }
@@ -125,7 +106,7 @@ export const BLOCK_PREVIEW = {
   hash. The render function cannot be fingerprinted from here, so the script
   also hashes the block's source folder.
 */
-export function definitionFingerprint(def: AnyBlockDefinition): string {
+export function definitionFingerprint(def: AnyBlockSpec): string {
   const { id, name, category, tags, inputs, defaults, defaultDuration, aspectHint, poster, roles } = def;
   return JSON.stringify({ id, name, category, tags, inputs, defaults, defaultDuration, aspectHint, poster, roles, BLOCK_PREVIEW });
 }

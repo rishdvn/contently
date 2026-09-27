@@ -1,4 +1,5 @@
 import { input } from "../inputs";
+import { defineBlock } from "../spec";
 
 /*
   Product card inputs. Optional parts of the card (was-price, badge, rating,
@@ -22,3 +23,31 @@ export const inputs = {
   }),
   accent: input.color({ label: "Accent", default: "#111111" }),
 };
+
+/*
+  Product card — a shop tile: photo, name, rating, price (with the old price
+  struck through) and a button. In a video the photo settles in and the rest
+  follows in a stagger; as a still the card is simply there.
+*/
+export const productCard = defineBlock({
+  id: "product-card",
+  name: "Product card",
+  category: "Products",
+  tags: ["product", "shop", "price", "sale", "ecommerce", "store", "buy", "card", "rating"],
+  inputs,
+  defaults: {
+    image: { src: "/blocks/product-card/serum.svg" },
+    name: "Daily Glow Vitamin C Serum",
+    price: "$38",
+    compareAtPrice: "$48",
+    badge: "New",
+    rating: 4.5,
+    cta: "Shop now",
+    theme: "light",
+    accent: "#111111",
+  },
+  roles: { image: "image:product" },
+  defaultDuration: 4,
+  aspectHint: "portrait",
+  preview: "",
+});

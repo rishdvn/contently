@@ -1,4 +1,5 @@
 import { input } from "../../inputs";
+import { defineBlock } from "../../spec";
 
 export const inputs = {
   from: input.number({ label: "From", min: -1e9, max: 1e9, default: 0 }),
@@ -9,3 +10,28 @@ export const inputs = {
   separator: input.boolean({ label: "Thousands separator", default: true }),
   color: input.color({ label: "Colour", default: "#ffffff" }),
 };
+
+/*
+  Counter — a number that counts up (or down) to its value. In a video it
+  eases out over the first 80% of the block and holds; as a still it shows
+  the final value. Listed in the Text panel under Counters.
+*/
+export const counter = defineBlock({
+  id: "counter",
+  name: "Counter",
+  category: "Text",
+  tags: ["counters", "number", "count", "stat", "statistic", "percent", "customers", "reviews", "sold", "growth"],
+  inputs,
+  defaults: {
+    from: 0,
+    to: 12500,
+    prefix: "",
+    suffix: "+",
+    decimals: 0,
+    separator: true,
+    color: "#ffffff",
+  },
+  defaultDuration: 3,
+  aspectHint: "landscape",
+  preview: "",
+});

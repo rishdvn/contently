@@ -71,12 +71,15 @@ the text roles, images the `image:*` roles and `logo`, videos
 any role, and that role describes the whole block.
 
 **Catalog blocks describe their own fields.** A block definition maps its
-content fields to roles (`roles` in `registry.ts`; `docs/blocks.md`). iMessage
+content fields to roles (`roles` in its `schema.ts`; `docs/blocks.md`). iMessage
 says `contactName` is the `author` and each `messages[].text` is `body`. The
 inspector lists these under the Role menu. They belong to the block, not to
-the template, and the author doesn't set them. They live in the block's code,
-so the server does not see them yet: a template's `roles[]` and `slots` carry
-block-level roles only, and a catalog block's slot names its `componentId`.
+the template, and the author doesn't set them. The server reads them from the
+block catalog (`lib/blocks/catalog.ts`), so a template's `roles[]` include
+them, and a catalog block's slot names its `componentId` and lists its content
+`fields`, each with a role and a concrete path into its props
+(`messages[2].text`). `findRole` in `roles.ts` finds a role wherever it is, on
+a block or inside one.
 
 ## Slots, and what makes one replaceable
 
@@ -216,7 +219,8 @@ const cards = useQuery(api.templates.list, { kind: "video", category: "product" 
 
 // One template: the card fields plus the document (media as URLs) and its slots.
 const t = useQuery(api.templates.get, { id });
-// t.slots → [{ scene, blockId, type, role?, name?, componentId?, current? }]
+// t.slots → [{ scene, blockId, type, role?, name?, componentId?, current?, fields? }]
+//   fields, on catalog blocks → [{ path: "messages[2].text", field: "messages[].text", role, kind, current?, media? }]
 ```
 
 Both need a signed-in user. `createFromProject` and `publish` need an admin

@@ -1,3 +1,5 @@
+import { fieldSlots, type FieldSlot } from "../blocks/fields";
+
 import { CONTENT_ROLES, type Block, type BlockType, type ContentRole, type Project } from "./types";
 
 /*
@@ -8,7 +10,9 @@ import { CONTENT_ROLES, type Block, type BlockType, type ContentRole, type Proje
   flat list of a document's slots.
 
   Pure TypeScript with no React or Convex, so `convex/templates.ts` imports it
-  too and the server and the studio agree on what a slot is.
+  too and the server and the studio agree on what a slot is. Catalog blocks'
+  own fields come from the block catalog (`lib/blocks/catalog.ts`), which is
+  data only for the same reason.
 */
 
 export const ROLE_LABEL: Record<ContentRole, string> = {
@@ -62,7 +66,9 @@ export const roleOf = (block: Pick<Block, "role">): ContentRole | undefined => (
 /*
   One replaceable thing in a document: what the API lists for a template and
   what an AI fills. `current` is the text a text slot holds now — the best
-  guide to how long its replacement should be.
+  guide to how long its replacement should be. A catalog block's slot lists
+  its content `fields` (`fieldSlots`), each with the role its definition gives
+  it and a concrete path into `props`.
 */
 export type Slot = {
   scene: number;
@@ -72,6 +78,7 @@ export type Slot = {
   name?: string;
   componentId?: string;
   current?: string;
+  fields?: FieldSlot[];
 };
 
 /*
@@ -92,7 +99,7 @@ export function slotsOf(project: Pick<Project, "slides">): Slot[] {
         type: block.type,
         ...(role ? { role } : {}),
         ...(block.name ? { name: block.name } : {}),
-        ...(block.type === "component" ? { componentId: block.componentId } : {}),
+        ...(block.type === "component" ? { componentId: block.componentId, fields: fieldSlots(block.componentId, block.props) } : {}),
         ...(block.type === "text" ? { current: block.text } : {}),
       });
     }
@@ -100,9 +107,34 @@ export function slotsOf(project: Pick<Project, "slides">): Slot[] {
   return slots;
 }
 
-/* The distinct roles a document uses, in vocabulary order — a template's
-   summary in a list. */
+/* The distinct roles a document uses, catalog blocks' fields included, in
+   vocabulary order — a template's summary in a list. */
 export function rolesIn(project: Pick<Project, "slides">): ContentRole[] {
-  const used = new Set(project.slides.flatMap((s) => s.blocks.map(roleOf)).filter(Boolean));
+  const used = new Set<ContentRole | undefined>();
+  for (const block of project.slides.flatMap((s) => s.blocks)) {
+    used.add(roleOf(block));
+    if (block.type === "component") for (const f of fieldSlots(block.componentId, block.props)) used.add(f.role);
+  }
   return CONTENT_ROLES.filter((r) => used.has(r));
+}
+
+/*
+  Where a role is in a document: every block that carries it and every catalog
+  block field its definition gives it, in document order, optionally in one
+  scene. `field` is the concrete path into the block's `props`
+  (`messages[2].text`); absent, the role is on the block itself.
+*/
+export type RoleTarget = { scene: number; blockId: string; field?: string };
+
+export function findRole(project: Pick<Project, "slides">, role: ContentRole, scene?: number): RoleTarget[] {
+  const found: RoleTarget[] = [];
+  project.slides.forEach((slide, s) => {
+    if (scene !== undefined && s !== scene) return;
+    for (const block of slide.blocks) {
+      if (roleOf(block) === role) found.push({ scene: s, blockId: block.id });
+      if (block.type !== "component") continue;
+      for (const f of fieldSlots(block.componentId, block.props)) if (f.role === role) found.push({ scene: s, blockId: block.id, field: f.path });
+    }
+  });
+  return found;
 }

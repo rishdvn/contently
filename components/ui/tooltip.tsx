@@ -27,8 +27,12 @@ export function Tooltip({
   const ref = useRef<HTMLSpanElement>(null);
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
   const id = useId();
+  /* Pressed since the pointer arrived: the label stays away until it leaves and comes back. */
+  const pressed = useRef(false);
 
   const show = () => {
+    /* Never over the trigger's own open menu; nor on the focus a click gives the trigger. */
+    if (pressed.current || ref.current?.querySelector("[aria-expanded='true']")) return;
     const r = ref.current?.getBoundingClientRect();
     if (!r) return;
     const gap = 6;
@@ -64,9 +68,18 @@ export function Tooltip({
       ref={ref}
       className={cn("relative inline-flex", className)}
       onPointerEnter={show}
-      onPointerLeave={hide}
+      onPointerLeave={() => {
+        pressed.current = false;
+        hide();
+      }}
+      onPointerDown={() => {
+        pressed.current = true;
+        hide();
+      }}
       onFocusCapture={show}
       onBlurCapture={hide}
+      /* Enter or Space on a focused trigger: whatever it opens takes over from the label. */
+      onClickCapture={hide}
       aria-describedby={pos ? id : undefined}
     >
       {children}

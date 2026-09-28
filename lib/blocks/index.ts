@@ -7,6 +7,7 @@
   not at the end: parallel block PRs then touch different lines and merge
   cleanly. Within a category the Blocks panel lists blocks in this order.
 */
+import "./airdrop";
 import "./browser-frame";
 import "./image-carousel";
 import "./imessage";

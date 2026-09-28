@@ -21,6 +21,7 @@ import { list } from "./text/list/schema";
 import { marquee } from "./text/marquee/schema";
 import { press } from "./text/press/schema";
 import { reviewCard } from "./text/review-card/schema";
+import { starRating } from "./text/star-rating/schema";
 import { sticker } from "./text/sticker/schema";
 import { tiktokHook } from "./text/tiktok-hook/schema";
 
@@ -56,6 +57,7 @@ const SPECS = [
   press,
   sticker,
   reviewCard,
+  starRating,
 ] as unknown as AnyBlockSpec[];
 
 const byId = new Map(SPECS.map((spec) => [spec.id, spec]));

@@ -93,6 +93,8 @@ export function Button({ props, ctx }: { props: Props; ctx: RenderContext }) {
           fontWeight: WEIGHT,
           fontSize,
           lineHeight: 1,
+          /* Set, not inherited: the studio's UI tracking would widen the label past the pill it was measured for. */
+          letterSpacing: 0,
           whiteSpace: "pre",
           WebkitFontSmoothing: "antialiased",
           opacity: enter,

@@ -7,6 +7,7 @@ import { productCard } from "./product-card/schema";
 import { searchBar } from "./search-bar/schema";
 import { basic } from "./text/basic/schema";
 import { counter } from "./text/counter/schema";
+import { tiktokHook } from "./text/tiktok-hook/schema";
 
 /*
   Every block's data, with no render code: what the server reads to validate a
@@ -24,6 +25,7 @@ const SPECS = [
   searchBar,
   basic,
   counter,
+  tiktokHook,
 ] as unknown as AnyBlockSpec[];
 
 const byId = new Map(SPECS.map((spec) => [spec.id, spec]));

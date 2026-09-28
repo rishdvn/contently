@@ -144,7 +144,7 @@ export function openapi(server: string) {
           },
         },
         Template: { allOf: [ref("TemplateSummary"), { type: "object", properties: { scenes: { type: "array", items: ref("Scene") } } }] },
-        ProjectSummary: { type: "object", properties: { id: { type: "string" }, name: { type: "string" }, kind: { type: "string" }, aspect: { type: "string" }, width: { type: "number" }, height: { type: "number" }, sceneCount: { type: "integer" }, duration: { type: ["number", "null"] }, updatedAt: { type: "number" } } },
+        ProjectSummary: { type: "object", properties: { id: { type: "string" }, name: { type: "string" }, kind: { type: "string" }, aspect: { type: "string" }, width: { type: "number" }, height: { type: "number" }, sceneCount: { type: "integer" }, duration: { type: ["number", "null"] }, updatedAt: { type: "number" }, poster: { type: ["string", "null"] } } },
         Project: { allOf: [ref("ProjectSummary"), { type: "object", properties: { scenes: { type: "array", items: ref("Scene") } } }] },
         Scene: { type: "object", properties: { index: { type: "integer" }, id: { type: "string" }, name: { type: "string" }, duration: { type: "number" }, poster: { type: ["string", "null"] }, blocks: { type: "array", items: ref("Block") } } },
         Block: {

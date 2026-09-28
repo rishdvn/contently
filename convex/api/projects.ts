@@ -15,7 +15,7 @@ import { apiFail } from "./errors";
   which ids exist elsewhere is not something a key should be able to map.
 */
 
-function summary(row: Doc<"projects">) {
+async function summary(ctx: QueryCtx, row: Doc<"projects">) {
   const document = { ...(row.document as ViewDoc), kind: row.kind as ViewDoc["kind"] };
   const slides = document.slides ?? [];
   return {
@@ -29,6 +29,8 @@ function summary(row: Doc<"projects">) {
     duration: durationOf({ ...document, slides }),
     updatedAt: row.updatedAt,
     createdAt: row._creationTime,
+    /* The first scene as a JPEG, taken by the studio; null until it has been opened and edited. */
+    poster: row.posterStorageId ? await ctx.storage.getUrl(row.posterStorageId) : null,
   };
 }
 
@@ -47,7 +49,7 @@ export const list = internalQuery({
       .withIndex("by_org_updatedAt", (q) => q.eq("orgId", orgId))
       .order("desc")
       .paginate({ numItems: limit, cursor });
-    return { data: page.page.map(summary), nextCursor: page.isDone ? null : page.continueCursor };
+    return { data: await Promise.all(page.page.map((row) => summary(ctx, row))), nextCursor: page.isDone ? null : page.continueCursor };
   },
 });
 
@@ -55,7 +57,7 @@ export const get = internalQuery({
   args: { orgId: v.id("organizations"), id: v.string() },
   handler: async (ctx, { orgId, id }) => {
     const row = await owned(ctx, orgId, id);
-    return row ? { ...summary(row), document: row.document } : null;
+    return row ? { ...(await summary(ctx, row)), document: row.document } : null;
   },
 });
 

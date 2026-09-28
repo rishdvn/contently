@@ -11,6 +11,7 @@ import "./imessage";
 import "./logo-strip";
 import "./product-card";
 import "./search-bar";
+import "./text/basic";
 import "./text/counter";
 
 import { listSpecs } from "./catalog";

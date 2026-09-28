@@ -5,6 +5,7 @@ import { imessage } from "./imessage/schema";
 import { logoStrip } from "./logo-strip/schema";
 import { productCard } from "./product-card/schema";
 import { searchBar } from "./search-bar/schema";
+import { basic } from "./text/basic/schema";
 import { counter } from "./text/counter/schema";
 
 /*
@@ -21,6 +22,7 @@ const SPECS = [
   logoStrip,
   productCard,
   searchBar,
+  basic,
   counter,
 ] as unknown as AnyBlockSpec[];
 

@@ -10,6 +10,7 @@ import { button } from "./text/button/schema";
 import { callout } from "./text/callout/schema";
 import { counter } from "./text/counter/schema";
 import { list } from "./text/list/schema";
+import { marquee } from "./text/marquee/schema";
 import { tiktokHook } from "./text/tiktok-hook/schema";
 
 /*
@@ -32,6 +33,7 @@ const SPECS = [
   counter,
   tiktokHook,
   list,
+  marquee,
 ] as unknown as AnyBlockSpec[];
 
 const byId = new Map(SPECS.map((spec) => [spec.id, spec]));

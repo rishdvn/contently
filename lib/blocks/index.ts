@@ -16,6 +16,7 @@ import "./text/button";
 import "./text/callout";
 import "./text/counter";
 import "./text/list";
+import "./text/marquee";
 import "./text/tiktok-hook";
 
 import { listSpecs } from "./catalog";

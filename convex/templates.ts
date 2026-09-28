@@ -23,7 +23,8 @@ import type { MutationCtx } from "./_generated/server";
     can keep private templates.
   - Publishing puts a template in front of every customer, so only admins of
     the publisher organisation (Contently's own, `TEMPLATE_PUBLISHER_ORG`)
-    can publish. Any template's own admins can take it back.
+    can publish. Any template's own admins can take it back, or delete it
+    (`deleteTemplate`).
   - Media in the document is resolved against the source organisation on every
     read, so a template's photos show for everyone without anyone else being
     let into that organisation's library.
@@ -322,18 +323,60 @@ export const publish = mutation({
   },
 });
 
+/* A template and its posters. Projects made from it are copies and are untouched. */
+async function deleteRow(ctx: MutationCtx, row: Doc<"templates">) {
+  for (const file of new Set([...row.scenePosters, ...(row.poster ? [row.poster] : [])])) await ctx.storage.delete(file);
+  await ctx.db.delete(row._id);
+}
+
+/*
+  Delete one of the organisation's templates, from the Templates page or the
+  flyout. The same people who may take a template back from the shared
+  library (`publish` with `published: false`): admins of the organisation it
+  belongs to. So an unpublished template, or the organisation's own published
+  one, which deleting takes away from everyone as unpublishing would.
+
+  Another organisation's template is `forbidden` rather than `missing`: it is
+  one the caller has seen, or they would not have its id.
+*/
+export const deleteTemplate = mutation({
+  args: { orgId: v.string(), id: v.string() },
+  handler: async (ctx, { orgId, id }) => {
+    const { org } = await requireAdmin(ctx, orgId);
+    const tid = ctx.db.normalizeId("templates", id);
+    const row = tid ? await ctx.db.get(tid) : null;
+    if (!row) fail("missing", "No such template");
+    if (row.orgId !== org._id) fail("forbidden", "Only the organisation that made a template can delete it");
+    await deleteRow(ctx, row);
+  },
+});
+
+/*
+  The templates the caller may delete while working in `orgId`: none unless
+  they are an admin there, otherwise every template the organisation made.
+  The Templates page and the flyout offer Delete on these.
+*/
+export const deletable = query({
+  args: { orgId: v.string() },
+  handler: async (ctx, { orgId }) => {
+    const context = await tryOrg(ctx, orgId);
+    if (!context || context.membership.role !== ADMIN) return [];
+    const rows = await ctx.db.query("templates").withIndex("by_org", (q) => q.eq("orgId", context.org._id)).collect();
+    return rows.map((row) => row._id);
+  },
+});
+
 /*
   Delete a template and its posters, for whoever runs the deployment
   (`npx convex run templates:remove '{"id":"k57…"}'`): clearing out test
-  templates. Projects made from it are copies and are untouched.
+  templates.
 */
 export const remove = internalMutation({
   args: { id: v.id("templates") },
   handler: async (ctx, { id }) => {
     const row = await ctx.db.get(id);
     if (!row) fail("missing", "No such template");
-    for (const file of new Set([...row.scenePosters, ...(row.poster ? [row.poster] : [])])) await ctx.storage.delete(file);
-    await ctx.db.delete(id);
+    await deleteRow(ctx, row);
   },
 });
 

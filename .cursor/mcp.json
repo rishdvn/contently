@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "socialcrawl": {
+      "command": "npx",
+      "args": ["-y", "socialcrawl-mcp"],
+      "env": {
+        "SOCIALCRAWL_API_KEY": "${env:SOCIALCRAWL_API_KEY}"
+      }
+    },
+    "higgsfield": {
+      "url": "https://mcp.higgsfield.ai/mcp"
+    }
+  }
+}

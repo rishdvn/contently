@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 1000" width="800" height="1000">
+  <defs>
+    <radialGradient id="bg" cx="0.5" cy="0.45" r="0.75">
+      <stop offset="0" stop-color="#2f5a47"/>
+      <stop offset="1" stop-color="#15291f"/>
+    </radialGradient>
+    <linearGradient id="petal" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffc2d4"/>
+      <stop offset="1" stop-color="#ef6f98"/>
+    </linearGradient>
+    <ellipse id="p" cx="0" cy="-120" rx="62" ry="128" fill="url(#petal)"/>
+  </defs>
+  <rect width="800" height="1000" fill="url(#bg)"/>
+  <path d="M400 520 C 390 680 420 820 400 1000" fill="none" stroke="#6ea36a" stroke-width="14"/>
+  <path d="M404 780 C 470 720 560 720 610 750 C 560 800 470 810 404 780 Z" fill="#6ea36a"/>
+  <path d="M398 700 C 330 640 250 650 210 680 C 260 730 340 730 398 700 Z" fill="#5b8f58"/>
+  <g transform="translate(400 460)">
+    <use href="#p" transform="rotate(0)"/><use href="#p" transform="rotate(45)"/><use href="#p" transform="rotate(90)"/>
+    <use href="#p" transform="rotate(135)"/><use href="#p" transform="rotate(180)"/><use href="#p" transform="rotate(225)"/>
+    <use href="#p" transform="rotate(270)"/><use href="#p" transform="rotate(315)"/>
+    <circle r="58" fill="#ffd166"/>
+    <circle r="36" fill="#f4a93a"/>
+  </g>
+</svg>

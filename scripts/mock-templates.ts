@@ -182,7 +182,7 @@ function hookDemoCta(): Project {
       background: { type: "color", color: ESPRESSO },
       blocks: [
         videoBlock({ name: "Background video", role: "video:background", ...media(STOCK.pour), x: 0, y: 0, w: 1080, h: 1920, start: 0, end: 3, muted: true, sourceDuration: 4.367, overlay: { color: "#000000", opacity: 30 } }),
-        /* On screen by 0.5 s: `rise` lands in the first sixth of the block. */
+        /* Word by word: the five words have all landed by about 1.2 s. */
         textBlock({
           name: "Hook",
           role: "hook",
@@ -193,7 +193,7 @@ function hookDemoCta(): Project {
           h: 360,
           start: 0,
           end: 3,
-          animation: "rise",
+          animation: "words",
           fontWeight: 800,
           fontSize: 104,
           lineHeight: 1.08,

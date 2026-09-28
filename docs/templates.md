@@ -251,7 +251,7 @@ to exercise every code path, not to be the library:
 |---|---|---|
 | Product spotlight | Image, 4:5 | `heading` (highlight-style), `body`, `cta`, `image:product`, `image:background`; a Product card (static) and a shape |
 | 3 reasons | Carousel, 3 slides, 4:5 | A `heading` per slide, three `benefit`s, `image:lifestyle` on slide 1, `cta` on slide 3, a Logo strip (`brand`) on every slide |
-| Hook → demo → CTA | Video, 9:16, 3 s / 6 s / 4 s | A `hook` that rises in, `video:background`, an animated Search bar, a Counter with a `body` caption, a held `cta` |
+| Hook → demo → CTA | Video, 9:16, 3 s / 6 s / 4 s | A `hook` that slides in word by word, `video:background`, an animated Search bar, a Counter with a `body` caption, a held `cta` |
 
 All their media is stock. `scripts/mock-templates.ts` draws them as projects
 in the publisher organisation and makes (or refreshes) the templates, so they

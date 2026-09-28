@@ -26,6 +26,7 @@ import "./text/counter";
 import "./text/list";
 import "./text/marquee";
 import "./text/press";
+import "./text/promo";
 import "./text/review-card";
 import "./text/star-rating";
 import "./text/sticker";

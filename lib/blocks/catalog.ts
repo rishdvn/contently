@@ -20,6 +20,7 @@ import { counter } from "./text/counter/schema";
 import { list } from "./text/list/schema";
 import { marquee } from "./text/marquee/schema";
 import { press } from "./text/press/schema";
+import { promo } from "./text/promo/schema";
 import { reviewCard } from "./text/review-card/schema";
 import { starRating } from "./text/star-rating/schema";
 import { sticker } from "./text/sticker/schema";
@@ -58,6 +59,7 @@ const SPECS = [
   sticker,
   reviewCard,
   starRating,
+  promo,
 ] as unknown as AnyBlockSpec[];
 
 const byId = new Map(SPECS.map((spec) => [spec.id, spec]));

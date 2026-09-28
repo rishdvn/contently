@@ -27,7 +27,7 @@ export const promo = defineBlock({
   defaults: {
     headline: "Spring sale",
     amount: "40% OFF",
-    fineprint: "Use code SPRING40 at checkout · Ends Sunday",
+    fineprint: "Use code SPRING40 · Ends Sunday",
     fill: "#e8412c",
     textColor: "#ffffff",
   },

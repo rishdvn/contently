@@ -21,7 +21,8 @@ import {
   Type,
   Ungroup,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 import { MenuDivider, MenuItem } from "@/components/ui/menu";
 import { textFromPreset, TEXT_PRESETS } from "@/lib/editor/presets";
@@ -34,11 +35,12 @@ type Target = { x: number; y: number; blockId: string | null; slideId: string | 
 
 /*
   Right-click on the canvas. Blocks get the layer verbs; empty artboard gets
-  paste and add. Positioned in viewport coordinates and closed by any
-  pointer-down elsewhere, Escape, or choosing an item.
+  paste and add. Opens at the pointer, in the document body so no panel clips
+  it, and closed by any pointer-down elsewhere, Escape, or choosing an item.
 */
 export function ContextMenu({ container }: { container: HTMLDivElement | null }) {
   const [target, setTarget] = useState<Target | null>(null);
+  const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!container) return;
@@ -48,7 +50,6 @@ export function ContextMenu({ container }: { container: HTMLDivElement | null })
       if (el.closest(".selection-toolbar, .gizmo, [role='dialog'], [role='menu']")) return;
       const block = el.closest<HTMLElement>(".block");
       const artboard = el.closest<HTMLElement>(".artboard");
-      const rect = container.getBoundingClientRect();
       const s = useEditor.getState();
       if (block?.dataset.blockId) {
         if (!s.selection.includes(block.dataset.blockId)) s.select([block.dataset.blockId]);
@@ -59,7 +60,7 @@ export function ContextMenu({ container }: { container: HTMLDivElement | null })
         setTarget(null);
         return;
       }
-      setTarget({ x: e.clientX - rect.left, y: e.clientY - rect.top, blockId: block?.dataset.blockId ?? null, slideId: artboard?.dataset.slideId ?? null });
+      setTarget({ x: e.clientX, y: e.clientY, blockId: block?.dataset.blockId ?? null, slideId: artboard?.dataset.slideId ?? null });
     };
     container.addEventListener("contextmenu", onContext);
     return () => container.removeEventListener("contextmenu", onContext);
@@ -85,22 +86,34 @@ export function ContextMenu({ container }: { container: HTMLDivElement | null })
     };
   }, [target]);
 
+  /* Measured once open, as the timeline's menu is: it flips above the pointer
+     when there is no room below, and is clamped inside the window. */
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el || !target) return;
+    /* Layout size, not the bounding box: the entrance starts scaled down. */
+    const { offsetWidth: w, offsetHeight: h } = el;
+    el.style.left = `${Math.max(8, Math.min(target.x, window.innerWidth - w - 8))}px`;
+    const flipped = target.y + h + 8 > window.innerHeight;
+    el.style.top = `${flipped ? Math.max(8, target.y - h) : target.y}px`;
+  }, [target]);
+
   if (!target || !container) return null;
 
   const s = useEditor.getState();
   const ids = target.blockId ? (s.selection.includes(target.blockId) ? s.selection : [target.blockId]) : [];
   const one = target.blockId ? findBlock(s.project, target.blockId)?.block : null;
   const grouped = ids.some((id) => findBlock(s.project, id)?.block.groupId);
-  const x = Math.min(target.x, container.clientWidth - 220);
-  const y = Math.min(target.y, container.clientHeight - 320);
 
-  return (
+  return createPortal(
     <div
+      ref={ref}
       role="menu"
-      className="context-menu absolute min-w-[200px] rounded-control bg-panel p-1.5 shadow-overlay animate-pop"
-      style={{ left: x, top: y, zIndex: "var(--z-floating-bar)" }}
+      className="context-menu fixed max-h-[calc(100dvh-16px)] min-w-[200px] overflow-y-auto rounded-control bg-panel p-1.5 shadow-overlay animate-pop"
+      style={{ left: target.x, top: target.y, zIndex: "var(--z-floating-bar)" }}
       onClick={() => setTarget(null)}
       onPointerDown={(e) => e.stopPropagation()}
+      onContextMenu={(e) => e.preventDefault()}
     >
       {one ? (
         <>
@@ -193,6 +206,7 @@ export function ContextMenu({ container }: { container: HTMLDivElement | null })
           </MenuItem>
         </>
       )}
-    </div>
+    </div>,
+    document.body,
   );
 }

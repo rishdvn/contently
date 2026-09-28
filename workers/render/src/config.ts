@@ -24,6 +24,10 @@ export type Config = {
   /* Where the app is served from; the worker opens `<appUrl>/render/<id>`. */
   appUrl: string;
   chromePath: string | undefined;
+  /* Vercel's "Protection Bypass for Automation" secret. Every deployment of the
+     app is behind team SSO, and without it the render page is a redirect to
+     vercel.com/sso-api. Unset for an app that is not behind protection. */
+  bypassSecret: string | undefined;
   /* Jobs in flight on this instance. Each one is a Chrome tab rendering video
      frames, so this is bounded by CPU, not by sockets. */
   concurrency: number;
@@ -40,6 +44,7 @@ export function config(): Config {
     secret: required("RENDER_WORKER_SECRET"),
     appUrl: required("APP_URL").replace(/\/+$/, ""),
     chromePath: process.env.CHROME_PATH,
+    bypassSecret: process.env.VERCEL_BYPASS_SECRET || undefined,
     concurrency: Math.min(2, Math.max(1, Math.round(number("RENDER_CONCURRENCY", 1)))),
     pollMs: Math.max(250, number("RENDER_POLL_MS", 2000)),
     jobTimeoutMs: Math.max(30_000, number("RENDER_JOB_TIMEOUT_MS", 5 * 60 * 1000)),

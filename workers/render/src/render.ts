@@ -1,5 +1,5 @@
 import JSZip from "jszip";
-import { chromium, type Browser, type Page } from "playwright-core";
+import { chromium, type Browser, type BrowserContext, type Page } from "playwright-core";
 
 import "./bridge.js";
 import type { Config } from "./config.js";
@@ -51,6 +51,30 @@ export async function launch(cfg: Pick<Config, "chromePath">): Promise<Browser> 
       "--force-device-scale-factor=1",
     ],
   });
+}
+
+/*
+  Vercel's deployment protection, passed the way Vercel documents for
+  automation — the bypass header with `x-vercel-set-bypass-cookie` — but on one
+  request of our own rather than on the page's. That request goes through the
+  context's cookie jar, so the bypass cookie Vercel answers with is sent by
+  every page request to the app after it, chunks and API calls included.
+
+  The browser never carries the header itself. `extraHTTPHeaders` would hand
+  the secret to Google Fonts and Convex, and even a route scoped to the app's
+  origin leaks it: header overrides follow redirects, and `/render` can
+  redirect to another origin (Clerk's handshake).
+*/
+async function passProtection(context: BrowserContext, cfg: Pick<Config, "appUrl" | "bypassSecret">) {
+  const secret = cfg.bypassSecret;
+  if (!secret) return;
+  const response = await context.request.get(`${cfg.appUrl}/api/health`, {
+    headers: { "x-vercel-protection-bypass": secret, "x-vercel-set-bypass-cookie": "true" },
+    maxRedirects: 0,
+  });
+  /* A wrong or rotated secret is answered like no secret: a redirect to Vercel's
+     login. Say so, rather than let the render page time out five minutes later. */
+  if (!response.ok()) throw new RenderFailure(`Vercel deployment protection refused the bypass secret (${response.status()})`, false);
 }
 
 const safeName = (s: string) => s.replace(/[^\w\- ]+/g, "").trim().replace(/\s+/g, "-") || "render";
@@ -157,6 +181,7 @@ export async function renderJob(
   signal?.addEventListener("abort", abandon, { once: true });
 
   try {
+    await passProtection(context, cfg);
     const project = await open(page, cfg, job);
     const base = safeName(project.name);
     const scale = job.scale && job.scale > 0 ? Math.min(4, job.scale) : 1;

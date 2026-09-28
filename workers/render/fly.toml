@@ -5,6 +5,7 @@
 #
 #   fly launch --no-deploy --copy-config --name contently-render
 #   fly secrets set CONVEX_URL=… RENDER_WORKER_SECRET=… APP_URL=…
+#   fly secrets set VERCEL_BYPASS_SECRET=…   # APP_URL on Vercel is behind SSO
 #   fly deploy
 
 app = "contently-render"

@@ -13,7 +13,7 @@ that, not only by how it looks on the day it was made.
 
 | | |
 |---|---|
-| `convex/templates.ts` | `list`, `get`, `createProjectFrom`, `createFromProject`, `publish`; `projectFromTemplate`, the one way a project is made from a template; the poster script's steps |
+| `convex/templates.ts` | `list`, `get`, `createProjectFrom`, `createFromProject`, `publish`, `deleteTemplate`; `projectFromTemplate`, the one way a project is made from a template; the poster script's steps |
 | `convex/schema.ts` → `templates` | The rows |
 | `lib/editor/types.ts` → `CONTENT_ROLES` | The role vocabulary |
 | `lib/editor/roles.ts` | Labels, which roles fit which block, a document's slots |
@@ -241,6 +241,13 @@ Contently's alone:
 - **Unpublishing** (`published: false`) is open to the template's own
   organisation's admins, so whoever owns a public template can always take it
   back.
+- **Deleting** (`deleteTemplate`, or **Delete template** in the Templates
+  page's preview and **⋯ → Delete** on a tile in the studio's flyout) is open
+  to the same people as unpublishing: the template's own organisation's
+  admins. It deletes the posters too; projects made from it are copies and
+  are kept. Anyone else gets `forbidden`. `deletable` lists the ids the
+  caller may delete in the active organisation, which is where the app offers
+  it.
 
 To name the publisher, take the organisation's `org_…` id (Clerk dashboard, or
 `window.Clerk.organization.id` while it is the active organisation) and set it

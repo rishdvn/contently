@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery } from "convex/react";
-import { LoaderCircle } from "lucide-react";
+import { LoaderCircle, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 
@@ -12,8 +12,9 @@ import { cn } from "@/lib/cn";
 import { ROLE_LABEL } from "@/lib/editor/roles";
 import { ASPECTS, type AspectId, type Project, type Slide } from "@/lib/editor/types";
 
+import { DeleteTemplateDialog, useDeletableTemplates } from "./DeleteTemplateDialog";
 import { LibraryGrid } from "./LibraryGrid";
-import { PreviewCloseButton, PreviewFact, PreviewPanel, PreviewShell, PreviewTags, ProjectPreviewStage, ShareButton, usePreviewPlayback } from "./PreviewModal";
+import { PreviewCloseButton, PreviewFact, PreviewOutlineButton, PreviewPanel, PreviewShell, PreviewTags, ProjectPreviewStage, ShareButton, usePreviewPlayback } from "./PreviewModal";
 import { ProjectStage, useProjectClock } from "./ProjectPreview";
 import { TEMPLATE_KIND_LABEL, TEMPLATES, templateMeta, templateSize, useTemplateScope, type TemplateSummary } from "./TemplateCard";
 
@@ -50,6 +51,8 @@ export function TemplatePreview({
   const full = useQuery(api.templates.get, scope ? { id, ...scope } : "skip");
   const createFrom = useMutation(api.templates.createProjectFrom);
   const [busy, setBusy] = useState(false);
+  const deletable = useDeletableTemplates().has(id);
+  const [deleting, setDeleting] = useState(false);
 
   const t: TemplateSummary | undefined = full ?? initial;
   const doc = full?.document as Project | undefined;
@@ -111,6 +114,13 @@ export function TemplatePreview({
         Create
       </button>
       {orgless ? <p className="-mt-1 shrink-0 px-1 text-cap text-ink-secondary">Choose an organisation in the sidebar to create from a template.</p> : null}
+
+      {deletable && t ? (
+        <PreviewOutlineButton onClick={() => setDeleting(true)}>
+          <Trash2 /> Delete template
+        </PreviewOutlineButton>
+      ) : null}
+      <DeleteTemplateDialog template={deleting && t ? t : null} onClose={() => setDeleting(false)} onDeleted={onClose} />
 
       {t ? (
         <PreviewPanel>

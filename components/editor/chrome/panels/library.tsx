@@ -2,14 +2,16 @@
 
 import { useQuery } from "convex/react";
 import type { FunctionReturnType } from "convex/server";
-import { ArrowLeft, Plus } from "lucide-react";
+import { ArrowLeft, MoreHorizontal, Plus } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
+import { DeleteTemplateDialog, useDeletableTemplates, type DeletableTemplate } from "@/components/hub/DeleteTemplateDialog";
 import { ProjectStage, useProjectClock } from "@/components/hub/ProjectPreview";
 import { useTemplateScope } from "@/components/hub/TemplateCard";
 import { Button } from "@/components/ui/button";
 import { Chip, ChipRow } from "@/components/ui/chip";
 import { Dialog, DialogFooter, DialogHeader } from "@/components/ui/dialog";
+import { Menu, MenuItem } from "@/components/ui/menu";
 import { Tooltip } from "@/components/ui/tooltip";
 import { api } from "@/convex/_generated/api";
 import { BLOCK_CATEGORIES, listBlocks, placementFor, useBlockPreview, type AnyBlockDefinition, type BlockCategory } from "@/lib/blocks";
@@ -57,6 +59,8 @@ function TemplateGrid({ onOpen }: { onOpen: (id: string) => void }) {
   const [cat, setCat] = useState<string | null>(null);
   const scope = useTemplateScope();
   const all = useQuery(api.templates.list, scope ? { drafts: true, ...scope } : "skip");
+  const deletable = useDeletableTemplates();
+  const [deleting, setDeleting] = useState<DeletableTemplate | null>(null);
 
   /* The chips are whatever categories the library uses, most used first. */
   const categories = useMemo(() => {
@@ -100,7 +104,7 @@ function TemplateGrid({ onOpen }: { onOpen: (id: string) => void }) {
             {columns.map((col, i) => (
               <div key={i} className="flex min-w-0 flex-1 flex-col gap-3">
                 {col.map((t) => (
-                  <TemplateTile key={t.id} t={t} onOpen={() => onOpen(t.id)} />
+                  <TemplateTile key={t.id} t={t} onOpen={() => onOpen(t.id)} onDelete={deletable.has(t.id) ? () => setDeleting(t) : undefined} />
                 ))}
               </div>
             ))}
@@ -109,6 +113,7 @@ function TemplateGrid({ onOpen }: { onOpen: (id: string) => void }) {
           <Empty>{all.length ? "No templates match." : "No templates yet."}</Empty>
         )}
       </PanelBody>
+      <DeleteTemplateDialog template={deleting} onClose={() => setDeleting(null)} />
     </>
   );
 }
@@ -116,32 +121,53 @@ function TemplateGrid({ onOpen }: { onOpen: (id: string) => void }) {
 /*
   A template's poster; while the pointer is over it, the template itself plays
   in its place (the document is fetched on first hover). Pointer state rather
-  than `:hover`, which does not fire for every pointer.
+  than `:hover`, which does not fire for every pointer. A template the caller
+  may delete has a ⋯ menu in its corner.
 */
-function TemplateTile({ t, onOpen }: { t: TemplateCard; onOpen: () => void }) {
+function TemplateTile({ t, onOpen, onDelete }: { t: TemplateCard; onOpen: () => void; onDelete?: () => void }) {
   const [hover, setHover] = useState(false);
   const doc = useQuery(api.templates.get, hover ? { id: t.id } : "skip");
   const n = t.scenes.length;
   const unit = t.kind === "video" ? "scene" : "slide";
   return (
-    <button type="button" className="group flex flex-col gap-1.5 text-left" onClick={onOpen} onPointerEnter={() => setHover(true)} onPointerLeave={() => setHover(false)} aria-label={`Open ${t.name}`}>
-      <div className="relative w-full overflow-hidden rounded-[12px] bg-card ring-1 ring-transparent transition-shadow group-hover:ring-line-strong" style={{ aspectRatio: `${t.width} / ${t.height}` }}>
-        {t.poster ? (
-          // eslint-disable-next-line @next/next/no-img-element -- a Convex storage URL at tile size
-          <img src={t.poster} alt="" draggable={false} className="absolute inset-0 size-full object-cover" />
-        ) : null}
-        {hover && doc ? <HoverPlay project={doc.document as Project} /> : null}
-        {!t.published ? <span className="absolute top-1.5 left-1.5 rounded-[6px] bg-black/60 px-1.5 py-0.5 text-cap text-white">Draft</span> : null}
-      </div>
-      <div className="flex flex-col gap-0.5 px-0.5">
-        <span className="truncate text-cap text-ink">{t.name}</span>
-        <span className="flex items-center gap-1.5 text-[10px] text-ink-secondary">
-          <span className="rounded-[4px] bg-card px-1 py-px">{KIND_LABEL[t.kind] ?? t.kind}</span>
-          {n} {unit}
-          {n === 1 ? "" : "s"}
-        </span>
-      </div>
-    </button>
+    <div className="relative" onPointerEnter={() => setHover(true)} onPointerLeave={() => setHover(false)}>
+      <button type="button" className="group flex w-full flex-col gap-1.5 text-left" onClick={onOpen} aria-label={`Open ${t.name}`}>
+        <div className="relative w-full overflow-hidden rounded-[12px] bg-card ring-1 ring-transparent transition-shadow group-hover:ring-line-strong" style={{ aspectRatio: `${t.width} / ${t.height}` }}>
+          {t.poster ? (
+            // eslint-disable-next-line @next/next/no-img-element -- a Convex storage URL at tile size
+            <img src={t.poster} alt="" draggable={false} className="absolute inset-0 size-full object-cover" />
+          ) : null}
+          {hover && doc ? <HoverPlay project={doc.document as Project} /> : null}
+          {!t.published ? <span className="absolute top-1.5 left-1.5 rounded-[6px] bg-black/60 px-1.5 py-0.5 text-cap text-white">Draft</span> : null}
+        </div>
+        <div className="flex flex-col gap-0.5 px-0.5">
+          <span className="truncate text-cap text-ink">{t.name}</span>
+          <span className="flex items-center gap-1.5 text-[10px] text-ink-secondary">
+            <span className="rounded-[4px] bg-card px-1 py-px">{KIND_LABEL[t.kind] ?? t.kind}</span>
+            {n} {unit}
+            {n === 1 ? "" : "s"}
+          </span>
+        </div>
+      </button>
+      {onDelete ? (
+        <div className={cn("absolute top-1.5 right-1.5 transition-opacity has-[[aria-expanded=true]]:opacity-100 focus-within:opacity-100", hover ? "opacity-100" : "opacity-0")}>
+          {/* Narrower than a menu's usual 200 px and anchored at the tile's right edge, so it stays inside the panel. */}
+          <Menu
+            align="end"
+            className="min-w-[132px]"
+            trigger={(props) => (
+              <button type="button" aria-label={`${t.name} options`} className="flex size-6 items-center justify-center rounded-[6px] bg-black/60 text-white transition-colors hover:bg-black/80 [&>svg]:size-3.5" {...props}>
+                <MoreHorizontal />
+              </button>
+            )}
+          >
+            <MenuItem destructive onClick={onDelete}>
+              Delete
+            </MenuItem>
+          </Menu>
+        </div>
+      ) : null}
+    </div>
   );
 }
 

@@ -2,7 +2,7 @@
 
 import { useConvex, useMutation, useQuery } from "convex/react";
 import type { FunctionReturnType } from "convex/server";
-import { Check, Cloud, Download, Film, Image as ImageIcon, Images, X } from "lucide-react";
+import { Check, Cloud, Download, Film, Image as ImageIcon, ImageOff, Images, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { relativeTime } from "@/components/hub/ProjectPreview";
@@ -14,8 +14,10 @@ import { cn } from "@/lib/cn";
 import { trackUrl } from "@/lib/editor/audio";
 import { canEncodeVideo, CodecUnsupportedError, download, renderVideo, safeName, slidesToZip, slideToBlob, type ImageFormat, type VideoQuality } from "@/lib/editor/export";
 import { totalDuration } from "@/lib/editor/geometry";
+import { findMissingMedia, type MissingMediaItem } from "@/lib/editor/media";
 import { useSaveProject } from "@/lib/editor/persistence";
 import { useEditor } from "@/lib/editor/store";
+import type { Project } from "@/lib/editor/types";
 
 import { Card, Segmented, Select, TextField } from "../controls";
 import { Flyout, FlyoutRow, FlyoutTabs, PrimaryButton } from "./Flyout";
@@ -72,6 +74,7 @@ function ExportBody() {
   const [cloudJobId, setCloudJobId] = useState<string | null>(null);
   const abort = useRef<AbortController | null>(null);
 
+  const missing = useMissingMedia(project);
   const cloudJob = useQuery(api.render.job, orgId && cloudJobId ? { orgId, jobId: cloudJobId } : "skip");
   const history = useQuery(api.render.recentExports, orgId ? { orgId, projectId: project.id } : "skip");
 
@@ -232,6 +235,8 @@ function ExportBody() {
         options={tabs}
       />
 
+      {tab !== "gif" && missing.length ? <MissingMediaWarning items={missing} /> : null}
+
       {tab === "video" ? (
         <>
           {target === "browser" ? (
@@ -316,6 +321,52 @@ function ExportBody() {
 
       <ExportHistory jobs={history} orgId={orgId} projectName={safeName(project.name)} />
     </>
+  );
+}
+
+/* The document's unloadable media, checked again whenever the document changes.
+   Probes are remembered per URL, so a re-check after an edit is instant. */
+function useMissingMedia(project: Project): MissingMediaItem[] {
+  const [found, setFound] = useState<{ project: Project; items: MissingMediaItem[] } | null>(null);
+  useEffect(() => {
+    let alive = true;
+    void findMissingMedia(project).then((items) => {
+      if (alive) setFound({ project, items });
+    });
+    return () => {
+      alive = false;
+    };
+  }, [project]);
+  return found?.project === project ? found.items : [];
+}
+
+/* Media the export will leave out, each a way to the block to replace it. */
+function MissingMediaWarning({ items }: { items: MissingMediaItem[] }) {
+  const setActiveSlide = useEditor((s) => s.setActiveSlide);
+  const select = useEditor((s) => s.select);
+  return (
+    <div className="flex flex-col gap-1 rounded-[8px] bg-raised px-2.5 py-2" role="status" aria-label="Missing media">
+      <p className="flex items-center gap-1.5 text-cap text-caution">
+        <ImageOff className="size-3.5 shrink-0" />
+        {items.length === 1 ? "1 file can't be loaded" : `${items.length} files can't be loaded`} and will be left out.
+      </p>
+      <ul className="flex flex-col">
+        {items.map((item) => (
+          <li key={`${item.slideId}:${item.blockId ?? "background"}`}>
+            <button
+              type="button"
+              className="w-full truncate py-0.5 text-left text-cap text-ink-secondary hover:text-ink"
+              onClick={() => {
+                setActiveSlide(item.slideId);
+                if (item.blockId) select([item.blockId], false, true);
+              }}
+            >
+              {item.label}
+            </button>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 

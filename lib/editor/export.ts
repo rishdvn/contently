@@ -33,7 +33,9 @@ const captureOptions = (project: Project, fontEmbedCSS?: string) => ({
   cacheBust: false,
   fontEmbedCSS,
   style: { left: "0px", top: "0px", insetInlineStart: "0px", insetBlockStart: "0px", transform: "none" },
-  filter: (el: HTMLElement) => !el.classList?.contains("moveable-control-box"),
+  /* Selection chrome, and what `BlockView` marks as never exported: the
+     shimmer under media still loading, and media that cannot be loaded. */
+  filter: (el: HTMLElement) => !el.classList?.contains("moveable-control-box") && el.dataset?.exportSkip === undefined,
 });
 
 export async function renderSlide(project: Project, slideId: string, scale = 1): Promise<HTMLCanvasElement> {

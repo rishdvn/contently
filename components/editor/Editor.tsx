@@ -8,9 +8,9 @@ import { useActiveOrg } from "@/lib/auth/useActiveOrg";
 import { useAudioLane } from "@/lib/editor/audio";
 import { project as makeProject } from "@/lib/editor/factory";
 import { googleFontsHref } from "@/lib/editor/fonts";
-import { useCreateProject, useProject, useSaveProject, type ProjectLoad } from "@/lib/editor/persistence";
+import { useAutosave, useCreateProject, useProject, type ProjectLoad } from "@/lib/editor/persistence";
 import { useEditor } from "@/lib/editor/store";
-import type { ProjectKind } from "@/lib/editor/types";
+import type { Project, ProjectKind } from "@/lib/editor/types";
 
 import { Viewport } from "./canvas/Viewport";
 import { Bottom, useBottomInset } from "./chrome/Bottom";
@@ -21,6 +21,7 @@ import { TopBar } from "./chrome/TopBar";
 import { ExportDialog } from "./dialogs/ExportDialog";
 import { ShareDialog } from "./dialogs/ShareDialog";
 import { ShortcutsDialog } from "./dialogs/ShortcutsDialog";
+import { CrashOnDemand, StudioErrorBoundary } from "./StudioErrorBoundary";
 import { useHotkeys } from "./useHotkeys";
 
 const KINDS: ProjectKind[] = ["image", "carousel", "video"];
@@ -45,7 +46,7 @@ export function Editor({ projectId, kind }: { projectId: string; kind?: string }
 
   useCreateOnDemand(isNew, kind);
   useLoadIntoStore(projectId, load);
-  useAutosave(projectId);
+  useAutosave(projectId, watchProject);
   usePlayback();
   useAudioLane();
   useHotkeys();
@@ -70,16 +71,19 @@ export function Editor({ projectId, kind }: { projectId: string; kind?: string }
   return (
     <div className="fixed inset-0 overflow-hidden bg-canvas text-ink">
       <link rel="stylesheet" href={googleFontsHref()} crossOrigin="anonymous" />
-      <Viewport insets={insets}>
-        <TopBar left={insets.left} right={insets.right} />
-        <Rail top={insets.top} bottom={bottom} />
-        <LeftPanel bottom={bottom} />
-        <Inspector bottom={bottom} />
-        <Bottom left={leftTab ? panelRight : 12} right={12} />
-      </Viewport>
-      <ExportDialog />
-      <ShareDialog />
-      <ShortcutsDialog />
+      <StudioErrorBoundary projectId={projectId}>
+        <Viewport insets={insets}>
+          <TopBar left={insets.left} right={insets.right} />
+          <Rail top={insets.top} bottom={bottom} />
+          <LeftPanel bottom={bottom} />
+          <Inspector bottom={bottom} />
+          <Bottom left={leftTab ? panelRight : 12} right={12} />
+        </Viewport>
+        <ExportDialog />
+        <ShareDialog />
+        <ShortcutsDialog />
+        <CrashOnDemand />
+      </StudioErrorBoundary>
     </div>
   );
 }
@@ -147,42 +151,14 @@ function useLoadIntoStore(projectId: string, load: ProjectLoad) {
   }, [load.status, router, toast]);
 }
 
-/* Persist the document a beat after it last changed. */
-function useAutosave(projectId: string) {
-  const save = useSaveProject();
-  const toast = useToast();
-
-  useEffect(() => {
-    let timer: ReturnType<typeof setTimeout> | null = null;
-
-    const persist = () => {
-      timer = null;
-      const { project } = useEditor.getState();
-      /* The store still holds the previous document for a beat after a route
-         change; only this route's project is ours to write. */
-      if (project.id !== projectId) return;
-      save(project).catch((error: unknown) => {
-        console.error(error);
-        toast({ title: "Changes couldn't be saved", description: "They are still here in the tab. Check your connection." });
-      });
-    };
-
-    const unsub = useEditor.subscribe((s, prev) => {
-      if (s.project === prev.project || s.project.id !== projectId) return;
-      if (timer) clearTimeout(timer);
-      timer = setTimeout(persist, 500);
-    });
-
-    return () => {
-      unsub();
-      /* Leaving within the debounce window is the one case where the timer
-         would take an edit with it. */
-      if (timer) {
-        clearTimeout(timer);
-        persist();
-      }
-    };
-  }, [projectId, save, toast]);
+/* Hand every change to this route's project to the autosave. The store still
+   holds the previous document for a beat after a route change; only this
+   route's project is ours to write. */
+function watchProject(projectId: string, onChange: (p: Project) => void) {
+  return useEditor.subscribe((s, prev) => {
+    if (s.project === prev.project || s.project.id !== projectId) return;
+    onChange(s.project);
+  });
 }
 
 /*

@@ -18,6 +18,8 @@ import { Panel } from "../controls";
 import { SaveTemplateDialog } from "../dialogs/SaveTemplateDialog";
 import { shortcutKey } from "../useHotkeys";
 
+import { SaveStatus } from "./SaveStatus";
+
 /*
   Top chrome: identity on the left, a floating command pill in the centre —
   undo/redo · ratio · zoom · shortcuts · Share · Export. Every control on the
@@ -34,6 +36,7 @@ export function TopBar({ left, right }: { left: number; right: number }) {
         </Link>
         <ProjectName />
         <ProjectMenu />
+        <SaveStatus />
       </div>
       <Panel className="absolute top-2 flex h-11 -translate-x-1/2 items-center gap-0.5 px-1.5" style={{ left: `calc(${left}px + (100% - ${left + right}px) / 2)` }}>
         <HistoryButtons />

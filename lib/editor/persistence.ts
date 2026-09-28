@@ -1,9 +1,9 @@
 "use client";
 
-import { useMutation, useQuery } from "convex/react";
+import { useConvex, useMutation, useQuery } from "convex/react";
 import type { OptimisticLocalStore } from "convex/browser";
 import type { FunctionReturnType } from "convex/server";
-import { useCallback, useMemo, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useSyncExternalStore } from "react";
 
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
@@ -11,6 +11,7 @@ import { useActiveOrg } from "@/lib/auth/useActiveOrg";
 import { getBlock } from "@/lib/blocks";
 import { mapMedia } from "@/lib/blocks/inputs";
 
+import { Autosaver, type SaveStatus } from "./autosave";
 import type { AspectId, Project, ProjectKind } from "./types";
 
 /*
@@ -151,6 +152,98 @@ export function useSaveProject(): (p: Project) => Promise<void> {
     },
     [save, orgId],
   );
+}
+
+/*
+  The studio's autosave: debounce, one write at a time, retry with backoff (see
+  `Autosaver`), with Convex's connection and the browser's online flag as the
+  notion of "offline", and a warning before a tab with unsaved changes closes.
+
+  `watch` hands over every new document for this project and returns its
+  unsubscribe; the studio passes its store subscription, so this module still
+  knows nothing about the store.
+
+  There is one studio per tab, so the status lives at module level: the top bar
+  reads it with `useSaveStatus`, and the error boundary flushes through
+  `flushSave` without either being handed the saver.
+*/
+export function useAutosave(projectId: string, watch: (id: string, onChange: (p: Project) => void) => () => void) {
+  const save = useSaveProject();
+  const convex = useConvex();
+
+  useEffect(() => {
+    const saver = new Autosaver<Project>({ write: save });
+    activeSaver = saver;
+    const unpublish = saver.subscribe(publishStatus);
+    const unwatch = watch(projectId, (p) => saver.change(p));
+
+    /* Before the first connection the socket is down for no reason worth
+       reporting; after it, a dropped socket is what offline looks like. */
+    const connection = () => {
+      const c = convex.connectionState();
+      saver.setOnline(navigator.onLine && (c.isWebSocketConnected || !c.hasEverConnected));
+    };
+    const unconnection = convex.subscribeToConnectionState(connection);
+    window.addEventListener("online", connection);
+    window.addEventListener("offline", connection);
+    connection();
+
+    const beforeUnload = (e: BeforeUnloadEvent) => {
+      if (!saver.dirty) return;
+      void saver.flush();
+      e.preventDefault();
+    };
+    window.addEventListener("beforeunload", beforeUnload);
+
+    return () => {
+      unwatch();
+      unconnection();
+      window.removeEventListener("online", connection);
+      window.removeEventListener("offline", connection);
+      window.removeEventListener("beforeunload", beforeUnload);
+      saver.close();
+      unpublish();
+      if (activeSaver === saver) {
+        activeSaver = null;
+        publishStatus({ state: "idle" });
+      }
+    };
+  }, [projectId, watch, save, convex]);
+}
+
+let activeSaver: Autosaver<Project> | null = null;
+let saveStatus: SaveStatus = { state: "idle" };
+const statusListeners = new Set<() => void>();
+
+function publishStatus(s: SaveStatus) {
+  saveStatus = s;
+  statusListeners.forEach((l) => l());
+}
+
+function subscribeStatus(cb: () => void) {
+  statusListeners.add(cb);
+  return () => void statusListeners.delete(cb);
+}
+
+export function useSaveStatus(): SaveStatus {
+  return useSyncExternalStore(subscribeStatus, () => saveStatus, () => saveStatus);
+}
+
+/* Skip the backoff and try again now. */
+export function retrySave() {
+  activeSaver?.retry();
+}
+
+/* Write anything pending; resolves true once it is all saved, false if a write
+   fails or `timeout` passes first. */
+export function flushSave(timeout = 5000): Promise<boolean> {
+  if (!activeSaver) return Promise.resolve(true);
+  return Promise.race([activeSaver.flush(), new Promise<boolean>((resolve) => setTimeout(() => resolve(false), timeout))]);
+}
+
+/* The last save error, for a bug report. */
+export function lastSaveError(): unknown {
+  return activeSaver?.lastError ?? null;
 }
 
 /*

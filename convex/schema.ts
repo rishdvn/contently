@@ -37,6 +37,9 @@ export default defineSchema({
     name: v.optional(v.string()),
     email: v.optional(v.string()),
     imageUrl: v.optional(v.string()),
+    /* One-off UI state that follows the person across browsers, such as a
+       first-run hint they have dismissed. Keys are `USER_FLAGS` in users.ts. */
+    flags: v.optional(v.record(v.string(), v.boolean())),
   }).index("by_clerkUserId", ["clerkUserId"]),
 
   memberships: defineTable({

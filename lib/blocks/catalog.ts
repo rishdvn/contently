@@ -1,8 +1,10 @@
+import type { AnyBlockSpec } from "./spec";
+
+/* One import and one `SPECS` entry per block, alphabetical by path, like `index.ts`. */
 import { imessage } from "./imessage/schema";
 import { logoStrip } from "./logo-strip/schema";
 import { productCard } from "./product-card/schema";
 import { searchBar } from "./search-bar/schema";
-import type { AnyBlockSpec } from "./spec";
 import { counter } from "./text/counter/schema";
 
 /*
@@ -14,7 +16,13 @@ import { counter } from "./text/counter/schema";
   One line per block, like `index.ts`. Imports are relative and nothing here
   reaches React, so `convex/` imports this module as it is.
 */
-const SPECS = [imessage, counter, productCard, logoStrip, searchBar] as unknown as AnyBlockSpec[];
+const SPECS = [
+  imessage,
+  logoStrip,
+  productCard,
+  searchBar,
+  counter,
+] as unknown as AnyBlockSpec[];
 
 const byId = new Map(SPECS.map((spec) => [spec.id, spec]));
 

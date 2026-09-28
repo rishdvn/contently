@@ -165,7 +165,10 @@ function TextContent({ block, editing, measure, elapsed }: { block: TextBlock; e
 
   const hl = highlightStyle(block);
   const base = textStyle(block);
-  const content = block.animation === "words" && !editing ? <WordReveal block={block} elapsed={elapsed} /> : block.text;
+  const words = block.animation === "words" && !editing;
+  const content = words ? <WordReveal block={block} elapsed={elapsed} /> : block.text;
+  /* A highlight arrives with the first word rather than sitting there empty. */
+  const lead = words && elapsed !== null ? wordProgress(0, 1, elapsed) : 1;
 
   return (
     <div className="size-full">
@@ -196,7 +199,7 @@ function TextContent({ block, editing, measure, elapsed }: { block: TextBlock; e
           userSelect: editing ? "text" : "none",
         }}
       >
-        {hl ? <span style={hl}>{content}</span> : content}
+        {hl ? <span style={lead < 1 ? { ...hl, opacity: lead } : hl}>{content}</span> : content}
       </div>
     </div>
   );
@@ -206,7 +209,9 @@ function TextContent({ block, editing, measure, elapsed }: { block: TextBlock; e
   The "words" entrance. Words stay inline, offset with `position: relative`
   rather than a transform, so wrapping, break-word and highlights lay out
   exactly as the plain text does. `elapsed` is null in a still: every word
-  has landed.
+  has landed. Gradient text is one background clipped to every glyph, which
+  ignores a word's own opacity and ends at the box, so there a word simply
+  appears on its turn.
 */
 function WordReveal({ block, elapsed }: { block: TextBlock; elapsed: number | null }) {
   const parts = splitWords(block.text);
@@ -215,8 +220,9 @@ function WordReveal({ block, elapsed }: { block: TextBlock; elapsed: number | nu
   return parts.map((part, i) => {
     if (!part.word) return part.text;
     const e = elapsed === null ? 1 : wordProgress(index++, count, elapsed);
+    const style: CSSProperties | undefined = e >= 1 ? undefined : block.gradient ? (e > 0 ? undefined : { visibility: "hidden" }) : { position: "relative", top: (1 - e) * WORD_RISE * block.fontSize, opacity: e };
     return (
-      <span key={i} style={e < 1 ? { position: "relative", top: (1 - e) * WORD_RISE * block.fontSize, opacity: e } : undefined}>
+      <span key={i} style={style}>
         {part.text}
       </span>
     );

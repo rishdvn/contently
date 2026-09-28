@@ -710,6 +710,7 @@ function CommonProperties({ blocks }: { blocks: Block[] }) {
                 { value: "zoom", label: "Zoom" },
                 { value: "fade", label: "Fade" },
                 { value: "rise", label: "Rise" },
+                ...(blocks.every((x) => x.type === "text") ? [{ value: "words" as const, label: "Words", title: "Slide in word by word" }] : []),
               ]}
             />
           </Section>

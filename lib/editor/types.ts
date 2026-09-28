@@ -53,7 +53,7 @@ export type Effect = {
   color?: string;
 };
 
-export type Animation = "none" | "pan" | "zoom" | "fade" | "rise";
+export type Animation = "none" | "pan" | "zoom" | "fade" | "rise" | "words";
 
 /*
   What a block is *for* in a template: the slot a person, the API or an AI

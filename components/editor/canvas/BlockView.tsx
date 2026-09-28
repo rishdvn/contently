@@ -8,6 +8,7 @@ import { useMediaPoster, useMediaUrl } from "@/lib/editor/media";
 import { useEditor, withoutHistory } from "@/lib/editor/store";
 import { effectOverlays, filterCss, flipStyle, frameStyle, gradientCss, highlightStyle, shadowCss, textStyle } from "@/lib/editor/style";
 import { NEUTRAL_ADJUSTMENTS, type Block, type ComponentBlock, type ImageBlock, type ShapeBlock, type TextBlock, type VideoBlock } from "@/lib/editor/types";
+import { splitWords, WORD_RISE, wordProgress } from "@/lib/editor/wordReveal";
 
 import { usePlaybackOverride } from "./playback";
 
@@ -56,7 +57,7 @@ export const BlockView = memo(function BlockView({
       <div className="absolute inset-0" style={animationStyle(block, progress, inRange)}>
         <div className="absolute inset-0" style={flipStyle(block)}>
           {block.type === "text" ? (
-            <TextContent block={block} editing={editing} measure={interactive} />
+            <TextContent block={block} editing={editing} measure={interactive} elapsed={progress === null ? null : time - block.start} />
           ) : block.type === "image" ? (
             <ImageContent block={block} />
           ) : block.type === "video" ? (
@@ -86,6 +87,9 @@ function animationStyle(b: Block, p: number | null, inRange: boolean): CSSProper
       return { opacity: Math.min(1, ease * 3) };
     case "rise":
       return { transform: `translateY(${(1 - Math.min(1, ease * 2.5)) * 40}px)`, opacity: Math.min(1, ease * 3) };
+    case "words":
+      /* Animated per word by TextContent. */
+      return {};
   }
 }
 
@@ -107,7 +111,7 @@ function useFontsReady() {
   return ready;
 }
 
-function TextContent({ block, editing, measure }: { block: TextBlock; editing: boolean; measure: boolean }) {
+function TextContent({ block, editing, measure, elapsed }: { block: TextBlock; editing: boolean; measure: boolean; elapsed: number | null }) {
   const ref = useRef<HTMLDivElement>(null);
   const updateBlock = useEditor((s) => s.updateBlock);
   const setEditingText = useEditor((s) => s.setEditingText);
@@ -161,6 +165,7 @@ function TextContent({ block, editing, measure }: { block: TextBlock; editing: b
 
   const hl = highlightStyle(block);
   const base = textStyle(block);
+  const content = block.animation === "words" && !editing ? <WordReveal block={block} elapsed={elapsed} /> : block.text;
 
   return (
     <div className="size-full">
@@ -191,10 +196,31 @@ function TextContent({ block, editing, measure }: { block: TextBlock; editing: b
           userSelect: editing ? "text" : "none",
         }}
       >
-        {hl ? <span style={hl}>{block.text}</span> : block.text}
+        {hl ? <span style={hl}>{content}</span> : content}
       </div>
     </div>
   );
+}
+
+/*
+  The "words" entrance. Words stay inline, offset with `position: relative`
+  rather than a transform, so wrapping, break-word and highlights lay out
+  exactly as the plain text does. `elapsed` is null in a still: every word
+  has landed.
+*/
+function WordReveal({ block, elapsed }: { block: TextBlock; elapsed: number | null }) {
+  const parts = splitWords(block.text);
+  const count = parts.filter((p) => p.word).length;
+  let index = 0;
+  return parts.map((part, i) => {
+    if (!part.word) return part.text;
+    const e = elapsed === null ? 1 : wordProgress(index++, count, elapsed);
+    return (
+      <span key={i} style={e < 1 ? { position: "relative", top: (1 - e) * WORD_RISE * block.fontSize, opacity: e } : undefined}>
+        {part.text}
+      </span>
+    );
+  });
 }
 
 /* --------------------------------------------------------------- media --- */

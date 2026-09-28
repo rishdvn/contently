@@ -4,6 +4,7 @@ import { durationOf, roleCounts, type Doc as ViewDoc } from "../../lib/api/view"
 import type { Doc, Id } from "../_generated/dataModel";
 import { internalQuery, type QueryCtx } from "../_generated/server";
 import { withResolvedMedia } from "../lib/documentMedia";
+import { visibleTo as visible } from "../templates";
 
 /*
   Templates, as the public API reads them for one organisation: every
@@ -11,8 +12,6 @@ import { withResolvedMedia } from "../lib/documentMedia";
   same rule `templates.ts` applies to a signed-in member. The HTTP action
   shapes the answer (`lib/api/view.ts`); these return data.
 */
-
-const visible = (row: Doc<"templates">, orgId: Id<"organizations">) => row.published || row.orgId === orgId;
 
 async function url(ctx: QueryCtx, id: Id<"_storage"> | undefined) {
   return id ? await ctx.storage.getUrl(id) : null;
@@ -74,4 +73,3 @@ export const get = internalQuery({
   },
 });
 
-export { visible };

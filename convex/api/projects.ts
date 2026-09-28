@@ -4,10 +4,10 @@ import { applyReplacements, type Media, type Replacement } from "../../lib/api/c
 import { durationOf, type Doc as ViewDoc } from "../../lib/api/view";
 import type { Doc, Id } from "../_generated/dataModel";
 import { internalMutation, internalQuery, type QueryCtx } from "../_generated/server";
-import { withResolvedMedia, type DocumentLike } from "../lib/documentMedia";
+import type { DocumentLike } from "../lib/documentMedia";
+import { projectFromTemplate } from "../templates";
 
 import { apiFail } from "./errors";
-import { visible } from "./templates";
 
 /*
   Projects through the public API, for the organisation a key belongs to.
@@ -61,10 +61,10 @@ export const get = internalQuery({
 
 /*
   A new project from a template, in the key's organisation: every scene, or
-  the ones asked for, in the order asked. Block and scene ids are kept, so
-  the ids a caller read from `GET /templates/:id` address the same blocks in
-  the project. Media comes across as URLs: the files belong to the template's
-  organisation, which this one cannot resolve ids against.
+  the ones asked for, in the order asked. Made by `projectFromTemplate`, the
+  same as the Templates page's Create: block and scene ids are kept, so the
+  ids a caller read from `GET /templates/:id` address the same blocks in the
+  project.
 */
 export const createFromTemplate = internalMutation({
   args: {
@@ -74,31 +74,7 @@ export const createFromTemplate = internalMutation({
     name: v.optional(v.string()),
     scenes: v.optional(v.array(v.number())),
   },
-  handler: async (ctx, { orgId, userId, templateId, name, scenes }) => {
-    const tid = ctx.db.normalizeId("templates", templateId);
-    const template = tid ? await ctx.db.get(tid) : null;
-    if (!template || !visible(template, orgId)) apiFail("not_found", `No template ${templateId}`);
-
-    const source = (template.orgId ? await withResolvedMedia(ctx, template.orgId, template.document) : template.document) as DocumentLike & Record<string, unknown>;
-    const all = source.slides ?? [];
-    if (scenes) {
-      const bad = scenes.filter((i) => !Number.isInteger(i) || i < 0 || i >= all.length);
-      if (!scenes.length) apiFail("invalid_request", "scenes: pick at least one scene, or leave it out for all of them");
-      if (bad.length) apiFail("invalid_request", `scenes: this template has scenes 0–${all.length - 1}; no scene ${bad.join(", ")}`);
-      if (new Set(scenes).size !== scenes.length) apiFail("invalid_request", "scenes: each scene at most once");
-    }
-    const slides = scenes ? scenes.map((i) => all[i]) : all;
-
-    const now = Date.now();
-    const title = name?.trim() || template.name;
-    const document = { ...source, id: "", name: title, kind: template.kind, aspect: template.aspect, slides, audio: (source.audio as unknown[] | undefined) ?? [], createdAt: now, updatedAt: now };
-    const width = typeof source.width === "number" ? source.width : 1080;
-    const height = typeof source.height === "number" ? source.height : 1080;
-
-    const id = await ctx.db.insert("projects", { orgId, createdBy: userId, name: title, kind: template.kind, aspect: template.aspect, width, height, document, updatedAt: now });
-    await ctx.db.patch(id, { document: { ...document, id } });
-    return id;
-  },
+  handler: async (ctx, args) => await projectFromTemplate(ctx, args),
 });
 
 /*

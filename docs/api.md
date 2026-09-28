@@ -127,6 +127,11 @@ curl -s -X POST "$API/v1/projects" -H "Authorization: Bearer $KEY" -H "Content-T
 ids are kept from the template**, so the ids read in step 2 address the same
 blocks. Answers `201` with the project, in the same shape as a template.
 
+It is the same copy the Templates page's **Create** makes (`docs/templates.md`
+→ "Making a project from a template"): stock media keeps its id, media from
+the template's organisation comes across as URLs, and library audio keeps
+playing. With `scenes`, the audio is cut to the length of the scenes kept.
+
 ### 4. Replace content
 
 ```bash

@@ -28,7 +28,9 @@ export const inputs = {
 /*
   Button — a call to action: a pill with a label and an optional icon. The pill
   keeps its own proportions and is as large as the box allows, centred in it,
-  so a longer label makes a longer pill rather than smaller type. In a video it
+  so a longer label makes a longer pill rather than smaller type. A filled pill
+  takes the text colour for its label; outline and glass buttons are drawn in
+  one colour, the fill, so they read over footage whatever it is. In a video it
   fades up, then is pressed once at about 70%; as a still it is at rest.
   Listed in the Text panel under Buttons.
 */

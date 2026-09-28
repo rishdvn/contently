@@ -12,6 +12,7 @@ import "./logo-strip";
 import "./product-card";
 import "./search-bar";
 import "./text/basic";
+import "./text/button";
 import "./text/counter";
 import "./text/tiktok-hook";
 

@@ -6,6 +6,7 @@ import { logoStrip } from "./logo-strip/schema";
 import { productCard } from "./product-card/schema";
 import { searchBar } from "./search-bar/schema";
 import { basic } from "./text/basic/schema";
+import { button } from "./text/button/schema";
 import { counter } from "./text/counter/schema";
 import { tiktokHook } from "./text/tiktok-hook/schema";
 
@@ -24,6 +25,7 @@ const SPECS = [
   productCard,
   searchBar,
   basic,
+  button,
   counter,
   tiktokHook,
 ] as unknown as AnyBlockSpec[];

@@ -4,7 +4,7 @@ import { rolesIn, slotsOf } from "../lib/editor/roles";
 import type { Project } from "../lib/editor/types";
 import type { Doc, Id } from "./_generated/dataModel";
 import { internalMutation, internalQuery, mutation, query, type QueryCtx } from "./_generated/server";
-import { requireOrg, tryUser } from "./lib/auth";
+import { requireOrg, tryOrg, tryUser } from "./lib/auth";
 import { withResolvedMedia } from "./lib/documentMedia";
 import { insertProject } from "./projects";
 import type { MutationCtx } from "./_generated/server";
@@ -72,10 +72,16 @@ async function summary(ctx: QueryCtx, row: Doc<"templates">) {
 }
 
 /*
-  Who may see an unpublished template: members of the organisation it came
-  from. Resolved once per request rather than per row.
+  Whose unpublished templates a reader sees: the organisation they are working
+  in (`orgId`, the Clerk id), if they are a member of it. Without `orgId`, the
+  answer from before it existed: every organisation they are in. Resolved once
+  per request rather than per row.
 */
-async function memberOrgIds(ctx: QueryCtx): Promise<Set<Id<"organizations">>> {
+async function memberOrgIds(ctx: QueryCtx, orgId?: string): Promise<Set<Id<"organizations">>> {
+  if (orgId !== undefined) {
+    const context = await tryOrg(ctx, orgId);
+    return new Set(context ? [context.org._id] : []);
+  }
   const user = await tryUser(ctx);
   if (!user) return new Set();
   const rows = await ctx.db
@@ -89,12 +95,14 @@ const visible = (row: Doc<"templates">, orgs: Set<Id<"organizations">>) => row.p
 
 /*
   Published templates, newest first, optionally one kind and one category.
-  With `drafts`, the caller's own organisations' unpublished templates come
-  too — what an author needs to check one before publishing it.
+  With `drafts`, the active organisation's (`orgId`) unpublished templates
+  come too — what an author needs to check one before publishing it, and an
+  organisation's private library. Switching organisation is a new `orgId`, so
+  the list follows it.
 */
 export const list = query({
-  args: { kind: v.optional(kindArg), category: v.optional(v.string()), drafts: v.optional(v.boolean()) },
-  handler: async (ctx, { kind, category, drafts }) => {
+  args: { kind: v.optional(kindArg), category: v.optional(v.string()), drafts: v.optional(v.boolean()), orgId: v.optional(v.string()) },
+  handler: async (ctx, { kind, category, drafts, orgId }) => {
     const user = await tryUser(ctx);
     if (!user) return [];
 
@@ -105,7 +113,7 @@ export const list = query({
 
     let rows = published;
     if (drafts) {
-      const orgs = await memberOrgIds(ctx);
+      const orgs = await memberOrgIds(ctx, orgId);
       const own = (await Promise.all([...orgs].map((orgId) => ctx.db.query("templates").withIndex("by_org", (q) => q.eq("orgId", orgId)).collect()))).flat();
       rows = [...published, ...own.filter((row) => !row.published && (!kind || row.kind === kind))];
     }
@@ -119,15 +127,16 @@ export const list = query({
 /*
   One template with its document and its slots: every block that carries a
   role or holds media, scene by scene (`slotsOf` in `lib/editor/roles.ts`).
-  The document's media ids are already URLs.
+  The document's media ids are already URLs. `orgId` as for `list`: an
+  unpublished template is there only for its own organisation.
 */
 export const get = query({
-  args: { id: v.string() },
-  handler: async (ctx, { id }) => {
+  args: { id: v.string(), orgId: v.optional(v.string()) },
+  handler: async (ctx, { id, orgId }) => {
     if (!(await tryUser(ctx))) return null;
     const templateId = ctx.db.normalizeId("templates", id);
     const row = templateId ? await ctx.db.get(templateId) : null;
-    if (!row || !visible(row, await memberOrgIds(ctx))) return null;
+    if (!row || !visible(row, await memberOrgIds(ctx, orgId))) return null;
 
     const document = (row.orgId ? await withResolvedMedia(ctx, row.orgId, row.document) : row.document) as Project;
     return { ...(await summary(ctx, row)), document, slots: slotsOf(document) };

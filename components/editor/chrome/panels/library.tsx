@@ -6,6 +6,7 @@ import { ArrowLeft, Plus } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { ProjectStage, useProjectClock } from "@/components/hub/ProjectPreview";
+import { useTemplateScope } from "@/components/hub/TemplateCard";
 import { Button } from "@/components/ui/button";
 import { Chip, ChipRow } from "@/components/ui/chip";
 import { Dialog, DialogFooter, DialogHeader } from "@/components/ui/dialog";
@@ -39,8 +40,8 @@ import { CategoryList, LEFT_PANEL_WIDTH, PanelBody, PanelHeader, PanelPrimary, P
   template's scenes are alternatives for the one slide instead.
 
   Templates come from Convex (`convex/templates.ts`, `docs/templates.md`). The
-  author's own organisation's drafts are listed too, marked, so a template can
-  be tried here before it is published.
+  active organisation's own unpublished templates are listed too, marked: its
+  private library, and a way to try a template before it is published.
 */
 export function TemplatesPanel() {
   const [open, setOpen] = useState<string | null>(null);
@@ -54,7 +55,8 @@ const KIND_LABEL: Record<string, string> = { video: "Video", carousel: "Carousel
 function TemplateGrid({ onOpen }: { onOpen: (id: string) => void }) {
   const [q, setQ] = useState("");
   const [cat, setCat] = useState<string | null>(null);
-  const all = useQuery(api.templates.list, { drafts: true });
+  const scope = useTemplateScope();
+  const all = useQuery(api.templates.list, scope ? { drafts: true, ...scope } : "skip");
 
   /* The chips are whatever categories the library uses, most used first. */
   const categories = useMemo(() => {
@@ -150,7 +152,8 @@ function HoverPlay({ project }: { project: Project }) {
 }
 
 function TemplateDetail({ id, onBack }: { id: string; onBack: () => void }) {
-  const t = useQuery(api.templates.get, { id });
+  const scope = useTemplateScope();
+  const t = useQuery(api.templates.get, scope ? { id, ...scope } : "skip");
   const kind = useEditor((s) => s.project.kind);
   const insertScenes = useEditor((s) => s.insertScenes);
   const replaceSlide = useEditor((s) => s.replaceSlide);

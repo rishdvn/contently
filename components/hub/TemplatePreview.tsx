@@ -15,7 +15,7 @@ import { ASPECTS, type AspectId, type Project, type Slide } from "@/lib/editor/t
 import { LibraryGrid } from "./LibraryGrid";
 import { PreviewCloseButton, PreviewFact, PreviewPanel, PreviewShell, PreviewTags, ProjectPreviewStage, ShareButton, usePreviewPlayback } from "./PreviewModal";
 import { ProjectStage, useProjectClock } from "./ProjectPreview";
-import { TEMPLATE_KIND_LABEL, TEMPLATES, templateMeta, templateSize, type TemplateSummary } from "./TemplateCard";
+import { TEMPLATE_KIND_LABEL, TEMPLATES, templateMeta, templateSize, useTemplateScope, type TemplateSummary } from "./TemplateCard";
 
 /* Stands in for the document while it loads, so playback has something to hold. */
 const LOADING: Project = { id: "", name: "", kind: "video", aspect: "9:16", width: 1080, height: 1920, slides: [], audio: [], createdAt: 0, updatedAt: 0 };
@@ -46,7 +46,8 @@ export function TemplatePreview({
   const router = useRouter();
   const toast = useToast();
   const { orgId, isLoaded } = useActiveOrg();
-  const full = useQuery(api.templates.get, { id });
+  const scope = useTemplateScope();
+  const full = useQuery(api.templates.get, scope ? { id, ...scope } : "skip");
   const createFrom = useMutation(api.templates.createProjectFrom);
   const [busy, setBusy] = useState(false);
 

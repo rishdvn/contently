@@ -12,7 +12,7 @@ import { googleFontsHref } from "@/lib/editor/fonts";
 
 import { HubNav } from "./HubNav";
 import { LibraryGrid, usePreviewRoute } from "./LibraryGrid";
-import { TEMPLATES, type TemplateSummary } from "./TemplateCard";
+import { TEMPLATES, useTemplateScope, type TemplateSummary } from "./TemplateCard";
 import { TemplatePreview } from "./TemplatePreview";
 
 /*
@@ -21,7 +21,7 @@ import { TemplatePreview } from "./TemplatePreview";
   open the enlarged preview, where Create makes a project from one.
 
   The library is small, so it is one query — the published templates and the
-  caller's organisations' drafts, marked — filtered here as fast as the user
+  active organisation's drafts, marked — filtered here as fast as the user
   types.
 */
 
@@ -34,7 +34,8 @@ const FAMILIES: { value: Family; label: string }[] = [
 ];
 
 export function TemplateLibrary() {
-  const all = useQuery(api.templates.list, { drafts: true });
+  const scope = useTemplateScope();
+  const all = useQuery(api.templates.list, scope ? { drafts: true, ...scope } : "skip");
   const [family, setFamily] = useState<Family>("video");
   const [category, setCategory] = useState<string | null>(null);
   const [q, setQ] = useState("");

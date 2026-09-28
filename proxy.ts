@@ -15,11 +15,15 @@ import { clerkMiddleware } from "@clerk/nextjs/server";
 
   `/p` is the share viewer. Its page checks the link's token (or the
   visitor's membership of the project's org) through `projects.getShared`.
+
+  `/` itself (exactly, not what is under it) shows the landing page to a
+  signed-out visitor and the hub to everyone else; `app/page.tsx` decides.
 */
 const PUBLIC_ROUTES = ["/sign-in", "/sign-up", "/api/health", "/__clerk", "/render", "/p"];
+const PUBLIC_PAGES = ["/"];
 
 const isPublic = (pathname: string) =>
-  PUBLIC_ROUTES.some((route) => pathname === route || pathname.startsWith(`${route}/`));
+  PUBLIC_PAGES.includes(pathname) || PUBLIC_ROUTES.some((route) => pathname === route || pathname.startsWith(`${route}/`));
 
 export default clerkMiddleware(
   async (auth, request) => {

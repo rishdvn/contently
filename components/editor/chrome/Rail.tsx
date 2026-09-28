@@ -10,6 +10,8 @@ import { useEditor, type LeftTab } from "@/lib/editor/store";
 
 import { Panel } from "../controls";
 
+import { TemplatesHint } from "./TemplatesHint";
+
 export const RAIL_TABS: { id: LeftTab; label: string; icon: React.ReactNode }[] = [
   { id: "templates", label: "Templates", icon: <LayoutTemplate /> },
   { id: "blocks", label: "Blocks", icon: <Shapes /> },
@@ -173,6 +175,7 @@ export function Rail({ top, bottom }: { top: number; bottom: number }) {
           </div>
         ) : null}
       </div>
+      {shown[0]?.id === "templates" ? <TemplatesHint /> : null}
     </Panel>
   );
 }

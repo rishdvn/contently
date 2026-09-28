@@ -1,6 +1,6 @@
 "use client";
 
-import { Clapperboard, GalleryHorizontalEnd, Image as ImageIcon, MoreHorizontal, Plus } from "lucide-react";
+import { Clapperboard, GalleryHorizontalEnd, Image as ImageIcon, LayoutTemplate, MoreHorizontal, Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { createContext, use, useState, type ReactNode } from "react";
 
@@ -18,6 +18,7 @@ import type { ProjectKind } from "@/lib/editor/types";
 
 import { HubNav } from "./HubNav";
 import { ImportLocalProjects } from "./ImportLocalProjects";
+import { KIND_ART } from "./kindArt";
 import { CardCaption, LibraryGrid, usePreviewRoute, type LibraryAdapter } from "./LibraryGrid";
 import { PreviewModal } from "./PreviewModal";
 import { LiveArt, relativeTime } from "./ProjectPreview";
@@ -38,6 +39,11 @@ export function Hub() {
   /* Signed in with no organisation selected: nothing owns a project, so the
      grid would be empty for a reason the user cannot see. */
   const orgless = isLoaded && !orgId;
+  /* An organisation with nothing in it yet gets the first-run page instead of
+     an empty grid. Until the list answers, neither is drawn, so an empty
+     organisation does not see the usual page flash past first. */
+  const firstRun = !orgless && projects?.length === 0;
+  const settling = !orgless && projects === null;
 
   /*
     Create in Convex first, then navigate: the studio opens on a real id, so a
@@ -67,14 +73,19 @@ export function Hub() {
       <main className="min-w-0 flex-1 px-8 py-6">
         <header className="flex items-center justify-between gap-4">
           <span className="text-panels text-ink">Projects</span>
-          <Button variant="primary" size="lg" disabled={orgless || busy} onClick={() => setCreating(true)}>
-            <Plus /> Create
-          </Button>
+          {/* The first-run page carries its own actions; one filled button per screen. */}
+          {firstRun || settling ? null : (
+            <Button variant="primary" size="lg" disabled={orgless || busy} onClick={() => setCreating(true)}>
+              <Plus /> Create
+            </Button>
+          )}
         </header>
 
         {orgless ? <OrglessNotice /> : <ImportLocalProjects />}
 
-        <section className="mt-10">
+        {firstRun ? <FirstRun busy={busy} onTemplates={() => router.push("/templates")} onBlank={create} /> : null}
+
+        <section className={cn("mt-10", (firstRun || settling) && "hidden")}>
           <h2 className="text-sections text-ink">Start something</h2>
           <div className="mt-5 grid grid-cols-3 gap-5">
             <StartCard kind="image" icon={<ImageIcon />} title="Image" body="One frame. Posts, ads, thumbnails." onClick={() => create("image")} />
@@ -83,7 +94,7 @@ export function Hub() {
           </div>
         </section>
 
-        <section className="mt-12">
+        <section className={cn("mt-12", (firstRun || settling) && "hidden")}>
           <div className="flex items-baseline gap-3">
             <h2 className="text-sections text-ink">Recent</h2>
             <p className="text-default text-ink-secondary">{projects?.length ? `${projects.length} project${projects.length > 1 ? "s" : ""}` : "Everything you make lands here"}</p>
@@ -148,11 +159,43 @@ function OrglessNotice() {
   );
 }
 
-const KIND_ART: Record<ProjectKind, string> = {
-  image: "linear-gradient(160deg,#efe3cf,#c9a877)",
-  carousel: "linear-gradient(160deg,#4cc9f0,#2a7fb8)",
-  video: "linear-gradient(160deg,#6ee86e,#2f9e4f)",
-};
+/*
+  An organisation's first visit: what the place is for and the two ways in —
+  a template, which is the quickest way to something good, or a blank canvas
+  in one of the three formats. The art is the three formats' cards, fanned.
+*/
+function FirstRun({ busy, onTemplates, onBlank }: { busy: boolean; onTemplates: () => void; onBlank: (kind: ProjectKind) => void }) {
+  return (
+    <section className="mt-10 flex flex-col items-center rounded-card bg-panel px-8 py-14 text-center">
+      <div aria-hidden className="relative h-[132px] w-[220px]">
+        {(["image", "video", "carousel"] as const).map((kind, i) => (
+          <div
+            key={kind}
+            className="absolute top-2 left-1/2 h-[116px] w-[88px] rounded-[12px] shadow-overlay"
+            style={{ backgroundImage: KIND_ART[kind], transform: `translateX(-50%) translateX(${(i - 1) * 64}px) rotate(${(i - 1) * 9}deg) translateY(${Math.abs(i - 1) * 8}px)`, zIndex: i === 1 ? 1 : 0 }}
+          />
+        ))}
+      </div>
+      <h2 className="mt-8 text-titles text-ink">Make your first project</h2>
+      <p className="mt-2 max-w-[420px] text-default text-ink-secondary">Start from a finished template and make it yours, or begin with a blank canvas.</p>
+      <Button variant="primary" size="lg" className="mt-7" onClick={onTemplates}>
+        <LayoutTemplate /> Start from a template
+      </Button>
+      <div className="mt-9 text-cap text-ink-secondary">Or start blank</div>
+      <div className="mt-3 flex gap-2">
+        <Button disabled={busy} onClick={() => onBlank("image")}>
+          <ImageIcon /> Image
+        </Button>
+        <Button disabled={busy} onClick={() => onBlank("carousel")}>
+          <GalleryHorizontalEnd /> Carousel
+        </Button>
+        <Button disabled={busy} onClick={() => onBlank("video")}>
+          <Clapperboard /> Video
+        </Button>
+      </div>
+    </section>
+  );
+}
 
 function StartCard({ kind, icon, title, body, onClick, compact }: { kind: ProjectKind; icon: ReactNode; title: string; body: string; onClick: () => void; compact?: boolean }) {
   return (

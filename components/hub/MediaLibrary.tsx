@@ -139,7 +139,7 @@ export function MediaLibrary() {
 
         <section className="mt-6">
           {tab === "yours" ? (
-            <YourMedia orgId={orgId} orgless={orgless} kind={kind} term={term} onPreview={open} />
+            <YourMedia orgId={orgId} orgless={orgless} kind={kind} term={term} onPreview={open} onUpload={upload.canUpload ? () => input.current?.click() : undefined} />
           ) : (
             /* Keyed by the search, so a new query starts from its first page. */
             <OurMedia key={`${kind}|${category}|${term}`} kind={kind} category={category} term={term} onPreview={open} />
@@ -176,7 +176,21 @@ export function MediaLibrary() {
 }
 
 /* The org's uploads. Few enough to hold in one query and filter here. */
-function YourMedia({ orgId, orgless, kind, term, onPreview }: { orgId: string | null | undefined; orgless: boolean; kind: Kind; term: string; onPreview: (item: MediaItem) => void }) {
+function YourMedia({
+  orgId,
+  orgless,
+  kind,
+  term,
+  onPreview,
+  onUpload,
+}: {
+  orgId: string | null | undefined;
+  orgless: boolean;
+  kind: Kind;
+  term: string;
+  onPreview: (item: MediaItem) => void;
+  onUpload?: () => void;
+}) {
   const items = useQuery(api.media.list, orgId ? { orgId } : "skip");
   const words = term.toLowerCase().split(/\s+/).filter(Boolean);
   const shown = (items ?? []).filter(
@@ -185,7 +199,7 @@ function YourMedia({ orgId, orgless, kind, term, onPreview }: { orgId: string | 
 
   if (orgless) return <Notice>Choose an organisation to see its media.</Notice>;
   if (items === undefined) return <GridSkeleton />;
-  if (!items.length) return <Notice>Nothing uploaded yet. Drop photos and videos anywhere on this page, or use Upload.</Notice>;
+  if (!items.length) return <FirstUpload onUpload={onUpload} />;
   if (!shown.length) return <Notice>Nothing matches. Try another word or type.</Notice>;
   return <LibraryGrid items={shown} adapter={MEDIA} onPreview={onPreview} />;
 }
@@ -233,6 +247,27 @@ function OurMedia({ kind, category, term, onPreview }: { kind: Kind; category: s
   }
   if (!items.length) return <Notice>Nothing matches. Try another word or category.</Notice>;
   return <LibraryGrid items={items} adapter={MEDIA} onPreview={onPreview} footer={more ? <LoadMore onVisible={() => setPages(pages + 1)} /> : null} />;
+}
+
+/*
+  Your media before anything is in it: the page already takes files dropped
+  anywhere, so this says so, and clicking it is the Upload button.
+*/
+function FirstUpload({ onUpload }: { onUpload?: () => void }) {
+  return (
+    <button
+      type="button"
+      disabled={!onUpload}
+      onClick={onUpload}
+      className="flex w-full flex-col items-center rounded-card border-2 border-dashed border-line-strong bg-panel px-6 py-16 text-center outline-none transition-colors hover:border-ink/40 hover:bg-card focus-visible:ring-2 focus-visible:ring-ink/25 disabled:pointer-events-none"
+    >
+      <span className="flex size-12 items-center justify-center rounded-[14px] bg-card text-ink [&>svg]:size-5">
+        <Upload />
+      </span>
+      <span className="mt-5 text-titles text-ink">Upload your first image or video</span>
+      <span className="mt-1.5 text-default text-ink-secondary">Drop files anywhere on this page, or click to choose them. Photos and videos land here, ready for every project.</span>
+    </button>
+  );
 }
 
 function Notice({ children }: { children: React.ReactNode }) {

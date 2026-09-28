@@ -8,6 +8,8 @@
   would be felt on every upload.
 */
 
+import { sniffVideo } from "./sniffVideo";
+
 export type ProbedFile = {
   kind: "image" | "video";
   width: number;
@@ -15,6 +17,8 @@ export type ProbedFile = {
   duration?: number;
   /* Videos only: the first frame, uploaded as a second file. */
   poster?: Blob;
+  /* Videos only: "h264", "hevc"… from the container, when it says. */
+  codec?: string;
 };
 
 export const mediaKindOf = (file: File): "image" | "video" | null =>
@@ -45,9 +49,15 @@ async function probeVideo(file: File): Promise<ProbedFile> {
 
   try {
     await once(video, "loadedmetadata");
+    const sniffed = await sniffVideo(file).catch(() => undefined);
+    const duration = Number.isFinite(video.duration) ? video.duration : undefined;
+    /* A browser without the decoder (HEVC on Linux and many Windows machines)
+       reads the metadata but paints nothing, and reports 0×0. Take the size
+       from the container and skip the poster: the render worker cuts one when
+       it re-encodes the clip. */
+    if (!video.videoWidth) return { kind: "video", width: sniffed?.width ?? 0, height: sniffed?.height ?? 0, duration, codec: sniffed?.codec };
     const width = video.videoWidth;
     const height = video.videoHeight;
-    const duration = Number.isFinite(video.duration) ? video.duration : undefined;
 
     video.currentTime = Math.min(POSTER_TIME, (duration ?? 1) / 2);
     await once(video, "seeked");
@@ -58,7 +68,7 @@ async function probeVideo(file: File): Promise<ProbedFile> {
     canvas.getContext("2d")?.drawImage(video, 0, 0, width, height);
     const poster = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.85));
 
-    return { kind: "video", width, height, duration, poster: poster ?? undefined };
+    return { kind: "video", width, height, duration, poster: poster ?? undefined, codec: sniffed?.codec };
   } finally {
     video.src = "";
     URL.revokeObjectURL(url);

@@ -13,8 +13,17 @@ import { primeMedia } from "./media";
 import { mediaKindOf, probeFile, uploadToStorage } from "./upload";
 
 /* One file on its way up. Kept until it lands (the row then arrives in
-   `media.list`) or fails, which is the only state worth staying on screen. */
-export type UploadJob = { id: string; name: string; progress: number; error?: string };
+   `media.list`) or fails, which is the only state worth staying on screen,
+   unless it landed with a `warning` the uploader should read first. */
+export type UploadJob = { id: string; name: string; progress: number; error?: string; warning?: string };
+
+/*
+  An iPhone records HEVC, which plays for its uploader on a Mac but shows black
+  for teammates on Linux and many Windows machines, and never renders in the
+  cloud. The render worker re-encodes such clips to H.264 in the background
+  (same media id); until then this is the only place anyone would find out.
+*/
+const HEVC_WARNING = "This clip is HEVC. It may not play for everyone or export in the cloud until we've converted it.";
 
 /*
   The upload flow (T-013) as a hook, for anywhere files can be dropped: probe
@@ -50,11 +59,13 @@ export function useMediaUpload() {
           width: probe.width,
           height: probe.height,
           duration: probe.duration,
+          codec: probe.codec,
           name: file.name,
         });
         primeMedia([row]);
         created.push(row);
-        setJobs((j) => j.filter((x) => x.id !== jobId));
+        if (probe.codec === "hevc") setJobs((j) => j.map((x) => (x.id === jobId ? { ...x, progress: 1, warning: HEVC_WARNING } : x)));
+        else setJobs((j) => j.filter((x) => x.id !== jobId));
       } catch (error) {
         setJobs((j) => j.map((x) => (x.id === jobId ? { ...x, error: error instanceof Error ? error.message : "Upload failed" } : x)));
       }

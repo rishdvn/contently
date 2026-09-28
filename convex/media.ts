@@ -103,6 +103,10 @@ export const create = mutation({
     height: v.number(),
     duration: v.optional(v.number()),
     posterStorageId: v.optional(v.id("_storage")),
+    /* Videos: the codec the browser read from the container ("h264", "hevc").
+       Anything but "h264" queues the clip for the render worker's transcode
+       (`convex/transcode.ts`). */
+    codec: v.optional(v.string()),
     name: v.string(),
     tags: v.optional(v.array(v.string())),
   },
@@ -430,7 +434,9 @@ export const remove = mutation({
   transaction, so no reader ever sees a row whose file is gone. `from` is the
   master the caller encoded from: if the row has moved on since (a second run
   got there first), nothing changes and the caller's uploads are deleted rather
-  than left billed and unreferenced. Answers whether the swap happened.
+  than left billed and unreferenced. Answers whether the swap happened. The
+  render worker's transcode of uploads swaps through it too
+  (`convex/transcode.ts`).
 */
 export const replaceFiles = internalMutation({
   args: {

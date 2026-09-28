@@ -3,7 +3,10 @@
   plain Node with no browser and no Convex.
 */
 import assert from "node:assert/strict";
+import { existsSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { describe, it } from "node:test";
+import { fileURLToPath } from "node:url";
 
 import { findRole, rolesIn, slotsOf } from "../editor/roles";
 import type { Block, BlockBase, Project } from "../editor/types";
@@ -11,6 +14,8 @@ import type { Block, BlockBase, Project } from "../editor/types";
 import { getSpec, listSpecs } from "./catalog";
 import { expandPath, fieldSlots, formatPath, inputAt, parsePath } from "./fields";
 import { validateProps } from "./inputs";
+
+const here = dirname(fileURLToPath(import.meta.url));
 
 const base: Omit<BlockBase, "id"> = { x: 0, y: 0, w: 100, h: 100, rotation: 0, opacity: 1, locked: false, hidden: false, flipX: false, flipY: false, start: 0, end: 4, animation: "none", effects: [] };
 
@@ -43,9 +48,15 @@ const template: Pick<Project, "slides"> = {
 };
 
 describe("catalog", () => {
-  it("lists every block with its data", () => {
+  /* No exhaustive id list here: every new block would edit the same line. */
+  it("lists every block once, each with its own folder", () => {
     const ids = listSpecs().map((s) => s.id);
-    assert.deepEqual([...ids].sort(), ["counter", "imessage", "logo-strip", "product-card", "search-bar"]);
+    assert.equal(new Set(ids).size, ids.length);
+    for (const id of ["counter", "imessage", "logo-strip", "product-card", "search-bar"]) assert.ok(ids.includes(id), id);
+    for (const id of ids) {
+      const folder = [join(here, id), join(here, "text", id)].find((dir) => existsSync(join(dir, "schema.ts")));
+      assert.ok(folder, `${id}: no lib/blocks/${id}/schema.ts or lib/blocks/text/${id}/schema.ts`);
+    }
   });
 
   for (const spec of listSpecs()) {

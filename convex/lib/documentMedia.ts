@@ -65,8 +65,10 @@ function mediaRefs(document: unknown): Map<string, MediaRef[]> {
 
 /*
   `keep` leaves a row's id in place, for a reader who can resolve it themselves:
-  a project made from a template keeps the ids of stock and of its own org's
-  media, so they stay in its library, and gets URLs for the rest.
+  a project made from a template (`projectFromTemplate` in `templates.ts`)
+  keeps the ids of stock and of its own org's media, so they stay in its
+  library, and gets URLs for the rest. Audio is not here: library tracks are
+  shared by every organisation and resolved by `trackId`.
 */
 export async function withResolvedMedia(
   ctx: QueryCtx,

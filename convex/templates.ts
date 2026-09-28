@@ -3,7 +3,7 @@ import { ConvexError, v } from "convex/values";
 import { rolesIn, slotsOf } from "../lib/editor/roles";
 import type { Project } from "../lib/editor/types";
 import type { Doc, Id } from "./_generated/dataModel";
-import { internalMutation, internalQuery, mutation, query, type QueryCtx } from "./_generated/server";
+import { internalMutation, internalQuery, mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
 import { requireOrg, tryUser } from "./lib/auth";
 import { withResolvedMedia } from "./lib/documentMedia";
 import { insertProject } from "./projects";
@@ -14,7 +14,8 @@ import { insertProject } from "./projects";
   this file is the storage and the rules.
 
   - Anyone signed in reads published templates (`list`, `get`), and makes a
-    project from one in their organisation (`createProjectFrom`).
+    project from one in their organisation (`createProjectFrom`). The API's
+    `POST /v1/projects` makes it the same way: both call `projectFromTemplate`.
   - A template is made from a project (`createFromProject`) by an admin of the
     project's organisation, and only that organisation's admins update it.
     Unpublished, it is visible to that organisation alone: any organisation
@@ -132,27 +133,91 @@ export const get = query({
   },
 });
 
-/*
-  A new project in the caller's organisation, a copy of the template's
-  document, roles included: the Templates page's Create. Any member may, of
-  any template they can see.
+/* Published templates, and the given organisation's own. */
+export const visibleTo = (row: Doc<"templates">, orgId: Id<"organizations">) => row.published || row.orgId === orgId;
 
-  Stock media and the caller's own organisation's media keep their ids, so the
-  project's library and "Used in" still know them. Media from the template's
-  organisation, which the caller cannot resolve, comes as the URL it resolves
-  to now, as `get` hands it out.
+type AudioLike = { start?: unknown; duration?: unknown };
+
+/*
+  The one way a project is made from a template. The Templates page's Create
+  (`createProjectFrom`) and the API's `POST /v1/projects`
+  (`api/projects.createFromTemplate`) both come here, so the two cannot drift.
+  `docs/templates.md` → "Making a project from a template" says the same to
+  callers.
+
+  - Scene and block ids are kept. The API replaces content by `blockId`, with
+    ids read from `GET /v1/templates/:id`, so they have to address the same
+    blocks in the copy; ids only need to be unique within one document.
+  - Media: stock and the new project's own organisation's media keep their
+    ids, so the project's library, "Used in" and the render worker know them.
+    Media the template's organisation owns, which the new one cannot resolve,
+    comes as the URL it resolves to now (`withResolvedMedia`).
+  - Audio: library tracks (`audioTracks`) are shared by every organisation, so
+    each keeps its `trackId`, which the studio and the render worker turn into
+    a live URL, and its `src` as the fallback. With `scenes`, the lane is cut
+    to the length of the scenes kept.
+  - `scenes`: some scenes by index, in the order given; all of them when absent.
+
+  The template has to be published or the new project's organisation's own.
+*/
+export async function projectFromTemplate(
+  ctx: MutationCtx,
+  { orgId, userId, templateId, name, scenes }: { orgId: Id<"organizations">; userId: Id<"users">; templateId: string; name?: string; scenes?: number[] },
+): Promise<Id<"projects">> {
+  const tid = ctx.db.normalizeId("templates", templateId);
+  const template = tid ? await ctx.db.get(tid) : null;
+  if (!template || !visibleTo(template, orgId)) fail("missing", `No template ${templateId}`);
+
+  const source = (
+    template.orgId ? await withResolvedMedia(ctx, template.orgId, template.document, (media) => !media.orgId || media.orgId === orgId) : template.document
+  ) as TemplateDocument & Record<string, unknown>;
+
+  const all = source.slides ?? [];
+  if (scenes) {
+    const bad = scenes.filter((i) => !Number.isInteger(i) || i < 0 || i >= all.length);
+    if (!scenes.length) fail("invalid", "scenes: pick at least one scene, or leave it out for all of them");
+    if (bad.length) fail("invalid", `scenes: this template has scenes 0–${all.length - 1}; no scene ${bad.join(", ")}`);
+    if (new Set(scenes).size !== scenes.length) fail("invalid", "scenes: each scene at most once");
+  }
+  const slides = scenes ? scenes.map((i) => all[i]!) : all;
+
+  const tracks = (Array.isArray(source.audio) ? source.audio : []) as AudioLike[];
+  const length = slides.reduce((sum, s) => sum + (Number.isFinite(s.duration) ? s.duration : 0), 0);
+  const audio =
+    scenes && template.kind === "video"
+      ? tracks
+          .filter((t) => typeof t.start === "number" && t.start < length)
+          .map((t) => ({ ...t, duration: Math.min(Number(t.duration) || 0, length - (t.start as number)) }))
+      : tracks;
+
+  const now = Date.now();
+  const title = name?.trim() || template.name;
+  const document = {
+    ...source,
+    id: "",
+    name: title,
+    kind: template.kind,
+    aspect: template.aspect,
+    width: typeof source.width === "number" ? source.width : 1080,
+    height: typeof source.height === "number" ? source.height : 1080,
+    slides,
+    audio,
+    createdAt: now,
+    updatedAt: now,
+  };
+  return await insertProject(ctx, orgId, userId, document, { updatedAt: now });
+}
+
+/*
+  A new project in the caller's organisation from a template, roles included:
+  the Templates page's Create. Any member may, of any template their
+  organisation can see.
 */
 export const createProjectFrom = mutation({
   args: { orgId: v.string(), id: v.string() },
   handler: async (ctx, { orgId, id }) => {
     const { org, user } = await requireOrg(ctx, orgId);
-    const templateId = ctx.db.normalizeId("templates", id);
-    const row = templateId ? await ctx.db.get(templateId) : null;
-    if (!row || !visible(row, await memberOrgIds(ctx))) fail("missing", "No such template");
-
-    const document = row.orgId ? await withResolvedMedia(ctx, row.orgId, row.document, (media) => !media.orgId || media.orgId === org._id) : row.document;
-    const now = Date.now();
-    return await insertProject(ctx, org._id, user._id, { ...(document as object), name: row.name, createdAt: now, updatedAt: now }, { updatedAt: now });
+    return await projectFromTemplate(ctx, { orgId: org._id, userId: user._id, templateId: id });
   },
 });
 

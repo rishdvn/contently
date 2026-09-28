@@ -13,7 +13,7 @@ that, not only by how it looks on the day it was made.
 
 | | |
 |---|---|
-| `convex/templates.ts` | `list`, `get`, `createFromProject`, `publish`; the poster script's steps |
+| `convex/templates.ts` | `list`, `get`, `createProjectFrom`, `createFromProject`, `publish`; `projectFromTemplate`, the one way a project is made from a template; the poster script's steps |
 | `convex/schema.ts` → `templates` | The rows |
 | `lib/editor/types.ts` → `CONTENT_ROLES` | The role vocabulary |
 | `lib/editor/roles.ts` | Labels, which roles fit which block, a document's slots |
@@ -264,6 +264,35 @@ npm run mock-templates -- --org org_… --user user_…             # unpublishe
 npm run mock-templates -- --org org_… --user user_… --publish
 npm run template-posters
 ```
+
+## Making a project from a template
+
+There is one way, `projectFromTemplate` in `convex/templates.ts`. The
+Templates page's **Create** (`templates.createProjectFrom`) and the API's
+`POST /v1/projects` (`api/projects.createFromTemplate`) both call it, so a
+project made either way is the same project:
+
+- **Ids are kept.** Scene and block ids in the project are the template's, so
+  a `blockId` read from the template (`templates.get`, `GET /v1/templates/:id`)
+  addresses the same block in the project. Ids only have to be unique within
+  one document.
+- **Media carries over by who can resolve it.** Stock, and media the new
+  project's own organisation owns, keep their `media` ids: they stay in the
+  project's library and in "Used in", and the studio and the render worker
+  resolve them as usual. Media owned by the template's organisation, which the
+  new project's organisation cannot resolve, becomes the URL it resolves to at
+  that moment, with the id removed.
+- **Audio carries over as it is.** Library tracks (`audioTracks`) are shared by
+  every organisation, so each keeps its `trackId`, which the studio and the
+  render worker turn into a live URL, and its last `src` as the fallback. When
+  only some scenes are taken (the API's `scenes`), tracks are cut to the length
+  of the scenes kept, and a track that would start after the end is dropped.
+- **Who may.** Any member of the organisation the project goes into, from a
+  template that is published or is that organisation's own.
+- **Scenes** (API only): some scenes by index, in the order given.
+
+The project is a copy: editing it never changes the template, and deleting
+the template leaves it alone.
 
 ## Reading templates from code
 

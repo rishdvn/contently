@@ -13,6 +13,7 @@ import { mapMedia } from "@/lib/blocks/inputs";
 
 import { Autosaver, type SaveStatus } from "./autosave";
 import type { AspectId, Project, ProjectKind } from "./types";
+import { uploadToStorage } from "./upload";
 
 /*
   Where projects live: Convex, scoped to the organisation Clerk says is active.
@@ -368,6 +369,32 @@ export function useProjectSharing(id: string): ProjectSharing {
       await unshare({ orgId, id: id as Id<"projects"> });
     },
   };
+}
+
+/*
+  The key of the poster stored for a project, `null` if it has none, or
+  `undefined` while that is still being asked. The studio compares it with the
+  document's own `posterKey` to decide whether a new poster is needed.
+*/
+export function useStoredPosterKey(id: string): string | null | undefined {
+  const { orgId } = useActiveOrg();
+  const row = useQuery(api.projects.get, orgId ? { orgId, id } : "skip");
+  return row === undefined ? undefined : (row?.posterKey ?? null);
+}
+
+/* Upload a poster and point the project at it. */
+export function useUploadPoster(): (id: string, poster: Blob, key: string) => Promise<void> {
+  const { orgId } = useActiveOrg();
+  const uploadUrl = useMutation(api.projects.posterUploadUrl);
+  const setPoster = useMutation(api.projects.setPoster);
+  return useCallback(
+    async (id: string, poster: Blob, key: string) => {
+      if (!orgId) noOrg();
+      const storageId = await uploadToStorage(await uploadUrl({ orgId, id: id as Id<"projects"> }), poster);
+      await setPoster({ orgId, id: id as Id<"projects">, storageId: storageId as Id<"_storage">, key });
+    },
+    [orgId, uploadUrl, setPoster],
+  );
 }
 
 /* ── The one-time import ──────────────────────────────────────────────────

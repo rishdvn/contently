@@ -193,7 +193,7 @@ closed: a tenth kind is a platform change, not a block change.
 | `input.video` | `{ mediaId?, src }` | Thumbnail; opens Uploads/Stock | |
 | `input.color` | `string` (CSS colour) | Colour field with brand swatches | |
 | `input.number` | `number` | Number field | `min`, `max`, `step`, `unit` |
-| `input.select` | one of the option values | Segmented strip when ≤ 3 options with labels ≤ 10 characters; a menu otherwise | `options: { value, label }[]` |
+| `input.select` | one of the option values | Segmented strip when ≤ 3 options whose labels total ≤ 15 characters; a menu otherwise | `options: { value, label }[]` |
 | `input.boolean` | `boolean` | Switch | |
 | `input.list` | `item[]` | Reorderable rows, add/remove | `item`, `min`, `max`, `itemLabel` |
 | `input.object` | `{ …fields }` | A group of fields | `fields` |

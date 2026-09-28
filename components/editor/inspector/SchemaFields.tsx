@@ -85,8 +85,12 @@ function Field({ input, name, path, value, ctx }: { input: Input; name: string; 
         </div>
       );
     case "select":
-      /* A few short options read best as a strip; anything longer drops down. */
-      return input.options.length <= 3 && input.options.every((o) => o.label.length <= 10) ? (
+      /*
+        A few short options read best as a strip; anything longer drops down.
+        The strip is 160px, so it is the labels together that have to fit:
+        "Left · Centre · Right" does, "Bullet · Number · Check" does not.
+      */
+      return input.options.length <= 3 && input.options.reduce((n, o) => n + o.label.length, 0) <= 15 ? (
         <div className="flex items-center justify-between gap-2 pl-1">
           <span className="truncate text-ui text-ink-secondary">{label}</span>
           <Segmented className="w-[160px] shrink-0" value={String(value)} onChange={set} options={input.options.map((o) => ({ value: o.value, label: o.label }))} />

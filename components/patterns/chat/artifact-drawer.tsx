@@ -40,7 +40,7 @@ export function ArtifactDrawer({
   const kind = artifact ? artifactKinds[artifact.kind] : null;
 
   return (
-    <Drawer open={open} onClose={onClose} className="w-[560px]">
+    <Drawer open={open} onClose={onClose} className="w-[560px]" aria-label={artifact?.title}>
       <header className="flex items-start gap-3 px-6 pt-5 pb-4">
         <div className="flex min-w-0 flex-1 flex-col gap-2">
           <div className="flex items-center gap-2">

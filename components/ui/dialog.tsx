@@ -2,7 +2,7 @@
 
 import { X } from "lucide-react";
 import type { ComponentProps, ReactNode } from "react";
-import { useEffect, useRef } from "react";
+import { createContext, useContext, useEffect, useId, useRef } from "react";
 
 import { IconButton } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
@@ -72,6 +72,18 @@ function useOverlay(open: boolean, onClose: () => void) {
   return { ref, onBackdropClick };
 }
 
+/*
+  The overlay is named and described by its own header: DialogHeader puts
+  these ids on its title and description, and the <dialog> points at them.
+*/
+type OverlayIds = { title: string; description: string };
+const OverlayIds = createContext<OverlayIds | null>(null);
+
+function useOverlayIds(): OverlayIds {
+  const id = useId();
+  return { title: `${id}-title`, description: `${id}-description` };
+}
+
 type OverlayProps = {
   open: boolean;
   onClose: () => void;
@@ -79,6 +91,8 @@ type OverlayProps = {
   className?: string;
   /** Set false for flows the user must resolve, e.g. unsaved-work prompts. */
   dismissable?: boolean;
+  /** Only for an overlay without a DialogHeader; otherwise its title names it. */
+  "aria-label"?: string;
 };
 
 /** Centred modal. Use for a decision or a short focused task. */
@@ -89,11 +103,16 @@ export function Dialog({
   dismissable = true,
   className,
   children,
+  "aria-label": label,
 }: OverlayProps & { size?: Size }) {
   const { ref, onBackdropClick } = useOverlay(open, onClose);
+  const ids = useOverlayIds();
   return (
     <dialog
       ref={ref}
+      aria-label={label}
+      aria-labelledby={label ? undefined : ids.title}
+      aria-describedby={ids.description}
       onClick={dismissable ? onBackdropClick : undefined}
       onCancel={dismissable ? undefined : (e) => e.preventDefault()}
       className={cn(
@@ -102,7 +121,7 @@ export function Dialog({
         className,
       )}
     >
-      {children}
+      <OverlayIds.Provider value={ids}>{children}</OverlayIds.Provider>
     </dialog>
   );
 }
@@ -118,16 +137,21 @@ export function Drawer({
   dismissable = true,
   className,
   children,
+  "aria-label": label,
 }: OverlayProps & { side?: Side }) {
   const { ref, onBackdropClick } = useOverlay(open, onClose);
+  const ids = useOverlayIds();
   return (
     <dialog
       ref={ref}
+      aria-label={label}
+      aria-labelledby={label ? undefined : ids.title}
+      aria-describedby={ids.description}
       onClick={dismissable ? onBackdropClick : undefined}
       onCancel={dismissable ? undefined : (e) => e.preventDefault()}
       className={cn("overlay overlay-drawer", sides[side], className)}
     >
-      {children}
+      <OverlayIds.Provider value={ids}>{children}</OverlayIds.Provider>
     </dialog>
   );
 }
@@ -180,13 +204,14 @@ export function DialogHeader({
   onClose?: () => void;
   className?: string;
 }) {
+  const ids = useContext(OverlayIds);
   return (
     <header className={cn("flex items-start gap-3 px-5 pt-5 pb-4", className)}>
       {icon}
       <div className="flex min-w-0 flex-1 flex-col gap-1">
-        <h2 className="text-titles text-ink">{title}</h2>
+        <h2 id={ids?.title} className="text-titles text-ink">{title}</h2>
         {description ? (
-          <p className="text-default text-ink-secondary">{description}</p>
+          <p id={ids?.description} className="text-default text-ink-secondary">{description}</p>
         ) : null}
       </div>
       {onClose ? (

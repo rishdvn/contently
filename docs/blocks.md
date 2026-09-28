@@ -214,9 +214,11 @@ Rules of thumb:
   `<BlockImage value={props.avatar} style={…} className={…} />`. It resolves org
   media by id, sets `crossOrigin` so the export is not tainted, defaults to
   `object-fit: cover`, and renders nothing while the value is empty — so draw a
-  fallback underneath (iMessage shows the contact's initial). No block uses a
-  `video` input yet; the first one adds a `BlockVideo` beside `BlockImage`,
-  seeking the element to `ctx.time` rather than letting it play.
+  fallback underneath (iMessage shows the contact's initial). Paint a `video`
+  input with `BlockVideo`, passing the clock:
+  `<BlockVideo value={props.clip} time={ctx.time} mode={ctx.mode} />`. It shows
+  the frame at `time` (a shorter clip loops), silent; it plays along while the
+  studio plays and holds the exact frame when paused, scrubbed or exported.
 - **An empty media value is `{ src: "" }`**, and `defaults` lists every key,
   empty media included (iMessage: `avatar: { src: "" }`).
 - **Lists are for repeated content**, with honest bounds: `min` is what the

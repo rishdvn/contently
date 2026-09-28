@@ -7,7 +7,7 @@ import { shallow } from "zustand/shallow";
 
 import { setIn } from "@/lib/blocks/inputs";
 
-import { cloneBlock, project as makeProject, slide as makeSlide, uid } from "./factory";
+import { cloneBlock, nextSceneName, project as makeProject, slide as makeSlide, uid } from "./factory";
 import { rescaleSlide } from "./geometry";
 import {
   ASPECTS,
@@ -306,7 +306,7 @@ export const useEditor = create<EditorState>()(
       addSlide: step((afterId) => {
         const s = get();
         const idx = afterId ? s.project.slides.findIndex((x) => x.id === afterId) : s.project.slides.length - 1;
-        const next = makeSlide({ name: `Slide ${s.project.slides.length + 1}` });
+        const next = makeSlide({ name: nextSceneName(s.project) });
         const slides = [...s.project.slides];
         slides.splice(idx + 1, 0, next);
         set({ project: touch({ ...s.project, slides }), activeSlideId: next.id, selection: [] });

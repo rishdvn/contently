@@ -19,7 +19,7 @@ import { useActiveOrg } from "@/lib/auth/useActiveOrg";
 import { cn } from "@/lib/cn";
 import { previewPosition, seekPreview, stopPreview, togglePreview, usePreview } from "@/lib/editor/audio";
 import { rememberWith, useImportLocalRecent, useRecentTracks, useRememberTrack, type RecentTrack } from "@/lib/editor/recentAudio";
-import { imageBlock, slide as makeSlide, uid, videoBlock } from "@/lib/editor/factory";
+import { imageBlock, nextSceneName, slide as makeSlide, uid, videoBlock } from "@/lib/editor/factory";
 import { primeMedia } from "@/lib/editor/media";
 import { activeMediaTarget, useEditor, useSelectedBlocks, type MediaSource } from "@/lib/editor/store";
 import { useMediaUpload, type UploadJob } from "@/lib/editor/useMediaUpload";
@@ -521,7 +521,7 @@ function stockScene(item: MediaItem): Placed | null {
   const { project, activeSlideId, insertScenes } = useEditor.getState();
   primeMedia([item]);
   const at = project.slides.findIndex((s) => s.id === activeSlideId) + 1;
-  const name = `${project.kind === "video" ? "Scene" : "Slide"} ${project.slides.length + 1}`;
+  const name = nextSceneName(project);
   const scene =
     item.kind === "image"
       ? makeSlide({ name, background: { type: "image", mediaId: item.id, src: item.url, focalX: 50, focalY: 50, adjustments: { ...NEUTRAL_ADJUSTMENTS } } })

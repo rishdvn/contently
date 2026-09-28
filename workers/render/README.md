@@ -39,7 +39,7 @@ do not share a compiler target.
 | `RENDER_WORKER_SECRET` | yes | — | Matches `RENDER_WORKER_SECRET` on that deployment |
 | `APP_URL` | yes | — | Origin serving `/render`, e.g. the Vercel deployment |
 | `CHROME_PATH` | no | Playwright's default | Chrome binary. Use a real Chrome: H.264 encoding needs it |
-| `VERCEL_BYPASS_SECRET` | when `APP_URL` is a protected Vercel deployment | — | The project's *Protection Bypass for Automation* secret (Vercel → Settings → Deployment Protection). Sent as `x-vercel-protection-bypass` on requests to `APP_URL` only |
+| `VERCEL_BYPASS_SECRET` | when `APP_URL` is a protected Vercel deployment | — | The project's *Protection Bypass for Automation* secret (Vercel → Settings → Deployment Protection). Sent once per job as `x-vercel-protection-bypass` to get Vercel's bypass cookie; the page itself only carries the cookie |
 | `RENDER_CONCURRENCY` | no | `1` | Jobs at once, capped at 2 |
 | `RENDER_POLL_MS` | no | `2000` | Idle poll interval |
 | `RENDER_JOB_TIMEOUT_MS` | no | `300000` | Per-job deadline; keep it at or under Convex's |
@@ -47,9 +47,11 @@ do not share a compiler target.
 
 Every Vercel deployment of the app sits behind team SSO, so a worker pointed at
 one without `VERCEL_BYPASS_SECRET` gets a redirect to `vercel.com/sso-api` and
-fails every job with "The render page never became ready". With it, the worker
-sends the bypass header on the app's own requests and asks Vercel to set the
-bypass cookie; Google Fonts, Convex and storage never see the secret.
+fails every job with "The render page never became ready". With it, each job
+first asks `APP_URL/api/health` for Vercel's bypass cookie, and the page then
+reaches the app on that cookie alone: the secret is never on a browser request,
+so nothing the page loads from another origin, or is redirected to, sees it. A
+secret Vercel refuses fails the job at once, saying so.
 
 `GET /healthz` reports jobs in flight. `POST /wake` skips the poll interval,
 for a caller that has just enqueued something.

@@ -25,6 +25,7 @@ import { reviewCard } from "./text/review-card/schema";
 import { starRating } from "./text/star-rating/schema";
 import { sticker } from "./text/sticker/schema";
 import { tiktokHook } from "./text/tiktok-hook/schema";
+import { titleCard } from "./text/title-card/schema";
 
 /*
   Every block's data, with no render code: what the server reads to validate a
@@ -60,6 +61,7 @@ const SPECS = [
   reviewCard,
   starRating,
   promo,
+  titleCard,
 ] as unknown as AnyBlockSpec[];
 
 const byId = new Map(SPECS.map((spec) => [spec.id, spec]));

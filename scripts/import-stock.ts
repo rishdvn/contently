@@ -1,11 +1,13 @@
 #!/usr/bin/env node
 /*
-  Import the stock library into Convex, then make every video an H.264 master
-  with a hover preview and a poster.
+  Import the stock library into Convex, make every video an H.264 master with a
+  hover preview and a poster, and scale every photo down to the size we export.
 
       node scripts/import-stock.ts                                # the trial set
       node scripts/import-stock.ts --categories cafe,gym --photos 10 --videos 3
       node scripts/import-stock.ts --transcode                    # videos only, no import
+      node scripts/import-stock.ts --resize --categories cafe --dry-run  # photos only: what it would do
+      node scripts/import-stock.ts --resize --categories cafe     # photos only, one category
       node scripts/import-stock.ts --transcode --categories cafe --limit 3
       node scripts/import-stock.ts --transcode --recheck <mediaId>,<mediaId>  # finished rows, decided again
       node scripts/import-stock.ts --credit-links                 # only fill in credit links on existing rows
@@ -27,6 +29,12 @@
   its preview or poster, so a stopped run carries on where it left off and a
   finished library is a no-op. `--transcode` skips the import; `--skip-videos`
   skips the pass.
+
+  The photo pass works the same way, with sharp (which comes with Next) instead
+  of ffmpeg: a pending photo is one still larger than a 1080×1920 frame needs.
+  It prints what stock files take in storage before and after. `--resize` runs
+  only that pass; `--skip-resize` leaves it out; `--dry-run` encodes and reports
+  without uploading or swapping anything.
 */
 
 import { execFileSync, spawnSync } from "node:child_process";
@@ -43,6 +51,7 @@ type Counts = {
   videosWithoutPoster: number;
   videosNotH264: number;
   videosWithoutPreview: number;
+  photosOverFrame: number;
   byCategory: Record<string, { image: number; video: number }>;
   byLicense: Record<string, number>;
 };
@@ -87,6 +96,9 @@ const videosOnly = flag("transcode");
 const skipVideos = flag("skip-videos");
 /* At most this many videos in the pass, for a trial on a handful. */
 const limit = option("limit") === undefined ? undefined : count("limit", 0);
+const resizeOnly = flag("resize");
+const skipResize = flag("skip-resize");
+const dryRun = flag("dry-run");
 
 /* ── Convex ────────────────────────────────────────────────────────────── */
 
@@ -449,6 +461,141 @@ function creditLinks() {
   console.log(`credit links: ${updated} of ${scanned} stock rows updated`);
 }
 
+/* ── Photos ────────────────────────────────────────────────────────────── */
+
+/*
+  Stock photos arrive as camera originals: 3024×4032 and up, 2–9 MB each, and
+  the bulk of the library's storage. Like a video master, each is scaled down
+  until it just covers a 1080×1920 frame, never up (`photoSize`), which keeps
+  a landscape photo's middle crop as sharp on a 9:16 artboard as a portrait
+  photo is whole. It is stored as a high-quality JPEG: mozjpeg at 90, turned
+  upright from its EXIF orientation (phones store most photos sideways),
+  converted to sRGB and stripped of camera metadata. A PNG with real
+  transparency stays a PNG.
+
+  The new file is uploaded first, then `media:replaceFiles` points the same row
+  at it and deletes the old file in one transaction, so every project using the
+  photo picks up the new file by its media id with nothing rewritten. A photo
+  already within the frame is not touched.
+*/
+
+const PHOTO_QUALITY = 90;
+
+type PendingPhoto = { id: string; name: string; storageId: string; width: number; height: number; url: string | null };
+
+type Storage = Record<"photos" | "videos" | "posters" | "previews", { files: number; bytes: number }>;
+
+/* The cover rule for a still: one side lands exactly on the frame and the
+   other is rounded, since a JPEG has no even-size constraint. */
+function photoSize(width: number, height: number) {
+  const scale = Math.min(1, Math.max(FRAME.width / width, FRAME.height / height));
+  return { width: Math.round(width * scale), height: Math.round(height * scale) };
+}
+
+function storageLine(label: string, storage: Storage) {
+  const total = Object.values(storage).reduce((sum, bucket) => sum + bucket.bytes, 0);
+  const parts = Object.entries(storage).map(([name, bucket]) => `${name} ${mb(bucket.bytes)} (${bucket.files})`);
+  return `storage ${label}: ${mb(total)}: ${parts.join(", ")}`;
+}
+
+type Sharp = typeof import("sharp").default;
+type PhotoTotals = { processed: number; before: number; after: number };
+
+async function processPhoto(photo: PendingPhoto & { url: string }, dir: string, totals: PhotoTotals, sharp: Sharp) {
+  const source = join(dir, `${photo.id}.source`);
+  await download(photo.url, source);
+  const meta = await sharp(source).metadata();
+  const upright = meta.autoOrient;
+  const size = photoSize(upright.width, upright.height);
+  const before = statSync(source).size;
+
+  /* The provider's dimensions overstated the file. Record the real ones, so
+     the row stops counting as pending, and leave the file alone. */
+  if (size.width === upright.width && size.height === upright.height) {
+    rmSync(source, { force: true });
+    if (dryRun) return `already ${upright.width}×${upright.height}; would correct the row's size`;
+    const corrected = run<boolean>("media:replaceFiles", { id: photo.id, from: photo.storageId, width: upright.width, height: upright.height });
+    return corrected ? `already ${upright.width}×${upright.height}; row's size corrected` : "changed while it was processed; left for the next run";
+  }
+
+  const transparent = meta.format === "png" && meta.hasAlpha && !(await sharp(source).stats()).isOpaque;
+  const out = join(dir, `${photo.id}.${transparent ? "png" : "jpg"}`);
+  const resized = sharp(source).autoOrient().resize(size.width, size.height, { fit: "fill", kernel: "lanczos3" });
+  await (transparent ? resized.png({ compressionLevel: 9 }) : resized.jpeg({ quality: PHOTO_QUALITY, mozjpeg: true })).toFile(out);
+  const after = statSync(out).size;
+  const from = `${meta.format} ${upright.width}×${upright.height} ${mb(before)}`;
+  const to = `${transparent ? "png" : "jpeg"} ${size.width}×${size.height} ${mb(after)}`;
+
+  if (!dryRun) {
+    const [url] = run<string[]>("stock/import:uploadUrls", { count: 1 });
+    const storageId = await upload(url, out, transparent ? "image/png" : "image/jpeg");
+    const swapped = run<boolean>("media:replaceFiles", { id: photo.id, from: photo.storageId, storageId, width: size.width, height: size.height });
+    if (!swapped) {
+      rmSync(source, { force: true });
+      rmSync(out, { force: true });
+      return "changed while it was processed; left for the next run";
+    }
+  }
+  rmSync(source, { force: true });
+  rmSync(out, { force: true });
+  totals.processed += 1;
+  totals.before += before;
+  totals.after += after;
+  return `${from} → ${to}${dryRun ? " (dry run)" : ""}`;
+}
+
+async function photos() {
+  let sharp: Sharp;
+  try {
+    sharp = (await import("sharp")).default;
+  } catch {
+    console.warn("Skipping photos: sharp is not installed. It comes with Next; run npm ci and try --resize again.");
+    return true;
+  }
+
+  const categories = option("categories")?.split(",").map((slug) => slug.trim());
+  const recheck = option("recheck")?.split(",").map((id) => id.trim());
+  const scope = categories ? { categories } : {};
+  const all = run<PendingPhoto[]>("stock/import:pendingPhotos", recheck ? { ids: recheck } : scope);
+  const pending = limit === undefined ? all : all.slice(0, limit);
+  if (pending.length === 0) {
+    console.log("photos: every one is within a 1080×1920 frame");
+    return true;
+  }
+
+  const label = categories ? categories.join(", ") : "all categories";
+  console.log(storageLine(`before (${label})`, run<Storage>("stock/import:storage", scope)));
+  const dir = mkdtempSync(join(tmpdir(), "stock-photos-"));
+  const totals: PhotoTotals = { processed: 0, before: 0, after: 0 };
+  let failed = 0;
+  try {
+    for (const [index, photo] of pending.entries()) {
+      const progress = `photo ${index + 1}/${pending.length} ${photo.id} ${photo.name}`;
+      if (!photo.url) {
+        console.warn(`${progress}: file missing from storage, skipped`);
+        failed += 1;
+        continue;
+      }
+      try {
+        console.log(`${progress}: ${await processPhoto({ ...photo, url: photo.url }, dir, totals, sharp)}`);
+      } catch (error) {
+        /* One bad file should not cost the rest; the next run retries it. */
+        failed += 1;
+        console.warn(`${progress}: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+  console.log(
+    `photos: ${totals.processed} of ${pending.length} done${dryRun ? " (dry run, nothing uploaded)" : ""}, ` +
+      `${mb(totals.before)} → ${mb(totals.after)}` +
+      (all.length > pending.length ? `; ${all.length - pending.length} more pending` : ""),
+  );
+  if (!dryRun) console.log(storageLine(`after (${label})`, run<Storage>("stock/import:storage", scope)));
+  return failed === 0;
+}
+
 /* ── Report ────────────────────────────────────────────────────────────── */
 
 function report() {
@@ -463,6 +610,7 @@ function report() {
   if (counts.videosWithoutPoster) console.log(`videos still without a poster: ${counts.videosWithoutPoster}`);
   if (counts.videosNotH264) console.log(`videos not yet H.264: ${counts.videosNotH264}`);
   if (counts.videosWithoutPreview) console.log(`videos still without a preview: ${counts.videosWithoutPreview}`);
+  if (counts.photosOverFrame) console.log(`photos still larger than a 1080×1920 frame needs: ${counts.photosOverFrame}`);
 }
 
 if (flag("credit-links")) {
@@ -470,8 +618,9 @@ if (flag("credit-links")) {
   process.exit(0);
 }
 
-const imported = videosOnly ? true : importAll();
-const processed = skipVideos ? true : await videos();
+const imported = videosOnly || resizeOnly ? true : importAll();
+const processed = skipVideos || resizeOnly ? true : await videos();
+const resized = skipResize || videosOnly ? true : await photos();
 report();
 if (!imported) process.exit(2);
-if (!processed) process.exit(1);
+if (!processed || !resized) process.exit(1);

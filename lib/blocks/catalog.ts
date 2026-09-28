@@ -5,6 +5,7 @@ import { browserFrame } from "./browser-frame/schema";
 import { imageCarousel } from "./image-carousel/schema";
 import { imessage } from "./imessage/schema";
 import { logoStrip } from "./logo-strip/schema";
+import { notificationBanner } from "./notification-banner/schema";
 import { phoneFrame } from "./phone-frame/schema";
 import { productCard } from "./product-card/schema";
 import { searchBar } from "./search-bar/schema";
@@ -33,6 +34,7 @@ const SPECS = [
   imessage,
   logoStrip,
   phoneFrame,
+  notificationBanner,
   productCard,
   searchBar,
   basic,

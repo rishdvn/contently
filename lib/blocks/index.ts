@@ -11,6 +11,7 @@ import "./browser-frame";
 import "./image-carousel";
 import "./imessage";
 import "./logo-strip";
+import "./notification-banner";
 import "./phone-frame";
 import "./product-card";
 import "./search-bar";

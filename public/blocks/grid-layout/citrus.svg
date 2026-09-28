@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800" width="800" height="800">
+  <rect width="800" height="800" fill="#f4d9d0"/>
+  <g transform="translate(300 320)">
+    <circle r="190" fill="#f28c38"/>
+    <circle r="168" fill="#fbd6a4"/>
+    <circle r="156" fill="#f7a64a"/>
+    <g stroke="#fbd6a4" stroke-width="10" stroke-linecap="round">
+      <path d="M0 0 L0 -150"/><path d="M0 0 L106 -106"/><path d="M0 0 L150 0"/><path d="M0 0 L106 106"/>
+      <path d="M0 0 L0 150"/><path d="M0 0 L-106 106"/><path d="M0 0 L-150 0"/><path d="M0 0 L-106 -106"/>
+    </g>
+    <circle r="18" fill="#fbd6a4"/>
+  </g>
+  <g transform="translate(560 580)">
+    <circle r="150" fill="#e6b92e"/>
+    <circle r="132" fill="#fcecae"/>
+    <circle r="122" fill="#f5cf46"/>
+    <g stroke="#fcecae" stroke-width="8" stroke-linecap="round">
+      <path d="M0 0 L0 -118"/><path d="M0 0 L102 -59"/><path d="M0 0 L102 59"/><path d="M0 0 L0 118"/><path d="M0 0 L-102 59"/><path d="M0 0 L-102 -59"/>
+    </g>
+    <circle r="14" fill="#fcecae"/>
+  </g>
+  <path d="M600 130 C660 100 720 120 740 170 C680 190 630 175 600 130 Z" fill="#5d8c4f"/>
+  <path d="M600 130 C650 140 690 150 740 170" stroke="#3f6a38" stroke-width="4" fill="none"/>
+</svg>

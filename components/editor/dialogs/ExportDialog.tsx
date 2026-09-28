@@ -196,7 +196,7 @@ function ExportBody() {
           setError(null);
         }}
         options={[
-          { value: "browser", label: "This browser" },
+          { value: "browser", label: "Browser" },
           { value: "cloud", label: "Cloud" },
         ]}
         className="w-[164px]"
@@ -314,7 +314,7 @@ function ExportBody() {
         </div>
       ) : null}
 
-      <ExportHistory jobs={history} orgId={orgId} />
+      <ExportHistory jobs={history} orgId={orgId} projectName={safeName(project.name)} />
     </>
   );
 }
@@ -434,11 +434,11 @@ function CloudJobStatus({ job, orgId, onDismiss, onRetry }: { job: ExportJob | n
 }
 
 const FORMAT_ICON: Record<RenderFormat, typeof Film> = { mp4: Film, "carousel-zip": Images, png: ImageIcon };
-const FORMAT_LABEL: Record<RenderFormat, string> = { mp4: "MP4", "carousel-zip": "ZIP", png: "PNG" };
+const FORMAT_EXTENSION: Record<RenderFormat, string> = { mp4: "mp4", "carousel-zip": "zip", png: "png" };
 
 /* The project's last few exports, from this browser or the cloud. Cloud renders
    keep their files, so they can be fetched again from here. */
-function ExportHistory({ jobs, orgId }: { jobs: ExportJob[] | undefined; orgId: string | null | undefined }) {
+function ExportHistory({ jobs, orgId, projectName }: { jobs: ExportJob[] | undefined; orgId: string | null | undefined; projectName: string }) {
   const cancel = useMutation(api.render.cancel);
   if (!jobs?.length) return null;
   return (
@@ -446,7 +446,7 @@ function ExportHistory({ jobs, orgId }: { jobs: ExportJob[] | undefined; orgId: 
       <span className="px-1 pt-0.5 pb-1 text-cap text-ink-secondary">Recent exports</span>
       {jobs.map((job) => {
         const Icon = FORMAT_ICON[job.format];
-        const name = job.fileName ?? job.outputs[0]?.name ?? FORMAT_LABEL[job.format];
+        const name = job.fileName ?? job.outputs[0]?.name ?? `${projectName}.${FORMAT_EXTENSION[job.format]}`;
         const when = relativeTime(job.finishedAt ?? job.createdAt);
         const detail =
           job.status === "queued"

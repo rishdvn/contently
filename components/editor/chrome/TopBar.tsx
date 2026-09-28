@@ -1,17 +1,21 @@
 "use client";
 
+import { useQuery } from "convex/react";
 import { ChevronDown, Keyboard, Maximize, Redo2, Smartphone, Undo2 } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
 import { Menu, MenuItem } from "@/components/ui/menu";
 import { Tooltip } from "@/components/ui/tooltip";
+import { api } from "@/convex/_generated/api";
+import { useActiveOrg } from "@/lib/auth/useActiveOrg";
 import { cn } from "@/lib/cn";
 import { redo, undo, useEditor, useTemporal } from "@/lib/editor/store";
 import { ASPECTS, type AspectId } from "@/lib/editor/types";
 
 import { cameraRef } from "../canvas/Viewport";
 import { Panel } from "../controls";
+import { SaveTemplateDialog } from "../dialogs/SaveTemplateDialog";
 import { shortcutKey } from "../useHotkeys";
 
 /*
@@ -29,6 +33,7 @@ export function TopBar({ left, right }: { left: number; right: number }) {
           <span className="text-[13px] font-semibold italic leading-none">C</span>
         </Link>
         <ProjectName />
+        <ProjectMenu />
       </div>
       <Panel className="absolute top-2 flex h-11 -translate-x-1/2 items-center gap-0.5 px-1.5" style={{ left: `calc(${left}px + (100% - ${left + right}px) / 2)` }}>
         <HistoryButtons />
@@ -72,6 +77,32 @@ function ProjectName() {
       onBlur={() => draft.trim() && draft !== name && rename(draft.trim())}
       onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
     />
+  );
+}
+
+/*
+  The project's own actions, beside its name. Today that is Save as template,
+  which is for the organisation's admins, so for anyone else there is no menu.
+*/
+function ProjectMenu() {
+  const { orgId } = useActiveOrg();
+  const projectId = useEditor((s) => s.project.id);
+  const info = useQuery(api.templates.forProject, orgId && projectId ? { orgId, projectId } : "skip");
+  const [open, setOpen] = useState(false);
+  if (!info?.admin) return null;
+  return (
+    <>
+      <Menu
+        trigger={(p) => (
+          <button type="button" aria-label="Project menu" className={cn(iconBtn, "-ml-1.5 size-7")} {...p}>
+            <ChevronDown />
+          </button>
+        )}
+      >
+        <MenuItem onClick={() => setOpen(true)}>{info.template ? "Update template…" : "Save as template…"}</MenuItem>
+      </Menu>
+      <SaveTemplateDialog open={open} onClose={() => setOpen(false)} />
+    </>
   );
 }
 

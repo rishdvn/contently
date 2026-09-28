@@ -246,6 +246,10 @@ function jobView(job: Doc<"renderJobs">, urls: (string | null)[]) {
     error: job.error,
     createdAt: job._creationTime,
     finishedAt: job.finishedAt,
+    progress: job.progress,
+    browser: job.browser === true,
+    /* What a browser export was saved as; it has no stored file to name. */
+    fileName: job.browser ? job.outputNames?.[0] : undefined,
     outputs: job.outputStorageIds.map((storageId, i) => ({
       storageId,
       name: job.outputNames?.[i] ?? `${i + 1}`,
@@ -257,6 +261,16 @@ function jobView(job: Doc<"renderJobs">, urls: (string | null)[]) {
 export async function viewWithUrls(ctx: QueryCtx, job: Doc<"renderJobs">) {
   const urls = await Promise.all(job.outputStorageIds.map((id) => ctx.storage.getUrl(id)));
   return jobView(job, urls);
+}
+
+/* Jobs ahead of a queued one, so a caller can tell "waiting" from "stuck". */
+async function queuePosition(ctx: QueryCtx, job: Doc<"renderJobs">) {
+  if (job.status !== "queued") return undefined;
+  const queued = await ctx.db
+    .query("renderJobs")
+    .withIndex("by_status", (q) => q.eq("status", "queued"))
+    .collect();
+  return queued.filter((other) => other._creationTime < job._creationTime).length;
 }
 
 /*
@@ -324,7 +338,84 @@ export const job = query({
     const id = ctx.db.normalizeId("renderJobs", jobId);
     const row = id ? await ctx.db.get(id) : null;
     if (!row || row.orgId !== context.org._id) return null;
-    return await viewWithUrls(ctx, row);
+    return { ...(await viewWithUrls(ctx, row)), queuePosition: await queuePosition(ctx, row) };
+  },
+});
+
+/* How many exports the studio's export history shows. */
+const HISTORY_LENGTH = 5;
+
+/*
+  A project's export history: its newest renders and browser exports, newest
+  first, for the studio's Export dialog. Cloud renders come with their files;
+  a browser export is just a record that it happened.
+*/
+export const recentExports = query({
+  args: { orgId: v.string(), projectId: v.string() },
+  handler: async (ctx, { orgId, projectId }) => {
+    const context = await tryOrg(ctx, orgId);
+    if (!context) return [];
+    const id = ctx.db.normalizeId("projects", projectId);
+    const project = id ? await ctx.db.get(id) : null;
+    if (!project || project.orgId !== context.org._id) return [];
+    const rows = await ctx.db
+      .query("renderJobs")
+      .withIndex("by_project", (q) => q.eq("projectId", project._id))
+      .order("desc")
+      .take(HISTORY_LENGTH);
+    return await Promise.all(rows.map(async (row) => ({ ...(await viewWithUrls(ctx, row)), queuePosition: await queuePosition(ctx, row) })));
+  },
+});
+
+/*
+  An export the studio made in the tab, for the history. The file went to the
+  person's downloads, so there is nothing to store: the row is `done` from the
+  start and nothing ever claims it.
+*/
+export const recordBrowserExport = mutation({
+  args: {
+    orgId: v.string(),
+    projectId: v.string(),
+    format,
+    fileName: v.string(),
+    scene: v.optional(v.number()),
+    scale: v.optional(v.number()),
+    fps: v.optional(v.number()),
+  },
+  handler: async (ctx, { orgId, projectId, format: exported, fileName, scene, scale, fps }) => {
+    const { org, user } = await requireOrg(ctx, orgId);
+    const id = ctx.db.normalizeId("projects", projectId);
+    const project = id ? await ctx.db.get(id) : null;
+    if (!project || project.orgId !== org._id) fail("missing", "No such project in this organisation");
+    await ctx.db.insert("renderJobs", {
+      orgId: org._id,
+      projectId: project._id,
+      format: exported,
+      status: "done",
+      scene,
+      scale,
+      fps,
+      outputStorageIds: [],
+      outputNames: [fileName.slice(0, 200)],
+      attempts: 0,
+      requestedBy: user._id,
+      browser: true,
+      finishedAt: Date.now(),
+    });
+  },
+});
+
+/* Take back a render nobody has started. One that is running is left to finish:
+   its files would be uploaded anyway, with nothing pointing at them. */
+export const cancel = mutation({
+  args: { orgId: v.string(), jobId: v.string() },
+  handler: async (ctx, { orgId, jobId }) => {
+    const { org } = await requireOrg(ctx, orgId);
+    const id = ctx.db.normalizeId("renderJobs", jobId);
+    const row = id ? await ctx.db.get(id) : null;
+    if (!row || row.orgId !== org._id) fail("missing", "No such render job");
+    if (row.status !== "queued") fail("invalid", `Render job is ${row.status}; only a queued job can be cancelled`);
+    await ctx.db.patch(row._id, { status: "failed", error: "Cancelled", finishedAt: Date.now() });
   },
 });
 
@@ -406,6 +497,7 @@ export const claim = mutation({
       claimedAt: now,
       attempts: (next.attempts ?? 0) + 1,
       error: undefined,
+      progress: undefined,
     });
 
     return {
@@ -440,6 +532,19 @@ async function claimed(ctx: MutationCtx, jobId: Id<"renderJobs">) {
   if (row.status !== "running") fail("invalid", `Render job is ${row.status}, not running`);
   return row;
 }
+
+/* How far the worker has got, 0–1, for the studio's progress bar. A report that
+   arrives after the job has finished or been swept is dropped, not an error:
+   the worker should not fail a render over a progress bar. */
+export const progress = mutation({
+  args: { secret: v.string(), jobId: v.id("renderJobs"), progress: v.number() },
+  handler: async (ctx, { secret, jobId, progress: value }) => {
+    requireWorker(secret);
+    const row = await ctx.db.get(jobId);
+    if (!row || row.status !== "running" || !Number.isFinite(value)) return;
+    await ctx.db.patch(row._id, { progress: Math.min(1, Math.max(0, value)) });
+  },
+});
 
 export const complete = mutation({
   args: {

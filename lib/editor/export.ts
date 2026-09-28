@@ -83,11 +83,12 @@ export async function slideToBlob(project: Project, slideId: string, format: Ima
   `02.png`, … so a file browser lists them that way too. Every slide is on the
   canvas at once, so nothing has to be switched to paint the next one.
 */
-export async function slidesToZip(project: Project, format: ImageFormat, scale = 1, onProgress?: (p: number) => void): Promise<Blob> {
+export async function slidesToZip(project: Project, format: ImageFormat, scale = 1, onProgress?: (p: number) => void, signal?: AbortSignal): Promise<Blob> {
   const extension = format === "png" ? "png" : "jpg";
   const digits = Math.max(2, String(project.slides.length).length);
   const entries: ZipEntry[] = [];
   for (const [i, slide] of project.slides.entries()) {
+    if (signal?.aborted) throw new DOMException("Export cancelled", "AbortError");
     const blob = await slideToBlob(project, slide.id, format, scale);
     entries.push({ name: `${String(i + 1).padStart(digits, "0")}.${extension}`, data: new Uint8Array(await blob.arrayBuffer()) });
     onProgress?.((i + 1) / project.slides.length);
@@ -115,6 +116,12 @@ export type VideoQuality = "high" | "best" | "medium";
 const BITRATE: Record<VideoQuality, number> = { medium: 4_000_000, high: 9_000_000, best: 16_000_000 };
 
 export const canEncodeVideo = () => typeof window !== "undefined" && "VideoEncoder" in window && "VideoFrame" in window;
+
+/* The browser cannot make this file at all — no encoder, or none for this size —
+   as opposed to a render that went wrong. The dialog offers the cloud for these. */
+export class CodecUnsupportedError extends Error {
+  name = "CodecUnsupportedError";
+}
 
 const nextFrame = () => new Promise<void>((r) => requestAnimationFrame(() => r()));
 
@@ -354,7 +361,7 @@ export async function renderVideo(
     scale?: number;
   },
 ): Promise<Blob> {
-  if (!canEncodeVideo()) throw new Error("This browser cannot encode video. Try Chrome or Edge.");
+  if (!canEncodeVideo()) throw new CodecUnsupportedError("This browser cannot encode video.");
   /* As in `renderSlide`: no frame is painted before its media has a URL. */
   await waitForMedia(project);
   /* H.264 wants even dimensions. */
@@ -371,14 +378,14 @@ export async function renderVideo(
       break;
     }
   }
-  if (!codec) throw new Error("No supported H.264 profile for this size");
+  if (!codec) throw new CodecUnsupportedError("This browser has no H.264 encoder for this size.");
 
   /* The audio is mixed before the first frame: the muxer has to know about the
      track when it is made, and a mix that fails should fail before minutes of
      rasterising, not after. */
   const mix = await mixAudio(project, opts.audioUrl, opts.signal);
   const codecForAudio = mix ? await audioCodec() : null;
-  if (mix && !codecForAudio) throw new Error("This browser cannot encode audio. Try Chrome or Edge.");
+  if (mix && !codecForAudio) throw new CodecUnsupportedError("This browser cannot encode audio.");
 
   const muxer = new Muxer({
     target: new ArrayBufferTarget(),

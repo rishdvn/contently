@@ -107,12 +107,13 @@ async function png(page: Page, scene: number, scale: number): Promise<Uint8Array
 
 /* Video is minutes of work with no output until the end, so the page's own
    progress is polled and logged: a silent worker and a hung one look alike. */
-async function mp4(page: Page, fps: number, log: (line: string) => void): Promise<Uint8Array> {
+async function mp4(page: Page, fps: number, log: (line: string) => void, onProgress?: (value: number) => void): Promise<Uint8Array> {
   let last = -1;
   const ticker = setInterval(() => {
     void page
       .evaluate(() => window.contently?.progress ?? 0)
       .then((value) => {
+        onProgress?.(value);
         const percent = Math.round(value * 100);
         if (percent >= last + 10) {
           last = percent;
@@ -136,6 +137,8 @@ export async function renderJob(
   job: ClaimedJob,
   log: (line: string) => void,
   signal?: AbortSignal,
+  /* 0–1 as the render goes, for whoever is waiting on the job. */
+  onProgress?: (value: number) => void,
 ): Promise<RenderedFile[]> {
   const context = await browser.newContext({
     viewport: { width: 1080, height: 1920 },
@@ -164,7 +167,7 @@ export async function renderJob(
     if (job.format === "mp4") {
       if (project.kind !== "video") throw new RenderFailure(`Only a video project renders as MP4; this one is ${project.kind}`, false);
       log(`rendering ${project.slides.length} scene(s) as MP4`);
-      const bytes = await mp4(page, job.fps && job.fps > 0 ? Math.min(60, job.fps) : 30, log);
+      const bytes = await mp4(page, job.fps && job.fps > 0 ? Math.min(60, job.fps) : 30, log, onProgress);
       return [{ name: `${base}.mp4`, contentType: "video/mp4", bytes }];
     }
 
@@ -177,12 +180,15 @@ export async function renderJob(
       const bytes = await png(page, index, scale);
       const suffix = project.slides.length > 1 ? `-${pad(index + 1)}` : "";
       stills.push({ name: `${base}${suffix}.png`, contentType: "image/png", bytes });
+      onProgress?.(stills.length / scenes.length);
     }
 
     if (job.format !== "carousel-zip") return stills;
 
+    /* Inside the zip, as in the studio's own ZIP export: `01.png`, `02.png`, …
+       in order. The archive already carries the project's name. */
     const zip = new JSZip();
-    for (const still of stills) zip.file(still.name, still.bytes);
+    stills.forEach((still, i) => zip.file(`${pad(scenes[i]! + 1)}.png`, still.bytes));
     /* PNG is already compressed; storing costs a second of CPU less per file
        and the zip is the same size either way. */
     const bytes = await zip.generateAsync({ type: "uint8array", compression: "STORE" });

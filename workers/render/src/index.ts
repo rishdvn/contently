@@ -92,7 +92,7 @@ async function run(chrome: Browser, job: ClaimedJob) {
   log(`job ${job.jobId}: ${job.format} for project ${job.projectId}`);
   try {
     const files = await withDeadline(Math.min(job.timeoutMs, cfg.jobTimeoutMs), (signal) =>
-      renderJob(chrome, cfg, job, (line) => log(`job ${job.jobId}: ${line}`), signal),
+      renderJob(chrome, cfg, job, (line) => log(`job ${job.jobId}: ${line}`), signal, (value) => void queue.progress(job.jobId, value)),
     );
     await queue.complete(job.jobId, await upload(job, files));
     log(`job ${job.jobId}: done in ${Math.round((Date.now() - started) / 1000)}s`);

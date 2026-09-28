@@ -168,6 +168,11 @@ export default defineSchema({
     /* Claims so far. A job whose worker died is requeued, but not forever. */
     attempts: v.optional(v.number()),
     requestedBy: v.optional(v.id("users")),
+    /* 0–1 while the worker renders, so the studio can draw a bar. */
+    progress: v.optional(v.number()),
+    /* Exported in a studio tab rather than by the worker: a line in the
+       project's export history, never queued and with no files to keep. */
+    browser: v.optional(v.boolean()),
   })
     .index("by_org", ["orgId"])
     .index("by_project", ["projectId"])

@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 
 import { shapeFor, textFromPreset, TEXT_PRESETS } from "@/lib/editor/presets";
-import { redo, undo, useEditor } from "@/lib/editor/store";
+import { flushHistory, redo, undo, useEditor } from "@/lib/editor/store";
 import type { ProjectKind } from "@/lib/editor/types";
 
 import { cameraRef } from "./canvas/Viewport";
@@ -352,8 +352,12 @@ export const SHORTCUTS: Shortcut[] = [
   },
 ];
 
-/* Locked blocks stay put; everything else in the selection moves together. */
+/*
+  Locked blocks stay put; everything else in the selection moves together.
+  Each press is its own undo step; a held arrow's repeats join the first.
+*/
 function nudge(e: KeyboardEvent, { state: s }: Ctx) {
+  if (!e.repeat) flushHistory();
   const step = e.shiftKey ? 10 : 1;
   const dx = e.key === "ArrowLeft" ? -step : e.key === "ArrowRight" ? step : 0;
   const dy = e.key === "ArrowUp" ? -step : e.key === "ArrowDown" ? step : 0;

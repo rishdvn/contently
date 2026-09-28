@@ -13,6 +13,7 @@ import "./product-card";
 import "./search-bar";
 import "./text/basic";
 import "./text/button";
+import "./text/callout";
 import "./text/counter";
 import "./text/list";
 import "./text/tiktok-hook";

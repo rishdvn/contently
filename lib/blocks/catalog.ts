@@ -7,6 +7,7 @@ import { productCard } from "./product-card/schema";
 import { searchBar } from "./search-bar/schema";
 import { basic } from "./text/basic/schema";
 import { button } from "./text/button/schema";
+import { callout } from "./text/callout/schema";
 import { counter } from "./text/counter/schema";
 import { list } from "./text/list/schema";
 import { tiktokHook } from "./text/tiktok-hook/schema";
@@ -27,6 +28,7 @@ const SPECS = [
   searchBar,
   basic,
   button,
+  callout,
   counter,
   tiktokHook,
   list,

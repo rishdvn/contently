@@ -184,7 +184,10 @@ function SlideStrip({ left, right }: { left: number; right: number }) {
                       <span className="text-[11px] leading-none">⋯</span>
                     </button>
                   )}
-                  className="!top-auto bottom-[calc(100%+6px)]"
+                  /* Fixed at its static position (the ⋯ button's corner), then
+                     lifted above it: the strip scrolls sideways, and a scroll
+                     container clips an absolute menu in both directions. */
+                  className="fixed top-auto right-auto left-auto -translate-x-[calc(100%-20px)] -translate-y-[calc(100%+6px)]"
                 >
                   <MenuItem onClick={() => duplicateSlide(s.id)}>Duplicate</MenuItem>
                   <MenuItem onClick={() => addSlide(s.id)}>Add slide after</MenuItem>

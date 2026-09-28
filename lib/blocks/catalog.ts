@@ -1,6 +1,7 @@
 import type { AnyBlockSpec } from "./spec";
 
 /* One import and one `SPECS` entry per block, alphabetical by path, like `index.ts`. */
+import { airdrop } from "./airdrop/schema";
 import { browserFrame } from "./browser-frame/schema";
 import { imageCarousel } from "./image-carousel/schema";
 import { imessage } from "./imessage/schema";
@@ -31,6 +32,7 @@ import { tiktokHook } from "./text/tiktok-hook/schema";
 const SPECS = [
   browserFrame,
   imageCarousel,
+  airdrop,
   imessage,
   logoStrip,
   phoneFrame,

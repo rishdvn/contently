@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 1000" width="600" height="1000">
+  <defs>
+    <linearGradient id="wall" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#efe3d3"/>
+      <stop offset="1" stop-color="#d9c4ab"/>
+    </linearGradient>
+    <linearGradient id="table" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#b98a60"/>
+      <stop offset="1" stop-color="#8f6441"/>
+    </linearGradient>
+    <linearGradient id="mug" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#f7f3ee"/>
+      <stop offset="0.6" stop-color="#e9e2d8"/>
+      <stop offset="1" stop-color="#cfc5b8"/>
+    </linearGradient>
+    <linearGradient id="vase" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#8fa39a"/>
+      <stop offset="1" stop-color="#5f746b"/>
+    </linearGradient>
+    <linearGradient id="light" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fff8ec" stop-opacity="0.75"/>
+      <stop offset="1" stop-color="#fff8ec" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect width="600" height="1000" fill="url(#wall)"/>
+  <!-- window light falling across the wall -->
+  <path d="M60 60 L300 60 L420 560 L180 560 Z" fill="url(#light)"/>
+  <path d="M330 60 L470 60 L590 560 L450 560 Z" fill="url(#light)" opacity="0.7"/>
+  <path d="M60 300 L360 300" stroke="#d6c2a8" stroke-width="10" opacity="0.5"/>
+  <!-- table -->
+  <rect x="0" y="690" width="600" height="310" fill="url(#table)"/>
+  <rect x="0" y="690" width="600" height="14" fill="#c99b70"/>
+  <!-- linen -->
+  <path d="M40 760 C140 740 260 745 330 770 L360 900 C260 880 150 890 20 920 Z" fill="#f3ede4"/>
+  <path d="M60 800 C150 785 250 790 320 808" stroke="#ddd3c5" stroke-width="6" fill="none"/>
+  <path d="M50 850 C150 835 260 840 335 858" stroke="#ddd3c5" stroke-width="6" fill="none"/>
+  <!-- vase with a branch -->
+  <path d="M420 250 C400 330 440 420 430 520" stroke="#6b5b45" stroke-width="6" fill="none"/>
+  <path d="M428 330 C470 300 500 300 520 290" stroke="#6b5b45" stroke-width="5" fill="none"/>
+  <path d="M424 420 C380 390 360 380 340 370" stroke="#6b5b45" stroke-width="5" fill="none"/>
+  <g fill="#7f9a6e">
+    <ellipse cx="420" cy="250" rx="18" ry="34" transform="rotate(-15 420 250)"/>
+    <ellipse cx="520" cy="288" rx="16" ry="30" transform="rotate(60 520 288)"/>
+    <ellipse cx="480" cy="300" rx="14" ry="26" transform="rotate(-40 480 300)"/>
+    <ellipse cx="340" cy="368" rx="16" ry="30" transform="rotate(-60 340 368)"/>
+    <ellipse cx="380" cy="390" rx="13" ry="24" transform="rotate(40 380 390)"/>
+    <ellipse cx="440" cy="460" rx="14" ry="26" transform="rotate(20 440 460)"/>
+  </g>
+  <path d="M390 520 C380 580 385 660 400 700 L470 700 C485 660 490 580 480 520 C470 505 400 505 390 520 Z" fill="url(#vase)"/>
+  <ellipse cx="435" cy="518" rx="44" ry="10" fill="#51645c"/>
+  <!-- mug with steam -->
+  <path d="M190 560 C200 540 215 525 205 505 C195 485 210 470 220 455" stroke="#fffaf2" stroke-width="7" stroke-linecap="round" fill="none" opacity="0.8"/>
+  <path d="M235 565 C245 545 258 530 248 510 C238 490 252 475 262 460" stroke="#fffaf2" stroke-width="7" stroke-linecap="round" fill="none" opacity="0.6"/>
+  <ellipse cx="225" cy="820" rx="120" ry="18" fill="#6e4d33" opacity="0.35"/>
+  <path d="M320 660 C380 660 380 760 315 760" stroke="#ddd4c8" stroke-width="22" fill="none"/>
+  <path d="M130 600 L320 600 L310 790 C308 808 290 820 272 820 L178 820 C160 820 142 808 140 790 Z" fill="url(#mug)"/>
+  <ellipse cx="225" cy="600" rx="95" ry="18" fill="#efe8de"/>
+  <ellipse cx="225" cy="602" rx="82" ry="12" fill="#5a3a24"/>
+</svg>

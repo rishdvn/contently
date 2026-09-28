@@ -11,6 +11,7 @@ import { notificationBanner } from "./notification-banner/schema";
 import { phoneFrame } from "./phone-frame/schema";
 import { productCard } from "./product-card/schema";
 import { searchBar } from "./search-bar/schema";
+import { splitLayout } from "./split-layout/schema";
 import { basic } from "./text/basic/schema";
 import { button } from "./text/button/schema";
 import { callout } from "./text/callout/schema";
@@ -44,6 +45,7 @@ const SPECS = [
   basic,
   button,
   callout,
+  splitLayout,
   counter,
   tiktokHook,
   list,

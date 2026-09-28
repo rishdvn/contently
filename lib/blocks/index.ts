@@ -17,6 +17,7 @@ import "./notification-banner";
 import "./phone-frame";
 import "./product-card";
 import "./search-bar";
+import "./split-layout";
 import "./text/basic";
 import "./text/button";
 import "./text/callout";

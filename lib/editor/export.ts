@@ -115,6 +115,40 @@ async function settleMedia(node: HTMLElement, budgetMs: number) {
   }
 }
 
+/*
+  The web fonts every scene uses, as one stylesheet for `paintFrame`. A video
+  has only its active scene on the canvas, so asking the first scene's node
+  (as `getFontEmbedCSS` would) misses a typeface that first appears later, and
+  that scene is painted in the fallback. Each scene is shown once instead and
+  the families its artboard computes — text and catalog blocks alike, since
+  blocks stay mounted outside their in and out points — are put on one probe
+  for html-to-image to embed from.
+*/
+async function sceneFontEmbedCSS(project: Project): Promise<string> {
+  const families = new Set<string>();
+  for (const scene of project.slides) {
+    useEditor.setState({ activeSlideId: scene.id, time: 0 });
+    await nextFrame();
+    await nextFrame();
+    const node = artboardNode(scene.id);
+    if (!node) continue;
+    for (const el of [node, ...node.querySelectorAll<HTMLElement>("*")]) families.add(getComputedStyle(el).fontFamily);
+  }
+  const probe = document.createElement("div");
+  probe.style.cssText = "position:fixed;left:-10000px;top:0;visibility:hidden";
+  probe.style.fontFamily = [...families][0] ?? "";
+  for (const family of families) {
+    const span = probe.appendChild(document.createElement("span"));
+    span.style.fontFamily = family;
+  }
+  document.body.appendChild(probe);
+  try {
+    return await getFontEmbedCSS(probe);
+  } finally {
+    probe.remove();
+  }
+}
+
 /* -------------------------------------------------------------- audio --- */
 
 const AUDIO_RATE = 48_000;
@@ -356,8 +390,7 @@ export async function renderVideo(
   const ctx = stage.getContext("2d", { willReadFrequently: true })!;
 
   try {
-    const firstNode = artboardNode(project.slides[0].id);
-    const fontEmbedCSS = firstNode ? await getFontEmbedCSS(firstNode) : "";
+    const fontEmbedCSS = await sceneFontEmbedCSS(project);
     let frame = 0;
     let elapsed = 0;
     for (const scene of project.slides) {

@@ -4,6 +4,7 @@ import { useQuery } from "convex/react";
 import { Search, X } from "lucide-react";
 import { useMemo, useState } from "react";
 
+import { Button } from "@/components/ui/button";
 import { Chip, ChipRow, TextTab } from "@/components/ui/chip";
 import { SearchInput } from "@/components/ui/input";
 import { api } from "@/convex/_generated/api";
@@ -124,9 +125,11 @@ export function TemplateLibrary() {
                     </LinkButton>
                   </>
                 ) : (
-                  <>
-                    Nothing matches. <LinkButton onClick={clear}>Clear the search and category</LinkButton>
-                  </>
+                  <span className="flex flex-col items-center gap-4">
+                    <span className="text-titles text-ink">{noMatch(category, q.trim())}</span>
+                    <span>Try another word, or look through everything.</span>
+                    <Button onClick={clear}>Clear filters</Button>
+                  </span>
                 )}
               </Notice>
             )}
@@ -148,6 +151,12 @@ export function TemplateLibrary() {
   );
 }
 
+/* "No templates for “launch”", "No sale templates", or both at once. */
+function noMatch(category: string | null, q: string) {
+  const what = category ? `No ${category} templates` : "No templates";
+  return q ? `${what} for “${q}”` : what;
+}
+
 /* Everything a search matches: name, categories, tags, kind and scene names. */
 function haystack(t: TemplateSummary) {
   return [t.name, t.kind, ...t.categories, ...t.tags, ...t.scenes.map((s) => s.name)].join(" ").toLowerCase();
@@ -162,7 +171,7 @@ function LinkButton({ onClick, children }: { onClick: () => void; children: Reac
 }
 
 function Notice({ children }: { children: React.ReactNode }) {
-  return <div className="flex h-40 items-center justify-center rounded-card bg-panel px-6 text-center text-default text-ink-secondary">{children}</div>;
+  return <div className="flex min-h-40 items-center justify-center rounded-card bg-panel px-6 py-10 text-center text-default text-ink-secondary">{children}</div>;
 }
 
 function GridSkeleton() {

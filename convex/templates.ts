@@ -3,10 +3,11 @@ import { ConvexError, v } from "convex/values";
 import { rolesIn, slotsOf } from "../lib/editor/roles";
 import type { Project } from "../lib/editor/types";
 import type { Doc, Id } from "./_generated/dataModel";
-import { internalMutation, internalQuery, mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
+import { internalMutation, internalQuery, mutation, query, type QueryCtx } from "./_generated/server";
 import { requireOrg, tryUser } from "./lib/auth";
 import { withResolvedMedia } from "./lib/documentMedia";
 import { insertProject } from "./projects";
+import type { MutationCtx } from "./_generated/server";
 
 /*
   Templates: a project document frozen as a starting point, shared by every

@@ -161,7 +161,7 @@ function SlideProperties() {
   const duplicateSlide = useEditor((s) => s.duplicateSlide);
   const removeSlide = useEditor((s) => s.removeSlide);
   const addBlock = useEditor((s) => s.addBlock);
-  const setLeftTab = useEditor((s) => s.setLeftTab);
+  const pickMedia = useEditor((s) => s.pickMedia);
   const bg = slide.background;
   const bgSrc = useMediaUrl(bg.type === "image" ? bg.mediaId : undefined, bg.type === "image" ? bg.src : "");
 
@@ -185,7 +185,7 @@ function SlideProperties() {
           onChange={(t) => {
             if (t === "color") setBackground(slide.id, { type: "color", color: bg.type === "color" ? bg.color : "#111111" });
             if (t === "gradient") setBackground(slide.id, { type: "gradient", gradient: BG_GRADIENTS[0] });
-            if (t === "image") setLeftTab("uploads");
+            if (t === "image") pickMedia({ slideId: slide.id, kind: "image", label: "Background" });
           }}
           options={[
             { value: "color", label: "Color" },
@@ -212,7 +212,7 @@ function SlideProperties() {
                 {bgSrc ? <img src={bgSrc} alt="" className="size-full object-cover" /> : null}
               </div>
               <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-                <CardButton onClick={() => setLeftTab("uploads")}>Replace</CardButton>
+                <CardButton onClick={() => pickMedia({ slideId: slide.id, kind: "image", label: "Background" })}>Replace</CardButton>
                 <CardButton
                   onClick={() => {
                     addBlock(imageBlock({ mediaId: bg.mediaId, src: bg.src, x: 0, y: 0, w: project.width, h: project.height, focalX: bg.focalX, focalY: bg.focalY, adjustments: bg.adjustments }));

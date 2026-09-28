@@ -144,7 +144,8 @@ function StockLibrary() {
         onChange={setTab}
         options={[
           { value: "photos", label: "Photos" },
-          { value: "videos", label: "Videos" },
+          /* A scene background can't be a video. */
+          { value: "videos", label: "Videos", disabled: target?.slideId !== undefined },
         ]}
       />
       <CategoryChips value={category} onChange={setCategory} />
@@ -1145,6 +1146,8 @@ function UploadsLibrary() {
   const height = useEditor((s) => s.project.height);
   /* A media slot that asked for a file (see `ReplaceBar`). */
   const target = useEditor(activeMediaTarget);
+  /* A scene background can't be a video: while one is the target, videos are off. */
+  const imagesOnly = target?.slideId !== undefined;
 
   /* Placing media replaces the selected media block if there is exactly one. */
   const place = (item: MediaItem) => {
@@ -1169,8 +1172,9 @@ function UploadsLibrary() {
     addBlock(item.kind === "video" ? videoBlock({ ...common, sourceDuration: item.duration }) : imageBlock(common));
   };
 
+  const view = imagesOnly && tab === "videos" ? "images" : tab;
   const list = (items ?? []).filter(
-    (m) => (tab === "all" || (tab === "videos" ? m.kind === "video" : m.kind === "image")) && m.name.toLowerCase().includes(q.toLowerCase()),
+    (m) => (view === "all" || (view === "videos" ? m.kind === "video" : m.kind === "image")) && m.name.toLowerCase().includes(q.toLowerCase()),
   );
 
   return (
@@ -1194,7 +1198,7 @@ function UploadsLibrary() {
           e.target.value = "";
         }}
       />
-      <PanelTabs value={tab} onChange={setTab} options={[{ value: "all", label: "All" }, { value: "videos", label: "Videos" }, { value: "images", label: "Images" }]} />
+      <PanelTabs value={view} onChange={setTab} options={[{ value: "all", label: "All" }, { value: "videos", label: "Videos", disabled: imagesOnly }, { value: "images", label: "Images" }]} />
       <PanelBody>
         <div
           className={cn("flex flex-col gap-2 rounded-[12px] border border-dashed p-2 transition-colors", over ? "border-ink bg-card" : "border-line")}
@@ -1222,6 +1226,7 @@ function UploadsLibrary() {
                 <MediaTile
                   key={item.id}
                   item={item}
+                  disabled={imagesOnly && item.kind === "video"}
                   onClick={() => place(item)}
                   onContextMenu={(e) => {
                     e.preventDefault();
@@ -1287,12 +1292,13 @@ function UploadProgress({ job, onDismiss }: { job: UploadJob; onDismiss: () => v
   `:hover`, because the VNC desktop the visuals are checked on reports no
   hover capability and the CSS variant never fires there.
 */
-function MediaTile({ item, onClick, onContextMenu }: { item: MediaItem; onClick: () => void; onContextMenu: (e: React.MouseEvent) => void }) {
+function MediaTile({ item, disabled, onClick, onContextMenu }: { item: MediaItem; disabled?: boolean; onClick: () => void; onContextMenu: (e: React.MouseEvent) => void }) {
   const [hover, setHover] = useState(false);
   return (
     <button
       type="button"
-      className="group relative overflow-hidden rounded-[8px] bg-card"
+      className="group relative overflow-hidden rounded-[8px] bg-card disabled:cursor-not-allowed disabled:opacity-40"
+      disabled={disabled}
       onClick={onClick}
       onContextMenu={onContextMenu}
       onPointerEnter={() => setHover(true)}

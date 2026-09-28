@@ -15,6 +15,7 @@ import {
   type AudioTrack,
   type Background,
   type Block,
+  NEUTRAL_ADJUSTMENTS,
   type Project,
   type ProjectKind,
   type Slide,
@@ -30,8 +31,11 @@ export type InspectorTab = "design" | "effects";
   block (`path` into its props), or an Image or Video block's own media (an
   empty `path`). The next upload or stock asset the user clicks fills it
   instead of becoming a block of its own. `label` names the slot in the panel.
+  A scene's background image is a slot too (`slideId`); it only takes images.
 */
-export type MediaTarget = { blockId: string; path: (string | number)[]; kind: "image" | "video"; label?: string };
+export type MediaTarget =
+  | { blockId: string; path: (string | number)[]; kind: "image" | "video"; label?: string; slideId?: undefined }
+  | { slideId: string; kind: "image"; label?: string; blockId?: undefined; path?: undefined };
 
 /* The two panels a media slot can be filled from. */
 export type MediaSource = "uploads" | "stock";
@@ -541,7 +545,11 @@ export const useEditor = create<EditorState>()(
         const target = activeMediaTarget(get());
         if (!target || !media.url || target.kind !== media.kind) return false;
         const value = { mediaId: media.id, src: media.url };
-        if (target.path.length) get().setComponentProp(target.blockId, target.path, value);
+        if (target.slideId !== undefined) {
+          /* A new picture keeps the background's focal point and adjustments, as a replaced block keeps its own. */
+          const bg = get().project.slides.find((x) => x.id === target.slideId)?.background;
+          get().setBackground(target.slideId, bg?.type === "image" ? { ...bg, ...value } : { type: "image", ...value, focalX: 50, focalY: 50, adjustments: { ...NEUTRAL_ADJUSTMENTS } });
+        } else if (target.path.length) get().setComponentProp(target.blockId, target.path, value);
         /* A new clip plays from its start, and its length is not the old one's. */
         else get().updateBlock(target.blockId, media.kind === "video" ? { ...value, trimStart: 0, sourceDuration: media.duration } : value);
         set({ mediaTarget: null });
@@ -587,9 +595,13 @@ export function useTemporal<T>(selector: (s: TemporalState<Tracked>) => T): T {
 }
 
 /* The media target, while it is still live: it lapses once its block is no
-   longer the one thing selected. */
-export const activeMediaTarget = (s: Pick<EditorState, "mediaTarget" | "selection">) =>
-  s.mediaTarget && s.selection.length === 1 && s.selection[0] === s.mediaTarget.blockId ? s.mediaTarget : null;
+   longer the one thing selected, or, for a background, once its scene is no
+   longer the one in the inspector (active, with nothing selected). */
+export const activeMediaTarget = (s: Pick<EditorState, "mediaTarget" | "selection" | "activeSlideId">) => {
+  const t = s.mediaTarget;
+  if (t?.slideId !== undefined) return s.selection.length === 0 && s.activeSlideId === t.slideId ? t : null;
+  return t && s.selection.length === 1 && s.selection[0] === t.blockId ? t : null;
+};
 
 /* Convenience selectors. */
 export const useProject = () => useEditor((s) => s.project);

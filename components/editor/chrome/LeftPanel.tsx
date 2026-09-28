@@ -99,14 +99,15 @@ export function PanelPrimary({ children, ...props }: React.ComponentProps<"butto
   );
 }
 
-export function PanelTabs<T extends string>({ value, onChange, options }: { value: T; onChange: (v: T) => void; options: { value: T; label: string }[] }) {
+export function PanelTabs<T extends string>({ value, onChange, options }: { value: T; onChange: (v: T) => void; options: { value: T; label: string; disabled?: boolean }[] }) {
   return (
     <div className="flex items-center gap-4 px-3 pb-2">
       {options.map((o) => (
         <button
           key={o.value}
           type="button"
-          className={cn("pb-1 text-default transition-colors", o.value === value ? "border-b border-ink text-ink" : "border-b border-transparent text-ink-disabled hover:text-ink-secondary")}
+          className={cn("pb-1 text-default transition-colors disabled:cursor-not-allowed disabled:opacity-40", o.value === value ? "border-b border-ink text-ink" : "border-b border-transparent text-ink-disabled enabled:hover:text-ink-secondary")}
+          disabled={o.disabled}
           onClick={() => onChange(o.value)}
         >
           {o.label}

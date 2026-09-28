@@ -21,6 +21,7 @@ export const TEXT_CATEGORIES = [
   "Callouts",
   "Lists",
   "Counters",
+  "Marquees",
   "Buttons",
   "Star Ratings",
   "Reviews",

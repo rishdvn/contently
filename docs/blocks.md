@@ -156,7 +156,9 @@ comment at the top of the block.
 `aspectHint` sets the box a freshly added block gets (`placementFor`: centred,
 as large as the aspect allows inside 80 % of the artboard). Pick the one the
 design reads best at; `free` is 1:1. `strip` is a 4:1 band that runs the
-artboard's full width, for rows such as the Logo strip.
+artboard's full width, for rows such as the Logo strip. `frame` covers the
+whole artboard, for overlays that place themselves against the picture, such as
+a TikTok hook keeping out of the app's UI.
 
 ### Static and video
 
@@ -191,7 +193,7 @@ closed: a tenth kind is a platform change, not a block change.
 | `input.video` | `{ mediaId?, src }` | Thumbnail; opens Uploads/Stock | |
 | `input.color` | `string` (CSS colour) | Colour field with brand swatches | |
 | `input.number` | `number` | Number field | `min`, `max`, `step`, `unit` |
-| `input.select` | one of the option values | Segmented strip when ≤ 3 options with labels ≤ 10 characters; a menu otherwise | `options: { value, label }[]` |
+| `input.select` | one of the option values | Segmented strip when ≤ 3 options whose labels total ≤ 15 characters; a menu otherwise | `options: { value, label }[]` |
 | `input.boolean` | `boolean` | Switch | |
 | `input.list` | `item[]` | Reorderable rows, add/remove | `item`, `min`, `max`, `itemLabel` |
 | `input.object` | `{ …fields }` | A group of fields | `fields` |

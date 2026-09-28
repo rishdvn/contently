@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 
 import { internal } from "../_generated/api";
+import type { Id } from "../_generated/dataModel";
 import { internalAction, internalMutation, internalQuery } from "../_generated/server";
 import { dupe } from "./dupe";
 import { STOCK_CATEGORIES, sourceRefOf, stockCategory, StockProviderError, type StockProvider } from "./provider";
@@ -29,6 +30,10 @@ import { STOCK_CATEGORIES, sourceRefOf, stockCategory, StockProviderError, type 
   swaps them onto the same row (`pendingVideos` → `uploadUrls` →
   `media:replaceFiles`). Rows the script has finished carry `codec: "h264"`, a
   preview and a poster; anything else is still pending.
+
+  Photos go the same way (`pendingPhotos`): a camera original larger than a
+  1080×1920 frame needs is scaled down by the script and swapped onto its row.
+  A finished photo is simply one whose size no longer exceeds the frame.
 */
 
 const PROVIDERS: Record<string, StockProvider> = { dupe };
@@ -87,6 +92,7 @@ export const counts = internalQuery({
     let videosWithoutPoster = 0;
     let videosNotH264 = 0;
     let videosWithoutPreview = 0;
+    let photosOverFrame = 0;
 
     for (const row of rows) {
       for (const slug of row.categories ?? []) {
@@ -98,6 +104,7 @@ export const counts = internalQuery({
       if (row.kind === "video" && !row.posterStorageId) videosWithoutPoster += 1;
       if (row.kind === "video" && row.codec !== "h264") videosNotH264 += 1;
       if (row.kind === "video" && !row.previewStorageId) videosWithoutPreview += 1;
+      if (row.kind === "image" && overFrame(row)) photosOverFrame += 1;
     }
 
     return {
@@ -107,6 +114,7 @@ export const counts = internalQuery({
       videosWithoutPoster,
       videosNotH264,
       videosWithoutPreview,
+      photosOverFrame,
       byCategory,
       byLicense,
     };
@@ -348,7 +356,82 @@ export const pendingVideos = internalQuery({
   },
 });
 
-/* Upload URLs for one video's new files, minted together to save the script a
+/* ── Photo masters ─────────────────────────────────────────────────────── */
+
+/*
+  The largest frame we export. A stock photo is scaled down until it just
+  covers it, like a stock video master, so one that covers it with room to
+  spare in both directions is still a camera original waiting for the script.
+*/
+const FRAME = { width: 1080, height: 1920 };
+const overFrame = (row: { width: number; height: number }) => row.width > FRAME.width && row.height > FRAME.height;
+
+/*
+  Stock photos still larger than the frame needs, with a URL to download each
+  from. As with `pendingVideos`, `storageId` goes back to `media:replaceFiles`
+  as `from`, `categories` narrows it for a trial and `ids` asks for rows
+  whatever their state.
+*/
+export const pendingPhotos = internalQuery({
+  args: { categories: v.optional(v.array(v.string())), ids: v.optional(v.array(v.id("media"))) },
+  handler: async (ctx, { categories, ids }) => {
+    const photos = await ctx.db
+      .query("media")
+      .withIndex("by_source_kind", (q) => q.eq("source", "stock").eq("kind", "image"))
+      .collect();
+    const pending = photos.filter((row) =>
+      ids ? ids.includes(row._id) : (!categories || categories.some((slug) => row.categories?.includes(slug))) && overFrame(row),
+    );
+    return await Promise.all(
+      pending.map(async (row) => ({
+        id: row._id,
+        name: row.name,
+        storageId: row.storageId,
+        width: row.width,
+        height: row.height,
+        url: await ctx.storage.getUrl(row.storageId),
+      })),
+    );
+  },
+});
+
+/*
+  What the stock library's files take in storage, for the script to report
+  before and after a pass. `categories` narrows it the same way the passes do.
+*/
+export const storage = internalQuery({
+  args: { categories: v.optional(v.array(v.string())) },
+  handler: async (ctx, { categories }) => {
+    const rows = await ctx.db
+      .query("media")
+      .withIndex("by_source_kind", (q) => q.eq("source", "stock"))
+      .collect();
+    const totals = {
+      photos: { files: 0, bytes: 0 },
+      videos: { files: 0, bytes: 0 },
+      posters: { files: 0, bytes: 0 },
+      previews: { files: 0, bytes: 0 },
+    };
+    const add = async (bucket: { files: number; bytes: number }, id: Id<"_storage"> | undefined) => {
+      const file = id ? await ctx.db.system.get(id) : null;
+      if (!file) return;
+      bucket.files += 1;
+      bucket.bytes += file.size;
+    };
+    await Promise.all(
+      rows
+        .filter((row) => !categories || categories.some((slug) => row.categories?.includes(slug)))
+        .flatMap((row) => [
+          add(row.kind === "image" ? totals.photos : totals.videos, row.storageId),
+          add(totals.posters, row.posterStorageId),
+          add(totals.previews, row.previewStorageId),
+        ]),
+    );
+    return totals;
+  },
+});
+
+/* Upload URLs for one asset's new files, minted together to save the script a
    round trip per file. */
 export const uploadUrls = internalMutation({
   args: { count: v.number() },

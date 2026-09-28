@@ -19,13 +19,19 @@ function artboardNode(slideId: string) {
   Rasterise one artboard as it currently stands. The node lives inside the
   zoomed world, so its clone is pinned to the origin and rendered at document
   size; `scale` multiplies that for 2x exports.
+
+  The logical insets are pinned as well as `left`/`top`. The clone is given
+  every computed property, `inset-inline` and `inset-block` included, and those
+  come after the physical ones in its style block — so a carousel slide sitting
+  at x = 1200 kept that offset and was painted outside the frame, leaving
+  every slide after the first transparent.
 */
 const captureOptions = (project: Project, fontEmbedCSS?: string) => ({
   width: project.width,
   height: project.height,
   cacheBust: false,
   fontEmbedCSS,
-  style: { left: "0px", top: "0px", transform: "none" },
+  style: { left: "0px", top: "0px", insetInlineStart: "0px", insetBlockStart: "0px", transform: "none" },
   filter: (el: HTMLElement) => !el.classList?.contains("moveable-control-box"),
 });
 

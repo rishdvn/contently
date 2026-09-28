@@ -24,8 +24,8 @@ export const inputs = {
     label: "Stroke",
     options: [
       { value: "solid", label: "Solid" },
-      { value: "dashed", label: "Dashed" },
-      { value: "dotted", label: "Dotted" },
+      { value: "dashed", label: "Dash" },
+      { value: "dotted", label: "Dots" },
     ],
   }),
   weight: input.number({ label: "Weight", min: 2, max: 24, step: 1, unit: "px", default: 8 }),

@@ -2,6 +2,7 @@ import type { AnyBlockSpec } from "./spec";
 
 /* One import and one `SPECS` entry per block, alphabetical by path, like `index.ts`. */
 import { airdrop } from "./airdrop/schema";
+import { arrowLineUnderline } from "./arrow-line-underline/schema";
 import { browserFrame } from "./browser-frame/schema";
 import { imageCarousel } from "./image-carousel/schema";
 import { imessage } from "./imessage/schema";
@@ -33,6 +34,7 @@ const SPECS = [
   browserFrame,
   imageCarousel,
   airdrop,
+  arrowLineUnderline,
   imessage,
   logoStrip,
   phoneFrame,

@@ -18,7 +18,7 @@ A block-based media editor (images, carousels, videos) that replicates Butter (b
 |---|---|---|
 | Document model | `lib/editor/types.ts`, `lib/editor/factory.ts` | Project → Slides (scenes) → Blocks. Geometry is in artboard px. `groupId` is a flat tag, not a container. |
 | Store | `lib/editor/store.ts` | zustand + zundo. Only `project` is in undo history; selection, viewport, playback are UI state. Add actions here, not ad-hoc `setState` in components. |
-| Persistence | `lib/editor/persistence.ts` | localStorage. `blob:`/`data:` URLs are stripped on save. |
+| Persistence | `lib/editor/persistence.ts`, `convex/projects.ts` | Projects live in Convex, per organisation; the studio autosaves ~500 ms after a change. `persistence.ts` is the only client module that knows a datastore exists. `blob:`/`data:` URLs are stripped on save. localStorage is read once, for the one-time import of old local projects, and never written. |
 | Canvas | `components/editor/canvas/Viewport.tsx`, `Gizmo.tsx`, `BlockView.tsx`, `Artboard.tsx` | Moveable + Selecto. Gestures write to the DOM and commit to the store once on release. `BlockView` can be driven by `PlaybackContext` outside the studio (hub previews). |
 | Canvas chrome | `SelectionToolbar.tsx`, `ContextMenu.tsx` | |
 | Timeline / slide strip | `components/editor/chrome/Bottom.tsx` | Scene bars, layer pills, drag helper (`useTimelineDrag`), collapsed bar, `useBottomUi` for panel state. Large file; coordinate before editing. |
@@ -27,6 +27,10 @@ A block-based media editor (images, carousels, videos) that replicates Butter (b
 | Hub | `components/hub/*` | Project cards with hover playback and the enlarged preview modal. |
 | Export | `lib/editor/export.ts`, `components/editor/dialogs/*` | PNG via html-to-image, MP4 via WebCodecs + mp4-muxer. |
 | Presets / design tokens | `lib/editor/presets.ts`, `app/globals.css`, `docs/butter-tokens.txt` | Tokens come from Butter's published set; do not invent new greys. |
+| Templates | `convex/templates.ts`, `docs/templates.md`, `components/hub/TemplateLibrary.tsx` / `TemplatePreview.tsx` / `TemplateCard.tsx`, `components/editor/chrome/panels/library.tsx` (flyout), `scripts/template-posters.ts`, `scripts/mock-templates.ts` | A project frozen as a starting point. Published ones are shared by every organisation; unpublished ones are their organisation's own. Only the publisher organisation (`TEMPLATE_PUBLISHER_ORG`) publishes. Roles (`lib/editor/roles.ts`) mark what a replacement fills. Posters are rendered into Convex, not drawn per request. |
+| Block catalog | `lib/blocks/*` (one folder per block, one line each in `index.ts` and `catalog.ts`), `docs/blocks.md`, `scripts/block-previews.ts` | Designed, animated components with typed inputs; the inspector is generated from them. `catalog.ts` is the server-safe copy (no render code). Previews are generated from `main` after a block merges (see Merging). |
+| Public API | `convex/api/*` (`router.ts` is every `/v1/…` route), `convex/apiKeys.ts`, `lib/api/*`, `docs/api.md`, `scripts/api-e2e.mjs` | REST over Convex HTTP actions, one organisation per key, rate-limited per key. Internal functions take the key's org as an argument and trust nothing else. Spec at `/v1/openapi.json`. |
+| MCP | `packages/mcp`, `docs/mcp.md` | `@contently/mcp`: a thin MCP server over the public API, plus the on-brand content skill. Its own package, checked on its own (`cd packages/mcp && npm run check && npm test`); the root `tsc`/`eslint` skip it. |
 
 Hot files that most tickets touch: `Bottom.tsx`, `Gizmo.tsx`, `Inspector.tsx`, `store.ts`, `globals.css`. If your ticket and another open PR both edit one of these, expect conflicts and rebase early.
 

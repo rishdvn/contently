@@ -37,6 +37,11 @@ const VIDEO_FORMATS: { value: VideoQuality; label: string }[] = [
    video holds the tab for minutes, and the worker does it with the tab closed. */
 const CLOUD_FROM_SECONDS = 30;
 
+/* Whether a render worker is running to take cloud jobs. Until one is hosted,
+   a queued job would wait forever, so a video the browser can encode defaults
+   to the browser; set NEXT_PUBLIC_CLOUD_RENDER=1 once the worker is live. */
+const CLOUD_READY = process.env.NEXT_PUBLIC_CLOUD_RENDER === "1";
+
 type Busy = { label: string; progress: number; cancel?: () => void };
 type Failure = { message: string; codec?: boolean };
 
@@ -92,7 +97,7 @@ function ExportBody() {
         ? { format: "carousel-zip", cloud: true }
         : { format: "png", scene: project.kind === "image" ? undefined : sceneIndex, cloud: !isVideo };
   const long = totalDuration(project) > CLOUD_FROM_SECONDS;
-  const cloudByDefault = tab === "video" && (long || !encodes);
+  const cloudByDefault = tab === "video" && ((CLOUD_READY && long) || !encodes);
   const target: Target = wanted.cloud ? (targetChoice ?? (cloudByDefault ? "cloud" : "browser")) : "browser";
   /* The worker writes PNG only. */
   const format: ImageFormat = target === "cloud" ? "png" : imageFormat;

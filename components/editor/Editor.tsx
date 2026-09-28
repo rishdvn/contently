@@ -21,6 +21,7 @@ import { TopBar } from "./chrome/TopBar";
 import { ExportDialog } from "./dialogs/ExportDialog";
 import { ShareDialog } from "./dialogs/ShareDialog";
 import { ShortcutsDialog } from "./dialogs/ShortcutsDialog";
+import { CrashOnDemand, StudioErrorBoundary } from "./StudioErrorBoundary";
 import { useHotkeys } from "./useHotkeys";
 
 const KINDS: ProjectKind[] = ["image", "carousel", "video"];
@@ -70,16 +71,19 @@ export function Editor({ projectId, kind }: { projectId: string; kind?: string }
   return (
     <div className="fixed inset-0 overflow-hidden bg-canvas text-ink">
       <link rel="stylesheet" href={googleFontsHref()} crossOrigin="anonymous" />
-      <Viewport insets={insets}>
-        <TopBar left={insets.left} right={insets.right} />
-        <Rail top={insets.top} bottom={bottom} />
-        <LeftPanel bottom={bottom} />
-        <Inspector bottom={bottom} />
-        <Bottom left={leftTab ? panelRight : 12} right={12} />
-      </Viewport>
-      <ExportDialog />
-      <ShareDialog />
-      <ShortcutsDialog />
+      <StudioErrorBoundary projectId={projectId}>
+        <Viewport insets={insets}>
+          <TopBar left={insets.left} right={insets.right} />
+          <Rail top={insets.top} bottom={bottom} />
+          <LeftPanel bottom={bottom} />
+          <Inspector bottom={bottom} />
+          <Bottom left={leftTab ? panelRight : 12} right={12} />
+        </Viewport>
+        <ExportDialog />
+        <ShareDialog />
+        <ShortcutsDialog />
+        <CrashOnDemand />
+      </StudioErrorBoundary>
     </div>
   );
 }

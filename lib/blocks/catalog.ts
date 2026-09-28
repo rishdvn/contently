@@ -1,6 +1,7 @@
 import type { AnyBlockSpec } from "./spec";
 
 /* One import and one `SPECS` entry per block, alphabetical by path, like `index.ts`. */
+import { browserFrame } from "./browser-frame/schema";
 import { imessage } from "./imessage/schema";
 import { logoStrip } from "./logo-strip/schema";
 import { phoneFrame } from "./phone-frame/schema";
@@ -26,6 +27,7 @@ import { tiktokHook } from "./text/tiktok-hook/schema";
   reaches React, so `convex/` imports this module as it is.
 */
 const SPECS = [
+  browserFrame,
   imessage,
   logoStrip,
   phoneFrame,

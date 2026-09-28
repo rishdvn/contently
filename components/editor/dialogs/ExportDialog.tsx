@@ -5,7 +5,7 @@ import { Check, Download } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { trackUrl } from "@/lib/editor/audio";
-import { canEncodeVideo, download, renderVideo, safeName, slideToBlob, type ImageFormat, type VideoQuality } from "@/lib/editor/export";
+import { canEncodeVideo, download, renderVideo, safeName, slidesToZip, slideToBlob, type ImageFormat, type VideoQuality } from "@/lib/editor/export";
 import { useEditor } from "@/lib/editor/store";
 
 import { Card, Select, TextField } from "../controls";
@@ -56,16 +56,16 @@ function ExportBody() {
 
   const exportImages = async () => {
     setError(null);
-    const slides = range === "all" ? project.slides : project.slides.filter((s) => s.id === activeSlideId);
     setBusy({ label: "Rendering…", progress: 0 });
     try {
-      /* Every slide is on the canvas for carousels; video renders the active scene only. */
-      for (let i = 0; i < slides.length; i++) {
-        const blob = await slideToBlob(project, slides[i].id, format, scale);
-        const suffix = slides.length > 1 ? `-${String(i + 1).padStart(2, "0")}` : "";
-        download(blob, `${safeName(project.name)}${suffix}.${format === "png" ? "png" : "jpg"}`);
-        setBusy({ label: "Rendering…", progress: (i + 1) / slides.length });
-        if (slides.length > 1) await new Promise((r) => setTimeout(r, 250));
+      /* A whole carousel is one ZIP of its slides in order; anything else is the
+         one slide or scene on the canvas. */
+      if (project.kind === "carousel" && range === "all") {
+        const zip = await slidesToZip(project, format, scale, (p) => setBusy({ label: "Rendering…", progress: p }));
+        download(zip, `${safeName(project.name)}.zip`);
+      } else {
+        const slide = project.slides.find((s) => s.id === activeSlideId) ?? project.slides[0];
+        download(await slideToBlob(project, slide.id, format, scale), `${safeName(project.name)}.${format === "png" ? "png" : "jpg"}`);
       }
       finish();
     } catch (e) {
@@ -159,7 +159,7 @@ function ExportBody() {
           {project.kind === "carousel" ? (
             <FlyoutRow label="Slides">
               <Select value={range} onChange={(e) => setRange(e.target.value as "current" | "all")} className="h-7 bg-transparent">
-                <option value="all">All {project.slides.length} slides</option>
+                <option value="all">All {project.slides.length} slides (ZIP)</option>
                 <option value="current">Current slide</option>
               </Select>
             </FlyoutRow>

@@ -8,6 +8,7 @@ import { useEditor } from "./store";
 import { fadeLengths } from "./audio";
 import { sceneOffsets, totalDuration } from "./geometry";
 import type { AudioTrack, Project } from "./types";
+import { zipStore, type ZipEntry } from "./zip";
 
 export type ImageFormat = "png" | "jpeg";
 
@@ -75,6 +76,23 @@ export async function slideToBlob(project: Project, slideId: string, format: Ima
   return new Promise((resolve, reject) =>
     canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("Encoding failed"))), format === "png" ? "image/png" : "image/jpeg", 0.92),
   );
+}
+
+/*
+  A carousel as one download: every slide in the order it posts, named `01.png`,
+  `02.png`, … so a file browser lists them that way too. Every slide is on the
+  canvas at once, so nothing has to be switched to paint the next one.
+*/
+export async function slidesToZip(project: Project, format: ImageFormat, scale = 1, onProgress?: (p: number) => void): Promise<Blob> {
+  const extension = format === "png" ? "png" : "jpg";
+  const digits = Math.max(2, String(project.slides.length).length);
+  const entries: ZipEntry[] = [];
+  for (const [i, slide] of project.slides.entries()) {
+    const blob = await slideToBlob(project, slide.id, format, scale);
+    entries.push({ name: `${String(i + 1).padStart(digits, "0")}.${extension}`, data: new Uint8Array(await blob.arrayBuffer()) });
+    onProgress?.((i + 1) / project.slides.length);
+  }
+  return new Blob([zipStore(entries)], { type: "application/zip" });
 }
 
 export function download(blob: Blob, filename: string) {

@@ -31,9 +31,13 @@ export const BlockView = memo(function BlockView({
 
   if (block.hidden) return null;
 
-  /* In a video the block only exists between its in and out points. */
+  /*
+    In a video the block only exists between its in and out points. Anywhere
+    else there is no clock, so progress is null and a still shows every preset
+    at rest: entrances have landed, zoom and pan sit at their neutral frame.
+  */
   const inRange = !isVideoProject || (time >= block.start && time <= block.end);
-  const progress = isVideoProject && block.end > block.start ? (time - block.start) / (block.end - block.start) : 0;
+  const progress = !isVideoProject ? null : block.end > block.start ? (time - block.start) / (block.end - block.start) : 0;
 
   const style: CSSProperties = {
     ...frameStyle(block),
@@ -69,8 +73,8 @@ export const BlockView = memo(function BlockView({
 });
 
 /* Preset animations are driven from timeline progress, not CSS keyframes, so scrubbing works. */
-function animationStyle(b: Block, p: number, inRange: boolean): CSSProperties {
-  if (b.animation === "none" || !inRange) return {};
+function animationStyle(b: Block, p: number | null, inRange: boolean): CSSProperties {
+  if (b.animation === "none" || !inRange || p === null) return {};
   const t = Math.min(1, Math.max(0, p));
   const ease = 1 - Math.pow(1 - t, 3);
   switch (b.animation) {

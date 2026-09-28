@@ -59,7 +59,9 @@ export function BlockVideo({ value, time, mode, style, className }: { value: Med
       if (v.paused) v.play().catch(() => {});
     } else {
       if (!v.paused) v.pause();
-      if (Math.abs(v.currentTime - at) > 0.01) v.currentTime = at;
+      /* A millisecond in, so a time on a frame boundary (the exporter's k / fps)
+         lands on the frame that starts there, not on the one before it. */
+      if (Math.abs(v.currentTime - at) > 0.01) v.currentTime = at + 0.001;
     }
   }, [playing, time]);
 

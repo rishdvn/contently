@@ -4,7 +4,7 @@ import { makeFunctionReference } from "convex/server";
 import type { Config } from "./config.js";
 
 /*
-  The queue, as the worker sees it: four mutations in `convex/render.ts`, called
+  The queue, as the worker sees it: five mutations in `convex/render.ts`, called
   over HTTP with the worker secret in place of a session.
 
   Function references are built from strings rather than imported from
@@ -32,6 +32,7 @@ const complete = makeFunctionReference<
   { secret: string; jobId: string; outputs: { storageId: string; name: string }[] },
   null
 >("render:complete");
+const progress = makeFunctionReference<"mutation", { secret: string; jobId: string; progress: number }, null>("render:progress");
 const failJob = makeFunctionReference<
   "mutation",
   { secret: string; jobId: string; error: string; retry?: boolean },
@@ -71,6 +72,12 @@ export class Queue {
 
   async complete(jobId: string, outputs: Output[]): Promise<void> {
     await this.client.mutation(complete, { secret: this.cfg.secret, jobId, outputs });
+  }
+
+  /* Best effort: a progress bar is not worth failing a render over, and a
+     deployment older than `render:progress` simply has no bar. */
+  async progress(jobId: string, value: number): Promise<void> {
+    await this.client.mutation(progress, { secret: this.cfg.secret, jobId, progress: value }).catch(() => {});
   }
 
   async fail(jobId: string, error: string, retry: boolean): Promise<boolean> {

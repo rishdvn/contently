@@ -61,6 +61,8 @@ export default defineSchema({
     height: v.number(),
     document: editorDocument,
     posterStorageId: v.optional(v.id("_storage")),
+    /* `posterKey` of the document the poster was taken from (lib/editor/poster.ts). */
+    posterKey: v.optional(v.string()),
     /* Present while "Anyone with the link" is on. The viewer at `/p/<id>` asks
        for it alongside the id, so turning sharing off and on again mints a new
        one and every link handed out before stops working. */

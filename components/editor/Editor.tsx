@@ -12,6 +12,7 @@ import { useAutosave, useCreateProject, useProject, type ProjectLoad } from "@/l
 import { useEditor } from "@/lib/editor/store";
 import type { Project, ProjectKind } from "@/lib/editor/types";
 
+import { PosterCapture } from "./PosterCapture";
 import { Viewport } from "./canvas/Viewport";
 import { Bottom, useBottomInset } from "./chrome/Bottom";
 import { Inspector, INSPECTOR_WIDTH } from "./chrome/Inspector";
@@ -70,6 +71,7 @@ export function Editor({ projectId, kind }: { projectId: string; kind?: string }
 
   return (
     <div className="fixed inset-0 overflow-hidden bg-canvas text-ink">
+      <PosterCapture projectId={projectId} />
       <link rel="stylesheet" href={googleFontsHref()} crossOrigin="anonymous" />
       <StudioErrorBoundary projectId={projectId}>
         <Viewport insets={insets}>

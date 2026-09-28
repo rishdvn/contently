@@ -43,6 +43,10 @@ export async function generateMetadata(props: PageProps<"/p/[projectId]">): Prom
     title: shared ? `${shared.project.name} · Contently` : "Contently",
     /* A share link is for the people it was sent to, not for search. */
     robots: { index: false, follow: false },
+    /* The poster is what a pasted link unfurls to in chat and email. */
+    ...(shared?.posterUrl
+      ? { openGraph: { title: shared.project.name, images: [shared.posterUrl] }, twitter: { card: "summary_large_image", images: [shared.posterUrl] } }
+      : {}),
   };
 }
 

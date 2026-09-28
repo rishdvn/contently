@@ -70,9 +70,8 @@ function columnsOf(document: unknown): DocumentColumns {
 }
 
 /*
-  What every read hands back. The document comes with it because the hub draws
-  its cards and its enlarged preview from the real document — a stored poster
-  would be a second source of truth for something the browser already renders.
+  What a read of one project hands back: the row and its document. `posterKey`
+  tells the studio whether the stored poster still matches the first scene.
 */
 function view(project: Doc<"projects">) {
   return {
@@ -84,6 +83,28 @@ function view(project: Doc<"projects">) {
     height: project.height,
     updatedAt: project.updatedAt,
     document: project.document,
+    posterKey: project.posterKey ?? null,
+  };
+}
+
+/*
+  A project as the Projects grid draws it: the poster, and the few facts its
+  card shows, without the document. The card fetches the document with `get`
+  only when it is hovered, to play it.
+*/
+async function card(ctx: QueryCtx, project: Doc<"projects">) {
+  const slides = (project.document as { slides?: { duration?: number }[] }).slides ?? [];
+  return {
+    id: project._id,
+    name: project.name,
+    kind: project.kind,
+    aspect: project.aspect,
+    width: project.width,
+    height: project.height,
+    updatedAt: project.updatedAt,
+    slides: slides.length,
+    duration: slides.reduce((total, s) => total + (s.duration ?? 0), 0),
+    posterUrl: project.posterStorageId ? await ctx.storage.getUrl(project.posterStorageId) : null,
   };
 }
 
@@ -130,6 +151,22 @@ export const list = query({
       .order("desc")
       .collect();
     return projects.map(view);
+  },
+});
+
+/* The grid's view of the same list: posters instead of documents. */
+export const listCards = query({
+  args: { orgId: v.string() },
+  handler: async (ctx, { orgId }) => {
+    const context = await tryOrg(ctx, orgId);
+    if (!context) return [];
+
+    const projects = await ctx.db
+      .query("projects")
+      .withIndex("by_org_updatedAt", (q) => q.eq("orgId", context.org._id))
+      .order("desc")
+      .collect();
+    return await Promise.all(projects.map((p) => card(ctx, p)));
   },
 });
 
@@ -191,6 +228,46 @@ export const rename = mutation({
       updatedAt,
       document: { ...(project.document as object), name: trimmed, updatedAt },
     });
+  },
+});
+
+/* ── Posters ───────────────────────────────────────────────────────────
+
+  The studio takes a still of the first scene a moment after an edit settles
+  (`PosterCapture`) and uploads it here. Two steps, as every upload is: a URL
+  to send the bytes to, then the row that points at them.
+*/
+
+/* Posters are small JPEGs; anything far past this is not one. */
+const MAX_POSTER_BYTES = 1024 * 1024;
+
+export const posterUploadUrl = mutation({
+  args: { orgId: v.string(), id: v.id("projects") },
+  handler: async (ctx, { orgId, id }) => {
+    await owned(ctx, orgId, id);
+    return await ctx.storage.generateUploadUrl();
+  },
+});
+
+/* A fresh poster for the project. The file it replaces is deleted. A poster
+   that arrives for a project deleted meanwhile, or that is not an image, is
+   deleted instead of kept. */
+export const setPoster = mutation({
+  args: { orgId: v.string(), id: v.id("projects"), storageId: v.id("_storage"), key: v.string() },
+  handler: async (ctx, { orgId, id, storageId, key }) => {
+    const { org } = await requireOrg(ctx, orgId);
+    const project = await ctx.db.get(id);
+    const file = await ctx.db.system.get(storageId);
+    if (!project || project.orgId !== org._id) {
+      if (file) await ctx.storage.delete(storageId);
+      fail("missing", "No such project in this organisation");
+    }
+    if (!file || !file.contentType?.startsWith("image/") || file.size > MAX_POSTER_BYTES) {
+      if (file) await ctx.storage.delete(storageId);
+      fail("invalid", "A poster must be an image under 1 MB");
+    }
+    if (project.posterStorageId && project.posterStorageId !== storageId) await ctx.storage.delete(project.posterStorageId);
+    await ctx.db.patch(project._id, { posterStorageId: storageId, posterKey: key });
   },
 });
 
@@ -364,6 +441,8 @@ export const getShared = query({
     return {
       access,
       project: { ...view(project), document: await withResolvedMedia(ctx, project.orgId, project.document) },
+      /* For the link's preview card when it is pasted somewhere. */
+      posterUrl: project.posterStorageId ? await ctx.storage.getUrl(project.posterStorageId) : null,
       downloads: await downloadsFor(ctx, project._id),
     };
   },

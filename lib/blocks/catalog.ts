@@ -4,6 +4,7 @@ import type { AnyBlockSpec } from "./spec";
 import { airdrop } from "./airdrop/schema";
 import { arrowLineUnderline } from "./arrow-line-underline/schema";
 import { browserFrame } from "./browser-frame/schema";
+import { gridLayout } from "./grid-layout/schema";
 import { imageCarousel } from "./image-carousel/schema";
 import { imessage } from "./imessage/schema";
 import { logoStrip } from "./logo-strip/schema";
@@ -36,6 +37,7 @@ const SPECS = [
   imageCarousel,
   airdrop,
   arrowLineUnderline,
+  gridLayout,
   imessage,
   logoStrip,
   phoneFrame,

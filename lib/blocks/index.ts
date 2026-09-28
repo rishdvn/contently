@@ -10,6 +10,7 @@
 import "./airdrop";
 import "./arrow-line-underline";
 import "./browser-frame";
+import "./grid-layout";
 import "./image-carousel";
 import "./imessage";
 import "./logo-strip";

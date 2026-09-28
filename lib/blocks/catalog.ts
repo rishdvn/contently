@@ -3,6 +3,7 @@ import type { AnyBlockSpec } from "./spec";
 /* One import and one `SPECS` entry per block, alphabetical by path, like `index.ts`. */
 import { imessage } from "./imessage/schema";
 import { logoStrip } from "./logo-strip/schema";
+import { phoneFrame } from "./phone-frame/schema";
 import { productCard } from "./product-card/schema";
 import { searchBar } from "./search-bar/schema";
 import { basic } from "./text/basic/schema";
@@ -27,6 +28,7 @@ import { tiktokHook } from "./text/tiktok-hook/schema";
 const SPECS = [
   imessage,
   logoStrip,
+  phoneFrame,
   productCard,
   searchBar,
   basic,

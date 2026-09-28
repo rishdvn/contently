@@ -1,0 +1,76 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 393 852" width="393" height="852" font-family="Inter, Helvetica, Arial, sans-serif">
+  <defs>
+    <linearGradient id="hero" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fbd3b7"/>
+      <stop offset="1" stop-color="#f19a7c"/>
+    </linearGradient>
+    <linearGradient id="bottleA" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#f6e7c8"/>
+      <stop offset="1" stop-color="#e6c98f"/>
+    </linearGradient>
+    <linearGradient id="bottleB" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#cfe3d6"/>
+      <stop offset="1" stop-color="#9dc3ab"/>
+    </linearGradient>
+  </defs>
+  <rect width="393" height="852" fill="#f7f4ef"/>
+  <!-- header -->
+  <text x="20" y="96" font-size="26" font-weight="800" fill="#1b1b1b" letter-spacing="-0.5">glow</text>
+  <circle cx="92" cy="88" r="4" fill="#f19a7c"/>
+  <g fill="none" stroke="#1b1b1b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M343 80 h20 l-2 20 h-16 z"/><path d="M348 80 a5 5 0 0 1 10 0"/>
+    <circle cx="316" cy="89" r="8"/><path d="M322 95 l5 5"/>
+  </g>
+  <!-- hero -->
+  <rect x="20" y="120" width="353" height="210" rx="22" fill="url(#hero)"/>
+  <circle cx="318" cy="186" r="46" fill="#fff" opacity="0.35"/>
+  <g transform="translate(290 170)">
+    <rect x="0" y="40" width="54" height="104" rx="14" fill="#fff8ee"/>
+    <rect x="12" y="18" width="30" height="26" rx="6" fill="#2d2d2d"/>
+    <rect x="8" y="80" width="38" height="30" rx="4" fill="#f19a7c" opacity="0.6"/>
+  </g>
+  <text x="40" y="170" font-size="12" font-weight="700" fill="#7a3b25" letter-spacing="1.5">SUMMER EDIT</text>
+  <text x="40" y="206" font-size="27" font-weight="800" fill="#2a1a14">Glow all</text>
+  <text x="40" y="238" font-size="27" font-weight="800" fill="#2a1a14">day long</text>
+  <rect x="40" y="266" width="104" height="36" rx="18" fill="#1b1b1b"/>
+  <text x="92" y="289" font-size="13" font-weight="700" fill="#fff" text-anchor="middle">Shop now</text>
+  <!-- chips -->
+  <g font-size="13" font-weight="600">
+    <rect x="20" y="350" width="62" height="32" rx="16" fill="#1b1b1b"/><text x="51" y="371" fill="#fff" text-anchor="middle">All</text>
+    <rect x="90" y="350" width="80" height="32" rx="16" fill="#ebe5dc"/><text x="130" y="371" fill="#1b1b1b" text-anchor="middle">Serums</text>
+    <rect x="178" y="350" width="70" height="32" rx="16" fill="#ebe5dc"/><text x="213" y="371" fill="#1b1b1b" text-anchor="middle">Masks</text>
+    <rect x="256" y="350" width="98" height="32" rx="16" fill="#ebe5dc"/><text x="305" y="371" fill="#1b1b1b" text-anchor="middle">Sunscreen</text>
+  </g>
+  <!-- best sellers -->
+  <text x="20" y="420" font-size="18" font-weight="800" fill="#1b1b1b">Best sellers</text>
+  <text x="373" y="420" font-size="13" font-weight="600" fill="#8a8178" text-anchor="end">See all</text>
+  <g>
+    <rect x="20" y="436" width="170" height="300" rx="18" fill="#fff"/>
+    <rect x="30" y="446" width="150" height="180" rx="12" fill="#f3ede4"/>
+    <rect x="82" y="490" width="46" height="112" rx="12" fill="url(#bottleA)"/>
+    <rect x="92" y="468" width="26" height="26" rx="5" fill="#3a3a3a"/>
+    <text x="36" y="652" font-size="14" font-weight="700" fill="#1b1b1b">Vitamin C Serum</text>
+    <text x="36" y="672" font-size="12" fill="#8a8178">30 ml ·</text><path transform="translate(76 662) scale(0.5)" d="M10 1 L12.6 7.2 L19.3 7.6 L14.1 11.9 L15.8 18.5 L10 14.8 L4.2 18.5 L5.9 11.9 L0.7 7.6 L7.4 7.2 Z" fill="#f5b301"/><text x="89" y="672" font-size="12" fill="#8a8178">4.8</text>
+    <text x="36" y="710" font-size="17" font-weight="800" fill="#1b1b1b">$38</text>
+    <circle cx="164" cy="704" r="16" fill="#1b1b1b"/><path d="M158 704 h12 M164 698 v12" stroke="#fff" stroke-width="2" stroke-linecap="round"/>
+  </g>
+  <g>
+    <rect x="203" y="436" width="170" height="300" rx="18" fill="#fff"/>
+    <rect x="213" y="446" width="150" height="180" rx="12" fill="#eaf1ec"/>
+    <rect x="258" y="500" width="60" height="96" rx="20" fill="url(#bottleB)"/>
+    <rect x="270" y="484" width="36" height="20" rx="6" fill="#f7f4ef" stroke="#9dc3ab" stroke-width="2"/>
+    <text x="219" y="652" font-size="14" font-weight="700" fill="#1b1b1b">Green Tea Mask</text>
+    <text x="219" y="672" font-size="12" fill="#8a8178">50 ml ·</text><path transform="translate(259 662) scale(0.5)" d="M10 1 L12.6 7.2 L19.3 7.6 L14.1 11.9 L15.8 18.5 L10 14.8 L4.2 18.5 L5.9 11.9 L0.7 7.6 L7.4 7.2 Z" fill="#f5b301"/><text x="272" y="672" font-size="12" fill="#8a8178">4.6</text>
+    <text x="219" y="710" font-size="17" font-weight="800" fill="#1b1b1b">$24</text>
+    <circle cx="347" cy="704" r="16" fill="#1b1b1b"/><path d="M341 704 h12 M347 698 v12" stroke="#fff" stroke-width="2" stroke-linecap="round"/>
+  </g>
+  <!-- tab bar -->
+  <rect y="764" width="393" height="88" fill="#ffffff"/>
+  <rect y="764" width="393" height="1" fill="#e7e1d8"/>
+  <g fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M40 796 l12 -10 l12 10 v12 h-24 z" stroke="#1b1b1b" fill="#1b1b1b"/>
+    <circle cx="146" cy="796" r="9" stroke="#a39a90"/><path d="M153 803 l5 5" stroke="#a39a90"/>
+    <path d="M235 787 c-6 -6 -16 0 -10 8 l10 10 l10 -10 c6 -8 -4 -14 -10 -8 z" stroke="#a39a90"/>
+    <circle cx="340" cy="791" r="6" stroke="#a39a90"/><path d="M328 808 a12 10 0 0 1 24 0" stroke="#a39a90"/>
+  </g>
+</svg>

@@ -21,7 +21,7 @@ export const inputs = {
     options: [
       { value: "black", label: "Black" },
       { value: "white", label: "White" },
-      { value: "titanium", label: "Titanium" },
+      { value: "titanium", label: "Natural titanium" },
     ],
   }),
   /* Real screenshots often carry their own status bar, and the clock and icons

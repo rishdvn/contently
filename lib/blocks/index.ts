@@ -9,6 +9,7 @@
 */
 import "./imessage";
 import "./logo-strip";
+import "./phone-frame";
 import "./product-card";
 import "./search-bar";
 import "./text/basic";

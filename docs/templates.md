@@ -194,7 +194,8 @@ crop keeps them.
 5. **Check it.** `templates:get` shows the slots. Every content block should
    be there, with the role you meant. Open the posters: every scene should
    look finished, nothing half-animated.
-   Your unpublished templates are in `templates:list` with `{ "drafts": true }`.
+   Your unpublished templates are in `templates:list` with
+   `{ "drafts": true, "orgId": "org_…" }`.
 6. **Publish.** `templates:publish` with `{ orgId, id }` (`published: false`
    takes it back), the same way as step 3. Only the publisher organisation
    can publish ("Who can publish", below); anywhere else, stop at step 5 and
@@ -212,7 +213,8 @@ Contently's alone:
 - **Making and updating** a template (`createFromProject`) is open to the
   admins of any organisation. Its templates stay **private**: that
   organisation sees them in its Templates flyout and on its Templates page
-  (`list` with `drafts: true`), and nobody else does.
+  (`list` with `drafts: true` and that `orgId`), and nobody else does — not
+  even its members while another organisation is the active one.
 - **Unpublishing** (`published: false`) is open to the template's own
   organisation's admins, so whoever owns a public template can always take it
   back.
@@ -297,13 +299,14 @@ the template leaves it alone.
 ## Reading templates from code
 
 ```ts
-// Published templates, newest first. `drafts: true` adds your orgs' unpublished ones.
-const cards = useQuery(api.templates.list, { kind: "video", category: "product" });
+// Published templates, newest first. `drafts: true` adds the active organisation's
+// unpublished ones; `useTemplateScope()` (components/hub/TemplateCard.tsx) gives the `orgId`.
+const cards = useQuery(api.templates.list, { kind: "video", category: "product", drafts: true, orgId });
 // → [{ id, name, kind, aspect, width, height, categories, tags, published,
 //      poster, scenePosters[], scenes: [{ id, name, duration }], roles[], updatedAt }]
 
 // One template: the card fields plus the document (media as URLs) and its slots.
-const t = useQuery(api.templates.get, { id });
+const t = useQuery(api.templates.get, { id, orgId });
 // t.slots → [{ scene, blockId, type, role?, name?, componentId?, current?, fields? }]
 //   fields, on catalog blocks → [{ path: "messages[2].text", field: "messages[].text", role, kind, current?, media? }]
 ```

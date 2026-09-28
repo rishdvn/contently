@@ -4,6 +4,7 @@ import { useQuery } from "convex/react";
 import type { FunctionReturnType } from "convex/server";
 
 import { api } from "@/convex/_generated/api";
+import { useActiveOrg } from "@/lib/auth/useActiveOrg";
 import { cn } from "@/lib/cn";
 import { ASPECTS, type AspectId, type Project } from "@/lib/editor/types";
 
@@ -12,6 +13,17 @@ import { LiveArt } from "./ProjectPreview";
 
 /* A template as `templates.list` has it: enough to draw a card, not the document. */
 export type TemplateSummary = FunctionReturnType<typeof api.templates.list>[number];
+
+/*
+  Which organisation's private templates to show beside the published ones:
+  the active one's, and nobody else's. Pass it to `templates.list` and
+  `templates.get`; switching organisation changes it, and the queries follow.
+  Undefined until Clerk has loaded, so nothing is asked unscoped.
+*/
+export function useTemplateScope() {
+  const { orgId, isLoaded } = useActiveOrg();
+  return isLoaded ? { orgId: orgId ?? "" } : undefined;
+}
 
 export const TEMPLATE_KIND_LABEL: Record<string, string> = { video: "Video", carousel: "Carousel", image: "Image" };
 

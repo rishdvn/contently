@@ -228,6 +228,29 @@ export function withoutHistory(fn: () => void) {
   }
 }
 
+/*
+  A discrete action (add, delete, duplicate, reorder, group, paste) is an undo
+  step of its own. The history's debounce exists for continuous edits such as
+  a slider drag or typing; without this, R pressed three times inside it would
+  all come off with one undo. The step opens at the first such call in an
+  event and closes once the event has been handled, so an action made of
+  several calls (each block of a selection brought to the front) is still one.
+*/
+let stepOpen = false;
+function step<A extends unknown[], R>(fn: (...args: A) => R): (...args: A) => R {
+  return (...args) => {
+    if (!stepOpen) {
+      flushHistory();
+      stepOpen = true;
+      queueMicrotask(() => {
+        stepOpen = false;
+        flushHistory();
+      });
+    }
+    return fn(...args);
+  };
+}
+
 export const useEditor = create<EditorState>()(
   temporal(
     (set, get) => ({
@@ -266,7 +289,7 @@ export const useEditor = create<EditorState>()(
         return p;
       },
       rename: (name) => set((s) => ({ project: touch({ ...s.project, name }) })),
-      setAspect: (aspect) =>
+      setAspect: step((aspect) =>
         set((s) => {
           const { w, h } = ASPECTS[aspect];
           const sx = w / s.project.width;
@@ -277,10 +300,10 @@ export const useEditor = create<EditorState>()(
             (b) => ({ ...b, x: b.x * sx, y: b.y * sy, w: b.w * sx, h: b.h * sy }),
           );
           return { project: p };
-        }),
+        })),
 
       setActiveSlide: (id) => set({ activeSlideId: id, selection: [], audioSelection: null, editingTextId: null }),
-      addSlide: (afterId) => {
+      addSlide: step((afterId) => {
         const s = get();
         const idx = afterId ? s.project.slides.findIndex((x) => x.id === afterId) : s.project.slides.length - 1;
         const next = makeSlide({ name: `Slide ${s.project.slides.length + 1}` });
@@ -288,8 +311,8 @@ export const useEditor = create<EditorState>()(
         slides.splice(idx + 1, 0, next);
         set({ project: touch({ ...s.project, slides }), activeSlideId: next.id, selection: [] });
         return next.id;
-      },
-      duplicateSlide: (id) =>
+      }),
+      duplicateSlide: step((id) =>
         set((s) => {
           const idx = s.project.slides.findIndex((x) => x.id === id);
           if (idx < 0) return {};
@@ -303,16 +326,16 @@ export const useEditor = create<EditorState>()(
           const slides = [...s.project.slides];
           slides.splice(idx + 1, 0, copy);
           return { project: touch({ ...s.project, slides }), activeSlideId: copy.id, selection: [] };
-        }),
-      removeSlide: (id) =>
+        })),
+      removeSlide: step((id) =>
         set((s) => {
           if (s.project.slides.length <= 1) return {};
           const idx = s.project.slides.findIndex((x) => x.id === id);
           const slides = s.project.slides.filter((x) => x.id !== id);
           const nextActive = slides[Math.max(0, idx - 1)].id;
           return { project: touch({ ...s.project, slides }), activeSlideId: nextActive, selection: [] };
-        }),
-      moveSlide: (id, dir) =>
+        })),
+      moveSlide: step((id, dir) =>
         set((s) => {
           const idx = s.project.slides.findIndex((x) => x.id === id);
           const to = idx + dir;
@@ -320,7 +343,7 @@ export const useEditor = create<EditorState>()(
           const slides = [...s.project.slides];
           [slides[idx], slides[to]] = [slides[to], slides[idx]];
           return { project: touch({ ...s.project, slides }) };
-        }),
+        })),
       updateSlide: (id, patch) => set((s) => ({ project: mapSlide(s.project, id, (sl) => ({ ...sl, ...patch })) })),
       insertScenes: (scenes, at, from) => {
         if (!scenes.length) return [];
@@ -355,26 +378,26 @@ export const useEditor = create<EditorState>()(
         set((s) => ({ project: mapSlide(s.project, slideId, (sl) => ({ ...sl, background: bg })) })),
       /* The new track comes selected, as in the reference, so its properties
          are in the inspector straight away. */
-      addAudio: (track) =>
+      addAudio: step((track) =>
         set((s) => ({
           project: touch({ ...s.project, audio: [...s.project.audio, track] }),
           audioSelection: track.id,
           selection: [],
           editingTextId: null,
-        })),
+        }))),
       updateAudio: (id, patch) =>
         set((s) => ({
           project: touch({ ...s.project, audio: s.project.audio.map((a) => (a.id === id ? { ...a, ...patch } : a)) }),
         })),
-      removeAudio: (id) =>
+      removeAudio: step((id) =>
         set((s) => ({
           project: touch({ ...s.project, audio: s.project.audio.filter((a) => a.id !== id) }),
           audioSelection: s.audioSelection === id ? null : s.audioSelection,
-        })),
+        }))),
       selectAudio: (id) => set({ audioSelection: id, selection: id ? [] : get().selection, editingTextId: null }),
 
       addBlock: (block, slideId) => get().addBlocks([block], slideId),
-      addBlocks: (blocks, slideId) =>
+      addBlocks: step((blocks, slideId) =>
         set((s) => {
           const target = slideId ?? s.activeSlideId;
           const withTiming = blocks.map((b) => {
@@ -386,7 +409,7 @@ export const useEditor = create<EditorState>()(
             selection: withTiming.map((b) => b.id),
             editingTextId: null,
           };
-        }),
+        })),
       updateBlock: (id, patch) =>
         set((s) => ({ project: mapBlocks(s.project, (b) => (b.id === id ? ({ ...b, ...patch } as Block) : b)) })),
       updateBlocks: (patches) =>
@@ -397,7 +420,7 @@ export const useEditor = create<EditorState>()(
         set((s) => ({
           project: mapBlocks(s.project, (b) => (b.id === id && b.type === "component" ? { ...b, props: setIn(b.props, path, value) } : b)),
         })),
-      removeBlocks: (ids) =>
+      removeBlocks: step((ids) =>
         set((s) => {
           const gone = new Set(ids);
           return {
@@ -408,8 +431,8 @@ export const useEditor = create<EditorState>()(
             selection: s.selection.filter((id) => !gone.has(id)),
             editingTextId: s.editingTextId && gone.has(s.editingTextId) ? null : s.editingTextId,
           };
-        }),
-      duplicateBlocks: (ids) =>
+        })),
+      duplicateBlocks: step((ids) =>
         set((s) => {
           const created: string[] = [];
           const p = touch({
@@ -421,8 +444,8 @@ export const useEditor = create<EditorState>()(
             }),
           });
           return { project: p, selection: created };
-        }),
-      reorder: (id, action) =>
+        })),
+      reorder: step((id, action) =>
         set((s) => {
           const hit = findBlock(s.project, id);
           if (!hit) return {};
@@ -439,8 +462,8 @@ export const useEditor = create<EditorState>()(
                   : Math.max(0, i - 1);
           blocks.splice(to, 0, hit.block);
           return { project: mapSlide(s.project, hit.slide.id, (sl) => ({ ...sl, blocks })) };
-        }),
-      moveBlockTo: (id, index) =>
+        })),
+      moveBlockTo: step((id, index) =>
         set((s) => {
           const hit = findBlock(s.project, id);
           if (!hit) return {};
@@ -451,8 +474,8 @@ export const useEditor = create<EditorState>()(
           blocks.splice(i, 1);
           blocks.splice(to, 0, hit.block);
           return { project: mapSlide(s.project, hit.slide.id, (sl) => ({ ...sl, blocks })) };
-        }),
-      groupBlocks: (ids) =>
+        })),
+      groupBlocks: step((ids) =>
         set((s) => {
           const members = new Set(expandGroups(s.project, ids));
           if (members.size < 2) return {};
@@ -468,8 +491,8 @@ export const useEditor = create<EditorState>()(
             return { ...sl, blocks: [...rest.slice(0, at), ...grouped, ...rest.slice(at)] };
           });
           return { project: touch({ ...s.project, slides }), selection: [...members] };
-        }),
-      ungroupBlocks: (ids) =>
+        })),
+      ungroupBlocks: step((ids) =>
         set((s) => {
           const groups = new Set<string>();
           for (const sl of s.project.slides) for (const b of sl.blocks) if (ids.includes(b.id) && b.groupId) groups.add(b.groupId);
@@ -477,7 +500,7 @@ export const useEditor = create<EditorState>()(
           return {
             project: mapBlocks(s.project, (b) => (b.groupId && groups.has(b.groupId) ? { ...b, groupId: undefined } : b)),
           };
-        }),
+        })),
       copy: () => {
         const s = get();
         const blocks = s.selection.map((id) => findBlock(s.project, id)?.block).filter(Boolean) as Block[];
@@ -514,7 +537,7 @@ export const useEditor = create<EditorState>()(
       setDialog: (d) => set({ dialog: d }),
       setMediaTarget: (t) => set({ mediaTarget: t }),
       pickMedia: (t) => set((s) => ({ mediaTarget: t, leftTab: s.mediaSource })),
-      fillMediaTarget: (media) => {
+      fillMediaTarget: step((media) => {
         const target = activeMediaTarget(get());
         if (!target || !media.url || target.kind !== media.kind) return false;
         const value = { mediaId: media.id, src: media.url };
@@ -523,7 +546,7 @@ export const useEditor = create<EditorState>()(
         else get().updateBlock(target.blockId, media.kind === "video" ? { ...value, trimStart: 0, sourceDuration: media.duration } : value);
         set({ mediaTarget: null });
         return true;
-      },
+      }),
     }),
     {
       partialize: (s): Tracked => ({ project: s.project }),

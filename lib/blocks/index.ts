@@ -31,6 +31,7 @@ import "./text/review-card";
 import "./text/star-rating";
 import "./text/sticker";
 import "./text/tiktok-hook";
+import "./text/title-card";
 
 import { listSpecs } from "./catalog";
 import { getBlock } from "./registry";

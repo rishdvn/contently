@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 1000" width="1440" height="1000" font-family="Inter, Helvetica, Arial, sans-serif">
+  <defs>
+    <linearGradient id="panel" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fcd9bf"/>
+      <stop offset="1" stop-color="#f09a7b"/>
+    </linearGradient>
+    <linearGradient id="bottle" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#fff8ee"/>
+      <stop offset="1" stop-color="#f1dcc0"/>
+    </linearGradient>
+    <linearGradient id="cardA" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f3ede4"/><stop offset="1" stop-color="#e9dfd0"/></linearGradient>
+    <linearGradient id="cardB" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#eaf1ec"/><stop offset="1" stop-color="#d6e6db"/></linearGradient>
+    <linearGradient id="cardC" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f7e7ea"/><stop offset="1" stop-color="#eed2d8"/></linearGradient>
+    <path id="star" d="M10 1 L12.6 7.2 L19.3 7.6 L14.1 11.9 L15.8 18.5 L10 14.8 L4.2 18.5 L5.9 11.9 L0.7 7.6 L7.4 7.2 Z" fill="#f5b301"/>
+  </defs>
+  <rect width="1440" height="1000" fill="#fbf8f4"/>
+  <!-- announcement -->
+  <rect width="1440" height="40" fill="#1b1b1b"/>
+  <text x="720" y="26" font-size="14" font-weight="600" fill="#fff" text-anchor="middle">Free shipping on orders over $50 · New summer edit is here</text>
+  <!-- nav -->
+  <text x="96" y="112" font-size="34" font-weight="800" fill="#1b1b1b" letter-spacing="-1">glow</text>
+  <circle cx="186" cy="102" r="5" fill="#f19a7c"/>
+  <g font-size="16" font-weight="600" fill="#4a4540">
+    <text x="520" y="108">Shop</text><text x="600" y="108">Serums</text><text x="700" y="108">Masks</text><text x="790" y="108">Sunscreen</text><text x="910" y="108">About</text>
+  </g>
+  <g fill="none" stroke="#1b1b1b" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="1204" cy="101" r="9"/><path d="M1211 108 l6 6"/>
+    <circle cx="1262" cy="96" r="6"/><path d="M1250 114 a12 10 0 0 1 24 0"/>
+  </g>
+  <rect x="1290" y="80" width="54" height="40" rx="20" fill="#1b1b1b"/>
+  <path d="M1305 94 h14 l-1.5 14 h-11 z M1309 94 a3.5 3.5 0 0 1 7 0" fill="none" stroke="#fff" stroke-width="2" stroke-linejoin="round"/>
+  <text x="1331" y="106" font-size="13" font-weight="700" fill="#fff">2</text>
+  <rect x="0" y="150" width="1440" height="1" fill="#ebe4da"/>
+  <!-- hero copy -->
+  <text x="96" y="262" font-size="15" font-weight="700" fill="#b0583a" letter-spacing="3">SUMMER EDIT</text>
+  <text x="96" y="344" font-size="76" font-weight="800" fill="#1b1b1b" letter-spacing="-2.5">Glow all</text>
+  <text x="96" y="428" font-size="76" font-weight="800" fill="#1b1b1b" letter-spacing="-2.5">day long.</text>
+  <text x="96" y="486" font-size="21" fill="#6b635b">Vitamin C serum, green tea masks and a sunscreen</text>
+  <text x="96" y="516" font-size="21" fill="#6b635b">you will actually wear. Clean, vegan, made to layer.</text>
+  <rect x="96" y="560" width="176" height="58" rx="29" fill="#1b1b1b"/>
+  <text x="184" y="596" font-size="18" font-weight="700" fill="#fff" text-anchor="middle">Shop the edit</text>
+  <rect x="288" y="560" width="160" height="58" rx="29" fill="none" stroke="#1b1b1b" stroke-width="2"/>
+  <text x="368" y="596" font-size="18" font-weight="700" fill="#1b1b1b" text-anchor="middle">Take the quiz</text>
+  <g transform="translate(96 660)">
+    <use href="#star"/><use href="#star" x="22"/><use href="#star" x="44"/><use href="#star" x="66"/><use href="#star" x="88"/>
+    <text x="120" y="16" font-size="16" font-weight="600" fill="#4a4540">4.8 from 12,400 reviews</text>
+  </g>
+  <!-- hero panel -->
+  <rect x="760" y="196" width="584" height="520" rx="32" fill="url(#panel)"/>
+  <circle cx="1150" cy="380" r="150" fill="#fff" opacity="0.28"/>
+  <ellipse cx="1052" cy="640" rx="170" ry="26" fill="#b8573d" opacity="0.25"/>
+  <g transform="translate(990 300)">
+    <rect x="0" y="80" width="124" height="260" rx="30" fill="url(#bottle)"/>
+    <rect x="30" y="30" width="64" height="60" rx="12" fill="#2d2d2d"/>
+    <rect x="46" y="0" width="32" height="40" rx="10" fill="#3d3d3d"/>
+    <rect x="18" y="170" width="88" height="86" rx="8" fill="#f19a7c" opacity="0.55"/>
+    <text x="62" y="210" font-size="15" font-weight="800" fill="#7a3b25" text-anchor="middle">glow</text>
+    <text x="62" y="232" font-size="11" font-weight="600" fill="#7a3b25" text-anchor="middle">VITAMIN C</text>
+  </g>
+  <g transform="translate(830 470)">
+    <rect x="0" y="40" width="96" height="170" rx="40" fill="#e3efe6"/>
+    <rect x="18" y="12" width="60" height="36" rx="10" fill="#fbf8f4" stroke="#9dc3ab" stroke-width="3"/>
+  </g>
+  <rect x="1190" y="226" width="126" height="44" rx="22" fill="#fff"/>
+  <text x="1253" y="254" font-size="15" font-weight="700" fill="#1b1b1b" text-anchor="middle">New · $38</text>
+  <!-- best sellers -->
+  <text x="96" y="800" font-size="30" font-weight="800" fill="#1b1b1b" letter-spacing="-0.8">Best sellers</text>
+  <text x="1344" y="800" font-size="16" font-weight="600" fill="#6b635b" text-anchor="end">View all →</text>
+  <rect x="96" y="830" width="400" height="200" rx="22" fill="url(#cardA)"/>
+  <rect x="520" y="830" width="400" height="200" rx="22" fill="url(#cardB)"/>
+  <rect x="944" y="830" width="400" height="200" rx="22" fill="url(#cardC)"/>
+  <rect x="270" y="870" width="52" height="140" rx="14" fill="#f1dcc0"/><rect x="282" y="850" width="28" height="26" rx="6" fill="#3a3a3a"/>
+  <rect x="690" y="880" width="64" height="120" rx="24" fill="#b5d3bf"/>
+  <rect x="1110" y="870" width="70" height="130" rx="10" fill="#f2c4cd"/><rect x="1122" y="852" width="46" height="22" rx="6" fill="#fbf8f4"/>
+</svg>

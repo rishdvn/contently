@@ -370,7 +370,8 @@ function StockTile({ item }: { item: MediaItem }) {
           <span className="flex size-full items-center justify-center text-[10px] text-ink-disabled">{item.url ? "" : "Unavailable"}</span>
         )}
         {item.kind === "video" && hover && item.url ? (
-          <video src={item.previewUrl ?? item.url} poster={item.posterUrl ?? undefined} autoPlay muted loop playsInline className="absolute inset-0 size-full object-cover" />
+          /* No `poster`, like MediaArt: the optimised thumb shows through. */
+          <video src={item.previewUrl ?? item.url} autoPlay muted loop playsInline className="absolute inset-0 size-full object-cover" />
         ) : null}
       </button>
 

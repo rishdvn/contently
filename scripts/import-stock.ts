@@ -24,8 +24,8 @@
   each video from its Convex URL, so the provider is not contacted again, and
   it runs one video at a time: a pending video is one not yet H.264, or missing
   its preview or poster, so a stopped run carries on where it left off and a
-  finished library is a no-op. `--transcode` (or the older `--posters-only`)
-  skips the import; `--skip-videos` skips the pass.
+  finished library is a no-op. `--transcode` skips the import; `--skip-videos`
+  skips the pass.
 */
 
 import { execFileSync, spawnSync } from "node:child_process";
@@ -82,8 +82,8 @@ const targets: Record<Kind, number> = { image: count("photos", 40), video: count
    this many a category is as full as the provider can make it. */
 const maxPages = count("max-pages", 10);
 const provider = option("provider") ?? "dupe";
-const videosOnly = flag("transcode") || flag("posters-only");
-const skipVideos = flag("skip-videos") || flag("skip-posters");
+const videosOnly = flag("transcode");
+const skipVideos = flag("skip-videos");
 /* At most this many videos in the pass, for a trial on a handful. */
 const limit = option("limit") === undefined ? undefined : count("limit", 0);
 

@@ -10,7 +10,7 @@ import { STOCK_CATEGORIES, sourceRefOf, stockCategory, StockProviderError, type 
   each with `source: "stock"`. Run from the CLI, never on a schedule and never
   on a request:
 
-      node scripts/import-stock.ts                       # the trial set, then posters
+      node scripts/import-stock.ts                       # the trial set, then videos
       node scripts/import-stock.ts --categories cafe,gym --photos 10 --videos 3
 
   The script is the loop and these functions are its steps, each run through
@@ -323,60 +323,6 @@ export const uploadUrls = internalMutation({
   args: { count: v.number() },
   handler: async (ctx, { count }) =>
     await Promise.all(Array.from({ length: Math.min(Math.max(count, 1), 5) }, () => ctx.storage.generateUploadUrl())),
-});
-
-/*
-  The poster-only pass that came before `pendingVideos`. Nothing in this tree
-  calls these three any more; they stay while the shared deployment also serves
-  branches whose `scripts/import-stock.ts` still does.
-*/
-
-/* Stock videos still waiting for a poster, with a URL ffmpeg can read. */
-export const pendingPosters = internalQuery({
-  args: {},
-  handler: async (ctx) => {
-    const videos = await ctx.db
-      .query("media")
-      .withIndex("by_source_kind", (q) => q.eq("source", "stock").eq("kind", "video"))
-      .collect();
-    const pending = videos.filter((row) => !row.posterStorageId);
-    return await Promise.all(
-      pending.map(async (row) => ({ id: row._id, name: row.name, url: await ctx.storage.getUrl(row.storageId) })),
-    );
-  },
-});
-
-export const posterUploadUrl = internalMutation({
-  args: {},
-  handler: async (ctx) => await ctx.storage.generateUploadUrl(),
-});
-
-/*
-  The poster, and what ffprobe read from the file while it was at it. The
-  provider's dimensions are its own record of the upload; ffprobe's account for
-  rotation, which is what a <video> will actually paint.
-*/
-export const setPoster = internalMutation({
-  args: {
-    id: v.id("media"),
-    posterStorageId: v.id("_storage"),
-    duration: v.optional(v.number()),
-    width: v.optional(v.number()),
-    height: v.optional(v.number()),
-  },
-  handler: async (ctx, { id, posterStorageId, duration, width, height }) => {
-    const row = await ctx.db.get(id);
-    if (!row) {
-      await ctx.storage.delete(posterStorageId);
-      return;
-    }
-    if (row.posterStorageId && row.posterStorageId !== posterStorageId) await ctx.storage.delete(row.posterStorageId);
-    await ctx.db.patch(id, {
-      posterStorageId,
-      ...(duration ? { duration } : {}),
-      ...(width && height ? { width, height } : {}),
-    });
-  },
 });
 
 /* ── Purge ─────────────────────────────────────────────────────────────── */

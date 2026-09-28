@@ -1,10 +1,11 @@
 "use client";
 
+import { ImageOff } from "lucide-react";
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 
 import { getBlock, type RenderContext } from "@/lib/blocks";
 import { coerceProps } from "@/lib/blocks/inputs";
-import { useMediaPoster, useMediaUrl } from "@/lib/editor/media";
+import { reportMediaLoad, useMediaPoster, useMediaUrl } from "@/lib/editor/media";
 import { useEditor, withoutHistory } from "@/lib/editor/store";
 import { effectOverlays, filterCss, flipStyle, frameStyle, gradientCss, highlightStyle, shadowCss, textStyle } from "@/lib/editor/style";
 import { NEUTRAL_ADJUSTMENTS, type Block, type ComponentBlock, type ImageBlock, type ShapeBlock, type TextBlock, type VideoBlock } from "@/lib/editor/types";
@@ -59,9 +60,9 @@ export const BlockView = memo(function BlockView({
           {block.type === "text" ? (
             <TextContent block={block} editing={editing} measure={interactive} elapsed={progress === null ? null : time - block.start} />
           ) : block.type === "image" ? (
-            <ImageContent block={block} />
+            <ImageContent block={block} interactive={interactive} />
           ) : block.type === "video" ? (
-            <VideoContent block={block} />
+            <VideoContent block={block} interactive={interactive} />
           ) : block.type === "component" ? (
             <ComponentContent block={block} video={isVideoProject} time={time} />
           ) : (
@@ -234,20 +235,30 @@ function WordReveal({ block, elapsed }: { block: TextBlock; elapsed: number | nu
 /*
   The frame around a photo or a clip. `src` is passed in rather than read off the
   block because org media lives behind a `media` id and only resolves to a URL at
-  render time; "no src" is what draws the missing-media state.
+  render time. `status` is how the file is doing: loading draws a shimmer under
+  it, missing (no URL, or one that failed) draws the placeholder instead.
+
+  Neither is ever exported: both are marked `data-export-skip`, which the
+  exporter filters out, so a file that is still loading costs a frame of
+  nothing and a missing one is left out rather than baked into the PNG.
 */
-function MediaFrame({ block, src, children }: { block: ImageBlock | VideoBlock; src: string; children: React.ReactNode }) {
+type MediaStatus = "loading" | "ready" | "missing";
+
+function MediaFrame({ block, status, onReplace, children }: { block: ImageBlock | VideoBlock; status: MediaStatus; onReplace?: () => void; children: React.ReactNode }) {
   const overlays = effectOverlays(block.effects);
+  const missing = status === "missing";
   return (
     <div
       className="relative size-full overflow-hidden"
+      data-export-skip={missing || undefined}
       style={{
         borderRadius: block.radius,
         boxShadow: shadowCss(block.shadow),
         border: block.border?.width ? `${block.border.width}px solid ${block.border.color}` : undefined,
-        background: src ? undefined : "#1d1d1d",
+        background: missing ? "#1d1d1d" : undefined,
       }}
     >
+      {status === "loading" ? <div data-export-skip className="absolute inset-0 animate-pulse bg-[#262626]" /> : null}
       <div className="absolute inset-0" style={{ filter: filterCss(block.adjustments, block.effects) }}>
         {children}
       </div>
@@ -257,24 +268,80 @@ function MediaFrame({ block, src, children }: { block: ImageBlock | VideoBlock; 
       {overlays.map((o, i) => (
         <div key={i} className="pointer-events-none absolute inset-0" style={o} />
       ))}
-      {!src ? <MissingMedia /> : null}
+      {missing ? <MissingMedia block={block} onReplace={onReplace} /> : null}
     </div>
   );
 }
 
-function MissingMedia() {
+/*
+  What a photo or clip that cannot be loaded looks like, wherever the block is
+  drawn: the canvas, a filmstrip tile, a hub card. Sized from the block rather
+  than the screen, so it reads at every zoom its miniatures are drawn at. Only
+  the canvas has somewhere to replace it from, so only the canvas has the button.
+*/
+function MissingMedia({ block, onReplace }: { block: ImageBlock | VideoBlock; onReplace?: () => void }) {
+  const unit = Math.min(block.w, block.h);
+  const text = Math.max(12, Math.min(48, unit * 0.06));
   return (
-    <div className="absolute inset-0 flex items-center justify-center text-ink-disabled" style={{ fontSize: 28 }}>
-      Media not available — replace it from Uploads
+    <div className="absolute inset-0 flex flex-col items-center justify-center text-center text-[#8a8a8a]" style={{ gap: text * 0.6, padding: text }} data-missing-media>
+      <ImageOff style={{ width: Math.max(16, unit * 0.16), height: Math.max(16, unit * 0.16) }} strokeWidth={1.5} aria-hidden />
+      <span style={{ fontSize: text, lineHeight: 1.2 }}>Media unavailable</span>
+      {onReplace ? (
+        <button
+          type="button"
+          className="rounded-full bg-white text-[#111] hover:bg-white/90"
+          style={{ fontSize: text * 0.9, padding: `${text * 0.35}px ${text * 0.9}px`, pointerEvents: "auto" }}
+          /* Not a press on the block: without preventDefault the mousedown that
+             follows would reach the canvas's marquee, select the block and put
+             the transform box between this button and its click. */
+          onPointerDown={(e) => {
+            e.stopPropagation();
+            e.preventDefault();
+          }}
+          onClick={(e) => {
+            e.stopPropagation();
+            onReplace();
+          }}
+        >
+          Replace
+        </button>
+      ) : null}
     </div>
   );
 }
 
-function ImageContent({ block }: { block: ImageBlock }) {
+/*
+  Where a media element's file has got to, per URL, so a new URL starts over
+  as loading without an effect resetting anything. What it finds is reported to
+  the page-wide registry, which the export's missing-media check reads.
+*/
+function useMediaLoad(src: string) {
+  const [result, setResult] = useState<{ src: string; ok: boolean } | null>(null);
+  const status: MediaStatus = !src ? "missing" : result?.src !== src ? "loading" : result.ok ? "ready" : "missing";
+  const settle = (ok: boolean) => {
+    reportMediaLoad(src, ok);
+    setResult({ src, ok });
+  };
+  return { status, onLoad: () => settle(true), onError: () => settle(false) };
+}
+
+/* The Replace flow the selection toolbar and inspector use, for this block. */
+function useReplace(block: ImageBlock | VideoBlock, interactive: boolean) {
+  const select = useEditor((s) => s.select);
+  const pickMedia = useEditor((s) => s.pickMedia);
+  if (!interactive) return undefined;
+  return () => {
+    select([block.id], false, true);
+    pickMedia({ blockId: block.id, path: [], kind: block.type, label: block.type === "image" ? "Image" : "Video" });
+  };
+}
+
+function ImageContent({ block, interactive }: { block: ImageBlock; interactive: boolean }) {
   const src = useMediaUrl(block.mediaId, block.src);
+  const { status, onLoad, onError } = useMediaLoad(src);
   return (
-    <MediaFrame block={block} src={src}>
-      {src ? (
+    <MediaFrame block={block} status={status} onReplace={useReplace(block, interactive)}>
+      {src && status !== "missing" ? (
         // eslint-disable-next-line @next/next/no-img-element -- arbitrary user URLs, rendered at document scale
         <img
           src={src}
@@ -283,15 +350,19 @@ function ImageContent({ block }: { block: ImageBlock }) {
           crossOrigin="anonymous"
           className="size-full select-none"
           style={{ objectFit: block.fit, objectPosition: `${block.focalX}% ${block.focalY}%` }}
+          onLoad={onLoad}
+          onError={onError}
         />
       ) : null}
     </MediaFrame>
   );
 }
 
-function VideoContent({ block }: { block: VideoBlock }) {
+function VideoContent({ block, interactive }: { block: VideoBlock; interactive: boolean }) {
   const ref = useRef<HTMLVideoElement>(null);
   const src = useMediaUrl(block.mediaId, block.src);
+  const { status, onLoad, onError } = useMediaLoad(src);
+  const replace = useReplace(block, interactive);
   /* Uploads carry a poster, so a clip shows its first frame while it buffers
      instead of a black hole. */
   const poster = useMediaPoster(block.mediaId);
@@ -334,8 +405,8 @@ function VideoContent({ block }: { block: VideoBlock }) {
   }, [block.volume]);
 
   return (
-    <MediaFrame block={block} src={src}>
-      {src ? (
+    <MediaFrame block={block} status={status} onReplace={replace}>
+      {src && status !== "missing" ? (
         <video
           ref={ref}
           src={src}
@@ -351,6 +422,8 @@ function VideoContent({ block }: { block: VideoBlock }) {
           autoPlay={!isVideoProject && !pb}
           className="size-full"
           style={{ objectFit: block.fit, objectPosition: `${block.focalX}% ${block.focalY}%` }}
+          onLoadedData={onLoad}
+          onError={onError}
           onLoadedMetadata={(e) => {
             if (pb) return;
             const d = e.currentTarget.duration;

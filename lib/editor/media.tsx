@@ -204,3 +204,79 @@ export async function waitForPaintableMedia(node: HTMLElement, timeoutMs = 10_00
     await new Promise((r) => setTimeout(r, 50));
   }
 }
+
+/* ------------------------------------------------------ missing media --- */
+
+/*
+  Whether a URL loads, remembered per URL for the life of the page. A block on
+  the canvas reports what its own <img> or <video> found (`reportMediaLoad`),
+  and the export dialog probes the rest — the scenes of a video that are not
+  on the canvas — so both agree on what is missing without loading a file
+  twice. Probes load the way the canvas does, with CORS, because a file the
+  canvas cannot use is as missing to an export as one that 404s.
+*/
+const loads = new Map<string, Promise<boolean>>();
+
+export function reportMediaLoad(url: string, ok: boolean) {
+  loads.set(url, Promise.resolve(ok));
+}
+
+export function probeMedia(url: string, kind: "image" | "video", timeoutMs = 15_000): Promise<boolean> {
+  const known = loads.get(url);
+  if (known) return known;
+  const probe = new Promise<boolean>((resolve) => {
+    const el = kind === "image" ? new Image() : document.createElement("video");
+    const settle = (ok: boolean) => {
+      clearTimeout(timer);
+      el.onload = el.onerror = null;
+      if (el instanceof HTMLVideoElement) el.onloadedmetadata = null;
+      el.removeAttribute("src");
+      resolve(ok);
+    };
+    /* Slow is not missing: an answer that never comes is not worth a warning. */
+    const timer = setTimeout(() => settle(true), timeoutMs);
+    el.crossOrigin = "anonymous";
+    el.onerror = () => settle(false);
+    if (el instanceof HTMLVideoElement) {
+      el.preload = "metadata";
+      el.muted = true;
+      el.onloadedmetadata = () => settle(true);
+    } else {
+      el.onload = () => settle(true);
+    }
+    el.src = url;
+  });
+  loads.set(url, probe);
+  return probe;
+}
+
+export type MissingMediaItem = { slideId: string; blockId?: string; label: string };
+
+/* A block's URL as the canvas would paint it: `""` for an id whose row is gone. */
+function paintedUrl(mediaId: string | undefined, src: string | undefined) {
+  const resolvedUrl = mediaId ? mediaUrl(mediaId) : undefined;
+  return resolvedUrl === null ? "" : (resolvedUrl ?? src ?? "");
+}
+
+/*
+  Every photo, clip and background image in the document that cannot be
+  loaded, in document order: what an export will leave out. Hidden blocks are
+  not exported, so they are not listed.
+*/
+export async function findMissingMedia(project: Project): Promise<MissingMediaItem[]> {
+  await waitForMedia(project);
+  const unit = project.kind === "video" ? "Scene" : "Slide";
+  const checks: Promise<MissingMediaItem | null>[] = [];
+  project.slides.forEach((slide, i) => {
+    const where = `${slide.name || `${unit} ${i + 1}`}`;
+    const check = (url: string, kind: "image" | "video", item: MissingMediaItem) =>
+      checks.push(url ? probeMedia(url, kind).then((ok) => (ok ? null : item)) : Promise.resolve(item));
+    const bg = slide.background;
+    if (bg.type === "image") check(paintedUrl(bg.mediaId, bg.src), "image", { slideId: slide.id, label: `${where} · Background` });
+    for (const block of slide.blocks) {
+      if (block.hidden || (block.type !== "image" && block.type !== "video")) continue;
+      check(paintedUrl(block.mediaId, block.src), block.type, { slideId: slide.id, blockId: block.id, label: `${where} · ${block.name ?? (block.type === "image" ? "Image" : "Video")}` });
+    }
+  });
+  return (await Promise.all(checks)).filter((item): item is MissingMediaItem => item !== null);
+}

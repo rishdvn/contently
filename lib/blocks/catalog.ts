@@ -8,6 +8,7 @@ import { searchBar } from "./search-bar/schema";
 import { basic } from "./text/basic/schema";
 import { button } from "./text/button/schema";
 import { counter } from "./text/counter/schema";
+import { list } from "./text/list/schema";
 import { tiktokHook } from "./text/tiktok-hook/schema";
 
 /*
@@ -28,6 +29,7 @@ const SPECS = [
   button,
   counter,
   tiktokHook,
+  list,
 ] as unknown as AnyBlockSpec[];
 
 const byId = new Map(SPECS.map((spec) => [spec.id, spec]));

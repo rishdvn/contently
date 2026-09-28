@@ -1,5 +1,5 @@
 import JSZip from "jszip";
-import { chromium, type Browser, type Page } from "playwright-core";
+import { chromium, type Browser, type BrowserContext, type Page } from "playwright-core";
 
 import "./bridge.js";
 import type { Config } from "./config.js";
@@ -51,6 +51,25 @@ export async function launch(cfg: Pick<Config, "chromePath">): Promise<Browser> 
       "--force-device-scale-factor=1",
     ],
   });
+}
+
+/*
+  Vercel's deployment protection, passed the way Vercel documents for
+  automation: the bypass header on requests to the app, and
+  `x-vercel-set-bypass-cookie` so the document's response also sets a cookie
+  for whatever the page loads without us. Only the app's own origin gets the
+  header — `extraHTTPHeaders` would send the secret to Google Fonts and Convex
+  as well, and a header they do not expect turns their CORS requests into
+  preflights that can fail.
+*/
+async function passProtection(context: BrowserContext, cfg: Pick<Config, "appUrl" | "bypassSecret">) {
+  const secret = cfg.bypassSecret;
+  if (!secret) return;
+  const app = new URL(cfg.appUrl).origin;
+  await context.route(
+    (url) => url.origin === app,
+    (route) => route.continue({ headers: { ...route.request().headers(), "x-vercel-protection-bypass": secret, "x-vercel-set-bypass-cookie": "true" } }),
+  );
 }
 
 const safeName = (s: string) => s.replace(/[^\w\- ]+/g, "").trim().replace(/\s+/g, "-") || "render";
@@ -141,10 +160,12 @@ export async function renderJob(
     viewport: { width: 1080, height: 1920 },
     deviceScaleFactor: 1,
     /* Everything the page draws with — fonts, Convex storage — is fetched over
-       the network as a browser would, so no request interception here. */
+       the network as a browser would; only requests to the app itself are
+       intercepted, to carry the protection bypass (`passProtection`). */
     bypassCSP: true,
     reducedMotion: "reduce",
   });
+  await passProtection(context, cfg);
   const page = await context.newPage();
   page.on("console", (m) => {
     if (m.type() === "error") log(`page error: ${m.text()}`);

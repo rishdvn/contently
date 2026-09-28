@@ -23,6 +23,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && apt-get update && apt-get install -y --no-install-recommends google-chrome-stable \
     && rm -rf /var/lib/apt/lists/*
 
+# ffmpeg for the transcode lane (src/transcode.ts): Debian's build has libx264
+# and zscale, which the H.264 encode and the HDR tone-map need.
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
 COPY package.json package-lock.json* ./

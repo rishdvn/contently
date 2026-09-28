@@ -5,6 +5,7 @@ import type { Browser } from "playwright-core";
 import { config } from "./config.js";
 import { Queue, errorMessage, type ClaimedJob } from "./queue.js";
 import { RenderFailure, launch, renderJob } from "./render.js";
+import { transcoder } from "./transcode.js";
 
 /*
   The render worker: claim a job, open the app's `/render` route in a headless
@@ -180,6 +181,12 @@ async function main() {
   /* `--once` drains what is queued and exits: what a verification script and a
      one-off backfill both want, and the only way to run the worker without a
      process that never returns. */
+  /* Uploaded clips waiting for H.264 (`src/transcode.ts`), then exit. */
+  if (process.argv.includes("--transcode-once")) {
+    await transcoder(cfg, log).drain();
+    return;
+  }
+
   if (process.argv.includes("--once")) {
     let rendered = 0;
     while (await turn()) rendered++;
@@ -191,6 +198,7 @@ async function main() {
   const server = serve();
   process.on("SIGINT", () => void shutdown("SIGINT", server));
   process.on("SIGTERM", () => void shutdown("SIGTERM", server));
+  void transcoder(cfg, log).loop(() => stopping);
   await Promise.all(Array.from({ length: cfg.concurrency }, (_, i) => lane(i + 1)));
 }
 

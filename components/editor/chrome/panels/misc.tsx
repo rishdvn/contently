@@ -1273,13 +1273,15 @@ function UploadProgress({ job, onDismiss }: { job: UploadJob; onDismiss: () => v
         <div className="truncate text-cap text-ink">{job.name}</div>
         {job.error ? (
           <div className="truncate text-[11px] text-critical">{job.error}</div>
+        ) : job.warning ? (
+          <div role="alert" className="mt-0.5 text-[11px] leading-[14px] text-caution">{job.warning}</div>
         ) : (
           <div className="mt-1 h-1 overflow-hidden rounded-full bg-raised">
             <div className="h-full rounded-full bg-ink transition-[width] duration-150" style={{ width: `${Math.round(job.progress * 100)}%` }} />
           </div>
         )}
       </div>
-      {job.error ? (
+      {job.error || job.warning ? (
         <button type="button" aria-label={`Dismiss ${job.name}`} className="flex size-5 shrink-0 items-center justify-center rounded-full text-ink-secondary hover:text-ink" onClick={onDismiss}>
           <X className="size-3" />
         </button>

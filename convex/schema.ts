@@ -95,6 +95,9 @@ export default defineSchema({
        until something has probed the file, which for stock means the import
        script has not processed it yet. */
     codec: v.optional(v.string()),
+    /* Uploads: the render worker's claim on a clip it is re-encoding to H.264
+       (`convex/transcode.ts`), and how many times it has tried. */
+    transcode: v.optional(v.object({ attempts: v.number(), claimedAt: v.optional(v.number()), error: v.optional(v.string()) })),
     name: v.string(),
     tags: v.array(v.string()),
     source: v.union(v.literal("upload"), v.literal("stock")),

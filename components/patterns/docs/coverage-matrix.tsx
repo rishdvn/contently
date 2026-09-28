@@ -1,27 +1,14 @@
-import { Badge } from "@/components/ui/badge";
 import { Tooltip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/cn";
 
-import { Doc, DocList, DocSection } from "./doc";
+import type { CoverageCell } from "@/components/patterns/chat/types";
 
 /*
   The strategy is the pain × persona matrix. Each cell is the number of angles
   drafted for that intersection; an empty cell is a gap the model can be asked
   to fill. It is the single most important visual in the product, so it is a
-  first-class pattern rather than a table.
+  custom node inside the rich body rather than a table the author has to draw.
 */
-export type CoverageCell = { angles: number; hooks?: number };
-
-export type StrategyDocData = {
-  thesis: string;
-  personas: string[];
-  pains: string[];
-  /** cells[painIndex][personaIndex] */
-  cells: CoverageCell[][];
-  angleTypes: { type: string; count: number }[];
-  next: string[];
-};
-
 export function CoverageMatrix({
   personas,
   pains,
@@ -91,41 +78,5 @@ export function CoverageMatrix({
         </tbody>
       </table>
     </div>
-  );
-}
-
-export function StrategyDoc({ data }: { data: StrategyDocData }) {
-  const gaps = data.cells.flat().filter((c) => c.angles === 0).length;
-  return (
-    <Doc>
-      <DocSection label="Thesis">
-        <p className="text-default leading-6 text-ink">{data.thesis}</p>
-      </DocSection>
-
-      <DocSection
-        label="Coverage"
-        hint={gaps ? `${gaps} empty ${gaps === 1 ? "cell" : "cells"}` : "no gaps"}
-      >
-        <CoverageMatrix personas={data.personas} pains={data.pains} cells={data.cells} />
-        <p className="text-cap text-ink-disabled">
-          Rows are pains, columns are personas. A number is how many angles exist for that
-          intersection; a ring is a gap.
-        </p>
-      </DocSection>
-
-      <DocSection label="Angle types in play" hint="diversity check">
-        <div className="flex flex-wrap gap-1.5">
-          {data.angleTypes.map((a) => (
-            <Badge key={a.type} dot={false} tone={a.count === 0 ? "caution" : "neutral"}>
-              {a.type} &middot; {a.count}
-            </Badge>
-          ))}
-        </div>
-      </DocSection>
-
-      <DocSection label="Recommended next">
-        <DocList items={data.next} />
-      </DocSection>
-    </Doc>
   );
 }

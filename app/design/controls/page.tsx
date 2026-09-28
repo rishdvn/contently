@@ -18,7 +18,7 @@ export default function ControlsPage() {
       <PageHeader
         title="Controls"
         lede="Things the user operates. Every control here is a single component with variants — there is no second button for dialogs, no special chip for the composer. A surface that needs a control imports it."
-        note="Mobbin's Control category also lists select, segmented control, slider, stepper and date/time pickers. Those arrive with the surfaces that need them: select and segmented with the board filters, date picker with the calendar."
+        note="Mobbin's Control category also lists select, segmented control, slider, stepper and date/time pickers. Those arrive with the surfaces that need them: select and segmented with the Ideas filters, date picker with the calendar."
       />
 
       <Section

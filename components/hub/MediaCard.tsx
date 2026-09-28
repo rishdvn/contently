@@ -15,6 +15,20 @@ export const mediaAspect = (item: MediaItem) => Math.min(Math.max(item.width && 
 /* "0:06" for a clip, "3024 × 4032" for a photo. */
 export const mediaFacts = (item: MediaItem) => (item.kind === "video" && item.duration ? formatTime(item.duration) : `${item.width} × ${item.height}`);
 
+/* "dupephotos.com" for a stock row's source page: where the credit links go. */
+export const sourceHost = (url: string) => new URL(url).hostname.replace(/^www\./, "");
+
+/* A stock credit: out to the provider's site, underlined like Butter's, when
+   the row knows the page; plain text when it does not. */
+export function CreditLink({ href, children }: { href?: string; children: string }) {
+  if (!href) return <>{children}</>;
+  return (
+    <a href={href} target="_blank" rel="noreferrer" className="underline decoration-ink-disabled underline-offset-2 transition-colors hover:text-ink hover:decoration-ink">
+      {children}
+    </a>
+  );
+}
+
 /* Media in a library grid: the Media page's cards and the preview's Similar strip. */
 export const MEDIA: LibraryAdapter<MediaItem> = {
   key: (item) => item.id,

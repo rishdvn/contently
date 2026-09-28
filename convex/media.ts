@@ -36,9 +36,11 @@ export type MediaItem = {
   previewUrl: string | null;
   tags: string[];
   source: "upload" | "stock";
-  /* Stock only: our taxonomy slugs, and who to credit. */
+  /* Stock only: our taxonomy slugs, who to credit (`url` is their page), and
+     the asset's page on the provider's site. */
   categories: string[];
-  credit?: { name?: string; handle?: string };
+  credit?: { name?: string; handle?: string; url?: string };
+  sourceUrl?: string;
   createdAt: number;
 };
 
@@ -62,6 +64,7 @@ async function withUrls(ctx: QueryCtx, row: Doc<"media">): Promise<MediaItem> {
     source: row.source,
     categories: row.categories ?? [],
     credit: row.credit,
+    sourceUrl: row.sourceUrl,
     createdAt: row._creationTime,
   };
 }

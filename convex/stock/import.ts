@@ -126,7 +126,8 @@ export const insertStock = internalMutation({
     tags: v.array(v.string()),
     aesthetics: v.array(v.string()),
     categories: v.array(v.string()),
-    credit: v.object({ name: v.optional(v.string()), handle: v.optional(v.string()) }),
+    credit: v.object({ name: v.optional(v.string()), handle: v.optional(v.string()), url: v.optional(v.string()) }),
+    sourceUrl: v.optional(v.string()),
     license: v.string(),
   },
   handler: async (ctx, row) => {
@@ -154,6 +155,35 @@ export const addCategory = internalMutation({
     if (!row) return;
     const categories = row.categories ?? [];
     if (!categories.includes(category)) await ctx.db.patch(id, { categories: [...categories, category] });
+  },
+});
+
+/*
+  Credit links for rows imported before the import stored them: the author's
+  page (`credit.url`) and the asset's (`sourceUrl`). Built from what each row
+  already holds, its `sourceRef` and the handle the provider gave, so the
+  provider is not asked again. Idempotent; the script calls it until `cursor`
+  comes back null (`node scripts/import-stock.ts --credit-links`).
+*/
+export const backfillCreditLinks = internalMutation({
+  args: { cursor: v.optional(v.union(v.string(), v.null())), batch: v.optional(v.number()) },
+  handler: async (ctx, { cursor = null, batch = 200 }) => {
+    const page = await ctx.db
+      .query("media")
+      .withIndex("by_source_kind", (q) => q.eq("source", "stock"))
+      .paginate({ cursor, numItems: batch });
+    let updated = 0;
+    for (const row of page.page) {
+      const [providerId, ...rest] = (row.sourceRef ?? "").split(":");
+      const provider = PROVIDERS[providerId];
+      const externalId = rest.join(":");
+      if (!provider || !externalId) continue;
+      const pages = provider.links(externalId, row.credit?.handle);
+      if (row.sourceUrl === pages.asset && row.credit?.url === pages.author) continue;
+      await ctx.db.patch(row._id, { sourceUrl: pages.asset, credit: { ...row.credit, url: pages.author } });
+      updated += 1;
+    }
+    return { scanned: page.page.length, updated, cursor: page.isDone ? null : page.continueCursor };
   },
 });
 
@@ -262,6 +292,7 @@ export const importPage = internalAction({
           aesthetics: asset.aesthetics,
           categories: [category.slug],
           credit: asset.credit,
+          sourceUrl: asset.sourceUrl,
           license: provider.license,
         });
         result.imported += 1;

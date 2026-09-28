@@ -111,8 +111,11 @@ export default defineSchema({
     /* Stock only: the provider's style labels, kept apart from its subject
        labels in `tags`. */
     aesthetics: v.optional(v.array(v.string())),
-    /* Stock only: who made it, as the provider names them. */
-    credit: v.optional(v.object({ name: v.optional(v.string()), handle: v.optional(v.string()) })),
+    /* Stock only: who made it, as the provider names them, and (`url`) their
+       page on the provider's site. */
+    credit: v.optional(v.object({ name: v.optional(v.string()), handle: v.optional(v.string()), url: v.optional(v.string()) })),
+    /* Stock only: the asset's own page on the provider's site. */
+    sourceUrl: v.optional(v.string()),
     /* Absent on stock rows, which a script imports rather than a person. */
     createdBy: v.optional(v.id("users")),
   })

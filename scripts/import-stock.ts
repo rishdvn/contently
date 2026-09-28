@@ -8,6 +8,7 @@
       node scripts/import-stock.ts --transcode                    # videos only, no import
       node scripts/import-stock.ts --transcode --categories cafe --limit 3
       node scripts/import-stock.ts --transcode --recheck <mediaId>,<mediaId>  # finished rows, decided again
+      node scripts/import-stock.ts --credit-links                 # only fill in credit links on existing rows
       node scripts/import-stock.ts -- --prod                      # flags after -- go to `npx convex run`
 
   Which deployment it writes to is whatever `npx convex run` would pick: the
@@ -430,6 +431,24 @@ async function videos() {
   return failed === 0;
 }
 
+/* ── Credit links ──────────────────────────────────────────────────────── */
+
+/* The author's and the asset's pages on rows imported before the import
+   stored them. Built from each row's own fields, so the provider is not
+   contacted; a second run updates nothing. */
+function creditLinks() {
+  let cursor: string | null = null;
+  let scanned = 0;
+  let updated = 0;
+  do {
+    const page: { scanned: number; updated: number; cursor: string | null } = run("stock/import:backfillCreditLinks", { cursor });
+    scanned += page.scanned;
+    updated += page.updated;
+    cursor = page.cursor;
+  } while (cursor);
+  console.log(`credit links: ${updated} of ${scanned} stock rows updated`);
+}
+
 /* ── Report ────────────────────────────────────────────────────────────── */
 
 function report() {
@@ -444,6 +463,11 @@ function report() {
   if (counts.videosWithoutPoster) console.log(`videos still without a poster: ${counts.videosWithoutPoster}`);
   if (counts.videosNotH264) console.log(`videos not yet H.264: ${counts.videosNotH264}`);
   if (counts.videosWithoutPreview) console.log(`videos still without a preview: ${counts.videosWithoutPreview}`);
+}
+
+if (flag("credit-links")) {
+  creditLinks();
+  process.exit(0);
 }
 
 const imported = videosOnly ? true : importAll();

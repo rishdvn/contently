@@ -129,6 +129,17 @@ export const DEFAULT_ASPECT: Record<ProjectKind, AspectId> = {
   video: "9:16",
 };
 
+/*
+  What a new scene is called: "Scene" in a video, "Slide" otherwise, numbered
+  one past the highest number already in use. Counting the scenes instead
+  repeats a name after a delete and puts "Scene 3" before "Scene 2" after an
+  insert. Existing names are never changed; one someone renamed isn't counted.
+*/
+export function nextSceneName(p: Pick<Project, "kind" | "slides">): string {
+  const used = p.slides.map((s) => Number(/^(?:scene|slide) (\d+)$/i.exec((s.name ?? "").trim())?.[1])).filter(Number.isFinite);
+  return `${p.kind === "video" ? "Scene" : "Slide"} ${Math.max(0, ...used) + 1}`;
+}
+
 export function project(kind: ProjectKind, name?: string): Project {
   const aspect = DEFAULT_ASPECT[kind];
   const { w, h } = ASPECTS[aspect];

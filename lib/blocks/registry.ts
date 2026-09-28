@@ -68,15 +68,17 @@ export function listBlocks(category?: BlockCategory): AnyBlockDefinition[] {
   return category ? all.filter((b) => b.category === category) : all;
 }
 
-/* Width over height for a block's aspect hint. */
-export const aspectRatioOf = (def: AnyBlockDefinition) => ({ square: 1, portrait: 4 / 5, landscape: 16 / 9, strip: 4, free: 1 })[def.aspectHint ?? "free"];
+/* Width over height for a block's aspect hint. A frame takes the artboard's; 9:16 is the one it is designed for. */
+export const aspectRatioOf = (def: AnyBlockDefinition) => ({ square: 1, portrait: 4 / 5, landscape: 16 / 9, strip: 4, frame: 9 / 16, free: 1 })[def.aspectHint ?? "free"];
 
 /*
   Where a block lands when added: centred, as large as its aspect allows within
   80% of the artboard. A strip runs the artboard's full width, edge to edge, as
-  a band does.
+  a band does. A frame covers the artboard, for overlays that lay themselves out
+  against the whole picture (a caption that keeps out of an app's UI).
 */
 export function placementFor(def: AnyBlockDefinition, artW: number, artH: number) {
+  if (def.aspectHint === "frame") return { x: 0, y: 0, w: artW, h: artH };
   const ratio = aspectRatioOf(def);
   let w = Math.min(artW * (def.aspectHint === "strip" ? 1 : 0.8), artH * 0.8 * ratio);
   let h = w / ratio;

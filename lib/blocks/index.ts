@@ -8,6 +8,7 @@
   cleanly. Within a category the Blocks panel lists blocks in this order.
 */
 import "./browser-frame";
+import "./image-carousel";
 import "./imessage";
 import "./logo-strip";
 import "./phone-frame";

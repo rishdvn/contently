@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 1000" width="800" height="1000">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f7ecd0"/>
+      <stop offset="1" stop-color="#efd9a8"/>
+    </linearGradient>
+    <radialGradient id="flesh" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#ffd28a"/>
+      <stop offset="1" stop-color="#f7a13a"/>
+    </radialGradient>
+    <radialGradient id="lemon" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#fff3a6"/>
+      <stop offset="1" stop-color="#f2d23c"/>
+    </radialGradient>
+    <g id="seg">
+      <path d="M0 0 L -34 -118 A 122 122 0 0 1 34 -118 Z" fill="#fff" opacity="0.28"/>
+    </g>
+  </defs>
+  <rect width="800" height="1000" fill="url(#bg)"/>
+  <rect y="690" width="800" height="310" fill="#e6c98c"/>
+  <ellipse cx="300" cy="720" rx="200" ry="34" fill="#b88a3e" opacity="0.35"/>
+  <ellipse cx="560" cy="800" rx="150" ry="26" fill="#b88a3e" opacity="0.35"/>
+  <g transform="translate(300 560)">
+    <circle r="170" fill="#f08a1c"/>
+    <circle r="150" fill="url(#flesh)"/>
+    <g>
+      <use href="#seg" transform="rotate(0)"/><use href="#seg" transform="rotate(40)"/><use href="#seg" transform="rotate(80)"/>
+      <use href="#seg" transform="rotate(120)"/><use href="#seg" transform="rotate(160)"/><use href="#seg" transform="rotate(200)"/>
+      <use href="#seg" transform="rotate(240)"/><use href="#seg" transform="rotate(280)"/><use href="#seg" transform="rotate(320)"/>
+    </g>
+    <circle r="16" fill="#fff6e4"/>
+  </g>
+  <g transform="translate(560 700) scale(0.72)">
+    <circle r="170" fill="#e8c21a"/>
+    <circle r="150" fill="url(#lemon)"/>
+    <use href="#seg" transform="rotate(20)"/><use href="#seg" transform="rotate(65)"/><use href="#seg" transform="rotate(110)"/>
+    <use href="#seg" transform="rotate(155)"/><use href="#seg" transform="rotate(200)"/><use href="#seg" transform="rotate(245)"/>
+    <use href="#seg" transform="rotate(290)"/><use href="#seg" transform="rotate(335)"/>
+    <circle r="16" fill="#fffbe6"/>
+  </g>
+  <path d="M560 470 C 610 420 690 420 720 450 C 680 500 610 505 560 470 Z" fill="#5f8f3c"/>
+  <path d="M560 470 C 620 455 670 450 720 450" fill="none" stroke="#3f6b25" stroke-width="4"/>
+</svg>

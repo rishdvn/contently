@@ -217,8 +217,9 @@ Rules of thumb:
   fallback underneath (iMessage shows the contact's initial). Paint a `video`
   input with `BlockVideo`, passing the clock:
   `<BlockVideo value={props.clip} time={ctx.time} mode={ctx.mode} />`. It shows
-  the frame at `time` (a shorter clip loops), silent; it plays along while the
-  studio plays and holds the exact frame when paused, scrubbed or exported.
+  the frame at `time` (a shorter clip loops), silent, covering the box that
+  `className`/`style` give it; it plays along while the studio plays and holds
+  the exact frame when paused, scrubbed or exported.
 - **An empty media value is `{ src: "" }`**, and `defaults` lists every key,
   empty media included (iMessage: `avatar: { src: "" }`).
 - **Lists are for repeated content**, with honest bounds: `min` is what the

@@ -43,7 +43,9 @@ export function MediaArt({ item, playing, sizes = "(min-width: 1280px) 20vw, 25v
         <span className="absolute inset-0 flex items-center justify-center text-cap text-ink-disabled">Unavailable</span>
       )}
       {item.kind === "video" && playing && item.url ? (
-        <video src={item.previewUrl ?? item.url} poster={item.posterUrl ?? undefined} autoPlay muted loop playsInline className="absolute inset-0 size-full object-cover" />
+        /* No `poster`: that would fetch the full-size frame. Until the first
+           frame paints the video is transparent over the optimised one. */
+        <video src={item.previewUrl ?? item.url} autoPlay muted loop playsInline className="absolute inset-0 size-full object-cover" />
       ) : null}
     </div>
   );

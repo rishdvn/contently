@@ -7,20 +7,32 @@ import { ConvexError } from "convex/values";
       { "error": { "code": "not_found", "message": "…", "details": [...] } }
 */
 
-export type ApiErrorCode = "invalid_request" | "unauthorized" | "not_found" | "rate_limited" | "payload_too_large" | "unavailable" | "internal";
+export type ApiErrorCode =
+  | "invalid_request"
+  | "unauthorized"
+  | "not_found"
+  | "rate_limited"
+  | "quota_exceeded"
+  | "payload_too_large"
+  | "unsupported_media"
+  | "unavailable"
+  | "internal";
 
-export type ApiErrorData = { kind: "api"; code: ApiErrorCode; message: string; details?: { at: string; message: string }[] };
+/* `retryAfter`, in seconds, becomes the answer's `Retry-After` header. */
+export type ApiErrorData = { kind: "api"; code: ApiErrorCode; message: string; details?: { at: string; message: string }[]; retryAfter?: number };
 
 export const STATUS: Record<ApiErrorCode, number> = {
   invalid_request: 400,
   unauthorized: 401,
   not_found: 404,
   payload_too_large: 413,
+  unsupported_media: 415,
   rate_limited: 429,
+  quota_exceeded: 429,
   internal: 500,
   unavailable: 503,
 };
 
-export function apiFail(code: ApiErrorCode, message: string, details?: ApiErrorData["details"]): never {
-  throw new ConvexError({ kind: "api", code, message, ...(details?.length ? { details } : {}) } satisfies ApiErrorData);
+export function apiFail(code: ApiErrorCode, message: string, details?: ApiErrorData["details"], retryAfter?: number): never {
+  throw new ConvexError({ kind: "api", code, message, ...(details?.length ? { details } : {}), ...(retryAfter !== undefined ? { retryAfter } : {}) } satisfies ApiErrorData);
 }

@@ -2,7 +2,8 @@ import type { HttpRouter } from "convex/server";
 import { ConvexError, type Value } from "convex/values";
 
 import { mediaUrlsIn, parseReplacements, type Problem } from "../../lib/api/content";
-import { sniff } from "../../lib/api/sniff";
+import { checkMedia, limitsFor, maxImportBytes } from "../../lib/api/limits";
+import { sniff, type Sniffed } from "../../lib/api/sniff";
 import { durationOf, sceneViews, type Doc as ViewDoc } from "../../lib/api/view";
 import { internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
@@ -50,9 +51,11 @@ const errorResponse = (code: ApiErrorCode, message: string, details?: Problem[],
 /* The internal functions' own denials (`render.ts`, `projects.ts`, …) share a
    `{ kind, code }` shape; their codes map onto HTTP the same way everywhere. */
 function fromConvexError(error: ConvexError<Value>): Response | null {
-  const data = error.data as { kind?: string; code?: string; message?: string; details?: ApiErrorData["details"] } | null;
+  const data = error.data as { kind?: string; code?: string; message?: string; details?: ApiErrorData["details"]; retryAfter?: number } | null;
   if (!data || typeof data !== "object") return null;
-  if (data.kind === "api" && data.code && data.code in STATUS) return errorResponse(data.code as ApiErrorCode, data.message ?? "", data.details);
+  if (data.kind === "api" && data.code && data.code in STATUS) {
+    return errorResponse(data.code as ApiErrorCode, data.message ?? "", data.details, typeof data.retryAfter === "number" ? { "Retry-After": String(data.retryAfter) } : undefined);
+  }
   const code: ApiErrorCode | null = data.code === "missing" || data.code === "forbidden" ? "not_found" : data.code === "invalid" ? "invalid_request" : data.code === "unconfigured" ? "unavailable" : null;
   return code ? errorResponse(code, data.message ?? "") : null;
 }
@@ -104,9 +107,18 @@ const FORMATS = ["png", "carousel-zip", "mp4"] as const;
 
 /* ── Media import ──────────────────────────────────────────────────── */
 
-/* A Convex action holds the whole file in memory; larger files go through
-   `POST /v1/media/upload-url`, which streams straight to storage. */
-const MAX_IMPORT_BYTES = 40 * 1024 * 1024;
+/*
+  Size, type and codec limits per kind are `lib/api/limits.ts`. The largest
+  of them can be refused before a download starts; the rest only once the
+  file's first bytes say what it is.
+*/
+const MAX_IMPORT_BYTES = maxImportBytes();
+const MAX_IMPORT_MB = MAX_IMPORT_BYTES / 1024 / 1024;
+
+function refuse(found: Sniffed, bytes: number) {
+  const problem = checkMedia(found, bytes, limitsFor());
+  if (problem) apiFail(problem.code, problem.message);
+}
 
 /* Refuse the obvious ways to point a server-side fetch back inside a network. */
 function publicUrl(raw: string): URL | null {
@@ -123,17 +135,15 @@ function publicUrl(raw: string): URL | null {
   return url;
 }
 
+const UNREADABLE = "Not an image or video we can read (PNG, JPEG, GIF, WebP, or H.264 MP4/MOV)";
+
 const nameFrom = (url: URL, kind: string) => {
   const last = decodeURIComponent(url.pathname.split("/").filter(Boolean).pop() ?? "").trim();
   return (last || `Imported ${kind}`).slice(0, 120);
 };
 
-async function register(ctx: ActionCtx, auth: Auth, storageId: Id<"_storage">, bytes: Uint8Array, fields: { name?: string; tags?: string[]; fallbackName: (kind: string) => string }) {
-  const found = sniff(bytes);
-  if (!found) {
-    await ctx.storage.delete(storageId);
-    apiFail("invalid_request", "Not an image or video we can read (PNG, JPEG, GIF, WebP, MP4 or MOV)");
-  }
+/* `found` is what the file's bytes say it is, already checked against the limits. */
+async function register(ctx: ActionCtx, auth: Auth, storageId: Id<"_storage">, found: Sniffed, fields: { name?: string; tags?: string[]; fallbackName: (kind: string) => string }) {
   const media = await ctx.runMutation(internal.api.media.create, {
     orgId: auth.orgId,
     userId: auth.userId,
@@ -158,7 +168,7 @@ async function importUrl(ctx: ActionCtx, auth: Auth, raw: string, fields: { name
   try {
     const response = await fetch(url, { redirect: "follow", signal: controller.signal, headers: { Accept: "image/*,video/*" } });
     if (!response.ok) apiFail("invalid_request", `Fetching ${raw} answered ${response.status}`);
-    if (Number(response.headers.get("content-length") ?? 0) > MAX_IMPORT_BYTES) apiFail("payload_too_large", `${raw} is larger than ${MAX_IMPORT_BYTES / 1024 / 1024} MB; upload it with POST /v1/media/upload-url instead`);
+    if (Number(response.headers.get("content-length") ?? 0) > MAX_IMPORT_BYTES) apiFail("payload_too_large", `${raw} is larger than ${MAX_IMPORT_MB} MB, the most any import may be`);
     bytes = new Uint8Array(await response.arrayBuffer());
   } catch (error) {
     if (error instanceof ConvexError) throw error;
@@ -166,10 +176,12 @@ async function importUrl(ctx: ActionCtx, auth: Auth, raw: string, fields: { name
   } finally {
     clearTimeout(timer);
   }
-  if (bytes.byteLength > MAX_IMPORT_BYTES) apiFail("payload_too_large", `${raw} is larger than ${MAX_IMPORT_BYTES / 1024 / 1024} MB; upload it with POST /v1/media/upload-url instead`);
+  if (bytes.byteLength > MAX_IMPORT_BYTES) apiFail("payload_too_large", `${raw} is larger than ${MAX_IMPORT_MB} MB, the most any import may be`);
   const found = sniff(bytes);
-  const storageId = await ctx.storage.store(new Blob([bytes as BlobPart], { type: found?.mime ?? "application/octet-stream" }));
-  return await register(ctx, auth, storageId, bytes, { ...fields, fallbackName: (kind) => nameFrom(url, kind) });
+  if (!found) apiFail("unsupported_media", UNREADABLE);
+  refuse(found, bytes.byteLength);
+  const storageId = await ctx.storage.store(new Blob([bytes as BlobPart], { type: found.mime }));
+  return await register(ctx, auth, storageId, found, { ...fields, fallbackName: (kind) => nameFrom(url, kind) });
 }
 
 /* ── Views ─────────────────────────────────────────────────────────── */
@@ -306,11 +318,15 @@ const routes: Route[] = [
       }
       const info = typeof b.storageId === "string" ? await ctx.runQuery(internal.api.media.storageInfo, { storageId: b.storageId }) : null;
       if (!info) apiFail("invalid_request", "storageId: no such upload");
-      if (info.size > MAX_IMPORT_BYTES) apiFail("payload_too_large", `Files over ${MAX_IMPORT_BYTES / 1024 / 1024} MB cannot be registered through the API yet`);
+      if (info.size > MAX_IMPORT_BYTES) apiFail("payload_too_large", `The upload is ${(info.size / 1024 / 1024).toFixed(0)} MB; files over ${MAX_IMPORT_MB} MB cannot be registered through the API yet`);
       const blob = await ctx.storage.get(info.id);
       if (!blob) apiFail("invalid_request", "storageId: no such upload");
       const bytes = new Uint8Array(await blob.arrayBuffer());
-      return json(201, await register(ctx, auth, info.id, bytes, { name, tags, fallbackName: (kind) => `Uploaded ${kind}` }));
+      /* A refused upload is left where it is: the id is the caller's word, and it could name a file that is not theirs to delete. */
+      const found = sniff(bytes);
+      if (!found) apiFail("unsupported_media", UNREADABLE);
+      refuse(found, bytes.byteLength);
+      return json(201, await register(ctx, auth, info.id, found, { name, tags, fallbackName: (kind) => `Uploaded ${kind}` }));
     },
   },
   {

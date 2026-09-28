@@ -8,7 +8,16 @@
   Pure functions over bytes, so they are unit-tested (`sniff.test.ts`).
 */
 
-export type Sniffed = { kind: "image" | "video"; mime: string; width: number; height: number; duration?: number };
+export type Sniffed = {
+  kind: "image" | "video";
+  mime: string;
+  width: number;
+  height: number;
+  duration?: number;
+  /* Video: the video track's sample-entry code, `avc1` for H.264, `hvc1` or
+     `hev1` for HEVC, `av01`, `vp09`… Absent when the header does not say. */
+  codec?: string;
+};
 
 const u16be = (b: Uint8Array, i: number) => (b[i]! << 8) | b[i + 1]!;
 const u16le = (b: Uint8Array, i: number) => b[i]! | (b[i + 1]! << 8);
@@ -60,9 +69,11 @@ function webp(b: Uint8Array): Sniffed | null {
 }
 
 /*
-  ISO base media (MP4, MOV): the movie header's duration, and the size of the
-  first track that has one — the video track, since audio tracks declare 0×0.
-  `moov` may sit at either end of the file; the whole file is here either way.
+  ISO base media (MP4, MOV): the movie header's duration, the size of the
+  first track that has one — the video track, since audio tracks declare 0×0 —
+  and the video track's codec, from the first entry of its sample description
+  (`stsd`) in the track whose handler is `vide`. `moov` may sit at either end
+  of the file; the whole file is here either way.
 */
 function mp4(b: Uint8Array): Sniffed | null {
   if (b.length < 12 || ascii(b, 4, 4) !== "ftyp") return null;
@@ -70,6 +81,9 @@ function mp4(b: Uint8Array): Sniffed | null {
   let duration: number | undefined;
   let width = 0;
   let height = 0;
+  let codec: string | undefined;
+  /* The track being walked: its handler (`vide`, `soun`, …) and its first sample entry. */
+  let track: { handler?: string; format?: string } = {};
 
   const walk = (start: number, end: number) => {
     let i = start;
@@ -84,7 +98,13 @@ function mp4(b: Uint8Array): Sniffed | null {
       } else if (size === 0) size = end - i;
       if (size < header || i + size > end) return;
       const body = i + header;
-      if (type === "moov" || type === "trak") walk(body, i + size);
+      if (type === "trak") {
+        track = {};
+        walk(body, i + size);
+        if (!codec && track.handler === "vide" && track.format) codec = track.format;
+      } else if (type === "moov" || type === "mdia" || type === "minf" || type === "stbl") walk(body, i + size);
+      else if (type === "hdlr" && body + 12 <= end) track.handler = ascii(b, body + 8, 4);
+      else if (type === "stsd" && body + 16 <= end && u32be(b, body + 4) > 0) track.format ??= ascii(b, body + 12, 4);
       else if (type === "mvhd") {
         const v1 = b[body] === 1;
         const timescale = u32be(b, body + (v1 ? 20 : 12));
@@ -104,7 +124,7 @@ function mp4(b: Uint8Array): Sniffed | null {
   };
   walk(0, b.length);
   if (!width || !height) return null;
-  return { kind: "video", mime: brand.startsWith("qt") ? "video/quicktime" : "video/mp4", width, height, ...(duration !== undefined ? { duration } : {}) };
+  return { kind: "video", mime: brand.startsWith("qt") ? "video/quicktime" : "video/mp4", width, height, ...(duration !== undefined ? { duration } : {}), ...(codec ? { codec } : {}) };
 }
 
 export function sniff(bytes: Uint8Array): Sniffed | null {

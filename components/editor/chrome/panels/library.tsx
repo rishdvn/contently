@@ -59,8 +59,6 @@ function TemplateGrid({ onOpen }: { onOpen: (id: string) => void }) {
   const [cat, setCat] = useState<string | null>(null);
   const scope = useTemplateScope();
   const all = useQuery(api.templates.list, scope ? { drafts: true, ...scope } : "skip");
-  const deletable = useDeletableTemplates();
-  const [deleting, setDeleting] = useState<DeletableTemplate | null>(null);
 
   /* The chips are whatever categories the library uses, most used first. */
   const categories = useMemo(() => {
@@ -70,6 +68,9 @@ function TemplateGrid({ onOpen }: { onOpen: (id: string) => void }) {
   }, [all]);
 
   const needle = q.trim().toLowerCase();
+  /* The active organisation's own templates, for an admin, have a ⋯ → Delete. */
+  const deletable = useDeletableTemplates();
+  const [deleting, setDeleting] = useState<DeletableTemplate | null>(null);
   const list = (all ?? []).filter(
     (t) => (!cat || t.categories.includes(cat)) && (!needle || `${t.name} ${t.tags.join(" ")} ${t.categories.join(" ")} ${t.kind}`.toLowerCase().includes(needle)),
   );

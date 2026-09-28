@@ -235,7 +235,7 @@ export const createProjectFrom = mutation({
 
 async function requireAdmin(ctx: QueryCtx, clerkOrgId: string) {
   const context = await requireOrg(ctx, clerkOrgId);
-  if (context.membership.role !== ADMIN) fail("forbidden", "Only an organisation admin can make, change, publish or delete templates");
+  if (context.membership.role !== ADMIN) fail("forbidden", "Only an organisation admin can make, change or publish templates");
   return context;
 }
 

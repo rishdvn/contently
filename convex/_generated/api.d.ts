@@ -38,6 +38,7 @@ import type * as render from "../render.js";
 import type * as stock_dupe from "../stock/dupe.js";
 import type * as stock_import from "../stock/import.js";
 import type * as stock_provider from "../stock/provider.js";
+import type * as templatePosters from "../templatePosters.js";
 import type * as templates from "../templates.js";
 import type * as users from "../users.js";
 
@@ -78,6 +79,7 @@ declare const fullApi: ApiFromModules<{
   "stock/dupe": typeof stock_dupe;
   "stock/import": typeof stock_import;
   "stock/provider": typeof stock_provider;
+  templatePosters: typeof templatePosters;
   templates: typeof templates;
   users: typeof users;
 }>;

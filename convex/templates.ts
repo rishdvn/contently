@@ -28,12 +28,13 @@ import type { MutationCtx } from "./_generated/server";
     read, so a template's photos show for everyone without anyone else being
     let into that organisation's library.
   - Posters are rendered by `scripts/template-posters.ts` through the internal
-    functions at the bottom.
+    functions at the bottom, or by the studio as it saves a template
+    (`templatePosters.savePosters`).
 */
 
 export type TemplateDenial = { kind: "template"; code: "missing" | "forbidden" | "invalid"; message: string };
 
-function fail(code: TemplateDenial["code"], message: string): never {
+export function fail(code: TemplateDenial["code"], message: string): never {
   throw new ConvexError({ kind: "template", code, message } satisfies TemplateDenial);
 }
 
@@ -333,6 +334,49 @@ export const remove = internalMutation({
     if (!row) fail("missing", "No such template");
     for (const file of new Set([...row.scenePosters, ...(row.poster ? [row.poster] : [])])) await ctx.storage.delete(file);
     await ctx.db.delete(id);
+  },
+});
+
+/* ── The studio's Save as template ─────────────────────────────────── */
+
+/*
+  What the studio's Save as template dialog needs to know about a project:
+  whether the caller may make templates here (an admin) and publish them (an
+  admin of the publisher organisation); the template already made from this
+  project, if there is one, since saving again refreshes that one rather than
+  making a second; and the categories the library already uses, most used
+  first, to pick from.
+*/
+export const forProject = query({
+  args: { orgId: v.string(), projectId: v.string() },
+  handler: async (ctx, { orgId, projectId }) => {
+    const context = await tryOrg(ctx, orgId);
+    if (!context) return null;
+    const admin = context.membership.role === ADMIN;
+    const own = await ctx.db.query("templates").withIndex("by_org", (q) => q.eq("orgId", context.org._id)).collect();
+    const made = own.filter((row) => row.sourceProjectId === projectId).sort((a, b) => (b.updatedAt ?? b._creationTime) - (a.updatedAt ?? a._creationTime))[0];
+    const published = await ctx.db.query("templates").withIndex("by_published", (q) => q.eq("published", true)).collect();
+
+    const counts = new Map<string, number>();
+    for (const row of [...published, ...own.filter((r) => !r.published)]) for (const c of row.categories) counts.set(c, (counts.get(c) ?? 0) + 1);
+    return {
+      admin,
+      canPublish: admin && publisherOrg() === orgId,
+      template: made ? { id: made._id, name: made.name, categories: made.categories, tags: made.tags, published: made.published } : null,
+      categories: [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([c]) => c),
+    };
+  },
+});
+
+/* The template the studio may put posters on, for `templatePosters.savePosters`: the caller's own organisation's, as an admin. */
+export const posterTarget = internalQuery({
+  args: { orgId: v.string(), id: v.string() },
+  handler: async (ctx, { orgId, id }): Promise<{ id: Id<"templates">; scenes: number }> => {
+    const { org } = await requireAdmin(ctx, orgId);
+    const tid = ctx.db.normalizeId("templates", id);
+    const row = tid ? await ctx.db.get(tid) : null;
+    if (!row || row.orgId !== org._id) fail("missing", "No such template in this organisation");
+    return { id: row._id, scenes: ((row.document as TemplateDocument)?.slides ?? []).length };
   },
 });
 

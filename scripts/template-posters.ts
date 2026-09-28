@@ -14,11 +14,9 @@
   `templates:forPosters` with its media already turned into URLs, is put on the
   stage at 1:1 (`load`), and each scene is taken as a PNG `POSTER_WIDTH` wide.
 
-  Which frame of a video scene: the moment just before the first block leaves
-  among those at which the most blocks are on screen — so every block has
-  arrived and settled, and nothing that is never on screen together overlaps.
-  For a scene whose blocks all run to its end, that is its last frame. Image
-  and carousel slides are stills already.
+  Which frame of a video scene: `posterTime` (`lib/editor/posterTime.ts`),
+  shared with the studio's Save as template. Image and carousel slides are
+  stills already.
 
   The template's own poster is its first scene's: the one the scene picker and
   the Templates page lead with.
@@ -32,6 +30,8 @@ import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
+import { POSTER_WIDTH, posterTime } from "../lib/editor/posterTime";
+
 import { convex, loadDocument, openStage, parseArgs, repoRoot, still, upload } from "./lib/stage.js";
 
 const { option, flag, passthrough } = parseArgs();
@@ -39,9 +39,6 @@ const run = convex(passthrough);
 const ids = option("id")?.split(",").map((id) => id.trim()).filter(Boolean);
 const out = option("out");
 const force = flag("force");
-
-/* Output width in px; height follows the template's aspect. */
-const POSTER_WIDTH = 540;
 
 type Block = { start?: number; end?: number; hidden?: boolean };
 type Scene = { id: string; name: string; duration: number; blocks: Block[] };
@@ -52,17 +49,6 @@ type Row = { id: string; name: string; postersHash: string | null; stored: Doc; 
 const STAGE = readFileSync(join(repoRoot, "components/render/Stage.tsx"));
 
 const hashOf = (doc: Doc) => createHash("sha256").update(JSON.stringify({ doc, POSTER_WIDTH })).update(STAGE).digest("hex");
-
-/* See the header: the latest settled moment with the most blocks on screen. */
-function posterTime(scene: Scene): number {
-  const blocks = scene.blocks.filter((b) => !b.hidden);
-  const epsilon = 1 / 30;
-  const candidates = [...blocks.map((b) => Math.min(b.end ?? scene.duration, scene.duration)), scene.duration].map((t) => Math.max(0, t - epsilon));
-  const visibleAt = (t: number) => blocks.filter((b) => (b.start ?? 0) <= t && t < (b.end ?? scene.duration)).length;
-  let best = candidates[0]!;
-  for (const t of candidates) if (visibleAt(t) > visibleAt(best) || (visibleAt(t) === visibleAt(best) && t < best)) best = t;
-  return best;
-}
 
 async function main() {
   const rows = run<Row[]>("templates:forPosters", ids ? { ids } : {});

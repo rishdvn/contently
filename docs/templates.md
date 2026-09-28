@@ -18,7 +18,8 @@ that, not only by how it looks on the day it was made.
 | `lib/editor/types.ts` → `CONTENT_ROLES` | The role vocabulary |
 | `lib/editor/roles.ts` | Labels, which roles fit which block, a document's slots |
 | `components/editor/chrome/Inspector.tsx` → Role | Where an author sets them |
-| `scripts/template-posters.ts` | Renders the posters |
+| `components/editor/dialogs/SaveTemplateDialog.tsx` | Save as template in the studio, posters included |
+| `scripts/template-posters.ts` | Renders the posters headlessly |
 
 ## What a template is
 
@@ -150,10 +151,19 @@ crop keeps them.
    stock media or the org's own uploads: they resolve for every reader,
    whereas a pasted URL depends on someone else's server staying up.
 2. **Set the roles.** Select each content block → Role. Everything a
-   replacement should touch gets one; layout gets none. Give autosave a
-   second after the last change (it runs about half a second later, with no
-   indicator): the next step copies what is stored, not what is on screen.
-3. **Make it a template.** `createFromProject` as yourself. You need two ids,
+   replacement should touch gets one; layout gets none.
+3. **Make it a template.** In the studio, the **⌄** beside the project's name
+   → **Save as template…** (admins only). Set the name, categories and tags;
+   an admin of the publisher organisation also sees **Publish to every
+   organisation**. It saves the project first, makes the template (private to
+   your organisation) and draws its posters (below). Saving again from the
+   same project — the menu then says **Update template…** — refreshes that
+   template: same id, the document replaced, name, categories and tags as set
+   in the dialog. **Save as new template** in that dialog makes a second one.
+
+   From the CLI instead: `createFromProject` as yourself. Give autosave a
+   second after the last change (it runs about half a second later): the CLI
+   copies what is stored, not what is on screen. You need two ids,
    both from the browser console on any signed-in page:
    `window.Clerk.organization.id` (the `org_…` id every call here takes) and
    `window.Clerk.user.id` (the `user_…` id to act as); the project id is the
@@ -166,15 +176,28 @@ crop keeps them.
    # → the template id; it starts unpublished
    ```
 
-   There is no button for this in the app yet, and `--identity` works on dev
-   deployments only; on production, call the same mutation
-   (`api.templates.createFromProject`) from code running as an org admin.
+   `--identity` works on dev deployments only; on production, use the
+   studio's button.
 
    **After every edit to the project**, run it again with `"templateId"` —
    the template is a copy, not a link. The document is replaced; the id, the
    name, the published state and anything else you leave out are kept. Then
    re-render the posters.
-4. **Render the posters.** Needs the app running (`npm run dev`), the Convex
+4. **Render the posters.** The studio draws them as it saves: each scene
+   through the Export dialog's exporter, at the moment `posterTime`
+   (`lib/editor/posterTime.ts`) picks, 540 px wide, sent to `templatePosters.savePosters`.
+   Posters drawn there are marked (`postersHash: "studio"`), so the script
+   below redraws them with its own renderer the next time it runs; until then
+   they are what the flyout and the Templates page show.
+
+   Why the studio and not the render worker: the studio has the document's
+   fonts, media and blocks already painted, so posters take a second or two
+   and are there the moment the dialog closes; the worker would need a new
+   job type and would leave a template without posters until a worker picked
+   the job up (the API's renders wait for one the same way).
+
+   The script, for templates made from the CLI or after a change to block code
+   or the exporter, needs the app running (`npm run dev`), the Convex
    functions deployed to the same deployment, and
    `npm --prefix workers/render install` once (`docs/blocks.md` → "Previews"
    has the machinery). It renders a PNG per scene, 540 px wide, and uses the

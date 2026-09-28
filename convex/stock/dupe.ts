@@ -30,6 +30,10 @@ import {
 
 const API = "https://content-api-prod-6gxsdymdsq-ue.a.run.app/api/v1/content";
 const CDN = "https://d3p3fw3rutb1if.cloudfront.net";
+/* The public site, unlike the two above: the credit links people to it. An
+   asset opens as an overlay from `?content=`, and an author's page is
+   `/profile/<username>`; both work signed out. */
+const SITE = "https://dupephotos.com";
 
 const LICENSE = "dupe-internal-trial";
 
@@ -155,8 +159,17 @@ const tidy = (values: (string | undefined)[]) => [
   ...new Set(values.map((value) => value?.trim().toLowerCase()).filter((value): value is string => Boolean(value))),
 ];
 
+function links(externalId: string, handle?: string) {
+  return {
+    asset: `${SITE}/?content=${encodeURIComponent(externalId)}`,
+    author: handle ? `${SITE}/profile/${encodeURIComponent(handle)}` : undefined,
+  };
+}
+
 function toAsset(item: DupeItem): StockAsset {
   const kind: StockKind = item.content_type === "VIDEO" ? "video" : "image";
+  const handle = item.username?.trim() || undefined;
+  const pages = links(item.id, handle);
   return {
     externalId: item.id,
     kind,
@@ -165,7 +178,8 @@ function toAsset(item: DupeItem): StockAsset {
     /* The CDN serves both without an extension; these are the types it answers. */
     mimeType: kind === "video" ? "video/mp4" : "image/jpeg",
     fileRef: item.img_id,
-    credit: { name: item.user?.trim() || undefined, handle: item.username?.trim() || undefined },
+    credit: { name: item.user?.trim() || undefined, handle, url: pages.author },
+    sourceUrl: pages.asset,
     labels: tidy((item.labels ?? []).map((entry) => entry.label)),
     aesthetics: tidy((item.aesthetics ?? []).map((entry) => entry.aesthetic)),
   };
@@ -220,4 +234,6 @@ export const dupe: StockProvider = {
     if (!response.ok) throw new Error(`Dupe ${folder}/${asset.fileRef} answered ${response.status}`);
     return response;
   },
+
+  links,
 };

@@ -58,8 +58,10 @@ export type StockAsset = {
   mimeType: string;
   /* The provider's handle for the bytes, opaque to everyone but `download`. */
   fileRef: string;
-  /* Who made it, as the provider names them. */
-  credit: { name?: string; handle?: string };
+  /* Who made it, as the provider names them, and their page there. */
+  credit: { name?: string; handle?: string; url?: string };
+  /* The asset's own page on the provider's site. */
+  sourceUrl?: string;
   /* The provider's free-form subject labels, and its style labels where it has
      them. Kept on the row: they are what search will match on. */
   labels: string[];
@@ -94,6 +96,11 @@ export interface StockProvider {
 
   /* The file. The response is only ever read by the import. */
   download(asset: StockAsset): Promise<Response>;
+
+  /* The provider's public pages for an asset and for its author, which the
+     credit links to. Built from the id and handle a row already stores, so rows
+     imported before the links existed gain them without asking the provider. */
+  links(externalId: string, handle?: string): { asset: string; author?: string };
 }
 
 /*

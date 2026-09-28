@@ -7,7 +7,7 @@ import Image from "next/image";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
-import { MediaArt } from "@/components/hub/MediaCard";
+import { CreditLink, MediaArt, sourceHost } from "@/components/hub/MediaCard";
 import { Chip, ChipRow } from "@/components/ui/chip";
 import { MenuItem } from "@/components/ui/menu";
 import { Tooltip } from "@/components/ui/tooltip";
@@ -468,8 +468,13 @@ function StockCredit({ item, anchor, onClose }: { item: MediaItem; anchor: DOMRe
       className="stock-credit fixed w-[200px] rounded-control bg-panel px-3 py-2.5 shadow-overlay animate-pop"
       style={{ left: Math.min(anchor.right + 8, window.innerWidth - 208), top: Math.min(anchor.top, window.innerHeight - 80), zIndex: "var(--z-floating-bar)" }}
     >
-      <div className="text-ui text-ink">{item.kind === "image" ? "Photo" : "Video"}</div>
-      <div className="mt-0.5 truncate text-cap text-ink-secondary">{by ? `by ${by}` : "Stock library"}</div>
+      <div className="truncate text-ui text-ink">
+        {item.kind === "image" ? "Photo" : "Video"}
+        {item.sourceUrl ? <> on <CreditLink href={item.sourceUrl}>{sourceHost(item.sourceUrl)}</CreditLink></> : null}
+      </div>
+      <div className="mt-0.5 truncate text-cap text-ink-secondary">
+        {by ? <>by <CreditLink href={item.credit?.url}>{by}</CreditLink></> : "Stock library"}
+      </div>
     </div>,
     document.body,
   );

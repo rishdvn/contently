@@ -17,7 +17,7 @@ import { imageBlock, project as makeProject, videoBlock } from "@/lib/editor/fac
 import { useCreateProject } from "@/lib/editor/persistence";
 import type { Project } from "@/lib/editor/types";
 
-import { MediaArt, mediaFacts } from "./MediaCard";
+import { CreditLink, MediaArt, mediaFacts, sourceHost } from "./MediaCard";
 import { PreviewCloseButton, PreviewFact, PreviewOutlineButton, PreviewPanel, PreviewShell, PreviewTags } from "./PreviewModal";
 import { formatClock, relativeTime } from "./ProjectPreview";
 
@@ -161,9 +161,12 @@ export function MediaPreview({ id, initial, onClose, onSwitch }: { id: string; i
           <PreviewFact label="Size" value={`${item.width} × ${item.height}`} />
           {item.kind === "video" && item.duration ? <PreviewFact label="Length" value={mediaFacts(item)} /> : null}
           {item.source === "stock" ? (
-            credit?.name || credit?.handle ? (
-              <PreviewFact label="Creator" value={[credit.name, credit.handle ? `@${credit.handle}` : null].filter(Boolean).join(" · ")} />
-            ) : null
+            <>
+              {credit?.name || credit?.handle ? (
+                <PreviewFact label="Creator" value={<CreditLink href={credit.url}>{[credit.name, credit.handle ? `@${credit.handle}` : null].filter(Boolean).join(" · ")}</CreditLink>} />
+              ) : null}
+              {item.sourceUrl ? <PreviewFact label="Source" value={<CreditLink href={item.sourceUrl}>{sourceHost(item.sourceUrl)}</CreditLink>} /> : null}
+            </>
           ) : details?.uploadedBy ? (
             <PreviewFact label="Uploaded by" value={details.uploadedBy} />
           ) : null}

@@ -9,7 +9,7 @@ import { CONTENT_ROLES } from "../../lib/editor/types";
 const ref = (name: string) => ({ $ref: `#/components/schemas/${name}` });
 const ok = (description: string, schema: object) => ({ description, content: { "application/json": { schema } } });
 const errors = (...codes: number[]) =>
-  Object.fromEntries(codes.map((c) => [String(c), { description: { 400: "Malformed request", 401: "Missing, invalid or revoked API key", 404: "Not found in this organisation", 413: "File too large", 429: "Rate limited (60 requests a minute per key)" }[c], content: { "application/json": { schema: ref("Error") } } }]));
+  Object.fromEntries(codes.map((c) => [String(c), { description: { 400: "Malformed request", 401: "Missing, invalid or revoked API key", 404: "Not found in this organisation", 413: "File too large for its kind (images 20 MB, videos 40 MB)", 415: "Not an accepted type or codec (PNG, JPEG, GIF, WebP; H.264 MP4/MOV)", 429: "Rate limited (60 requests a minute per key), or over the organisation's render quota; see Retry-After" }[c], content: { "application/json": { schema: ref("Error") } } }]));
 const idParam = (name: string, description: string) => ({ name, in: "path", required: true, schema: { type: "string" }, description });
 const query = (name: string, schema: object, description: string) => ({ name, in: "query", required: false, schema, description });
 const jsonBody = (schema: object) => ({ required: true, content: { "application/json": { schema } } });
@@ -94,10 +94,10 @@ export function openapi(server: string) {
           summary: "Add media from a URL or an upload",
           requestBody: jsonBody({
             type: "object",
-            properties: { url: { type: "string", format: "uri", description: "Fetched server-side (up to 40 MB)" }, storageId: { type: "string", description: "From POST /v1/media/upload-url" }, name: { type: "string" }, tags: { type: "array", items: { type: "string" } } },
+            properties: { url: { type: "string", format: "uri", description: "Fetched server-side: images up to 20 MB, H.264 videos up to 40 MB" }, storageId: { type: "string", description: "From POST /v1/media/upload-url" }, name: { type: "string" }, tags: { type: "array", items: { type: "string" } } },
             description: "Exactly one of url or storageId.",
           }),
-          responses: { 201: ok("The media", ref("Media")), ...errors(400, 401, 413, 429) },
+          responses: { 201: ok("The media", ref("Media")), ...errors(400, 401, 413, 415, 429) },
         },
       },
       "/v1/media/upload-url": {
@@ -112,6 +112,7 @@ export function openapi(server: string) {
             required: ["format"],
             properties: { format: { enum: ["png", "carousel-zip", "mp4"], description: "png: one PNG per scene (or `scene`); carousel-zip: carousels; mp4: videos" }, scene: { type: "integer", minimum: 0 }, scale: { enum: [1, 2] }, fps: { enum: [24, 25, 30, 60] } },
           }),
+          description: "Each organisation may ask for 100 renders a UTC day and have 3 of its jobs queued or running at once; past either, 429 quota_exceeded with Retry-After.",
           responses: { 202: ok("The queued job", ref("RenderJob")), ...errors(400, 401, 404, 429) },
         },
       },
@@ -122,7 +123,7 @@ export function openapi(server: string) {
     components: {
       securitySchemes: { apiKey: { type: "http", scheme: "bearer", bearerFormat: "ctly_…", description: "An organisation's API key (Contently → API keys)" } },
       schemas: {
-        Error: { type: "object", properties: { error: { type: "object", required: ["code", "message"], properties: { code: { enum: ["invalid_request", "unauthorized", "not_found", "payload_too_large", "rate_limited", "unavailable", "internal"] }, message: { type: "string" }, details: { type: "array", items: { type: "object", properties: { at: { type: "string" }, message: { type: "string" } } } } } } } },
+        Error: { type: "object", properties: { error: { type: "object", required: ["code", "message"], properties: { code: { enum: ["invalid_request", "unauthorized", "not_found", "payload_too_large", "unsupported_media", "rate_limited", "quota_exceeded", "unavailable", "internal"] }, message: { type: "string" }, details: { type: "array", items: { type: "object", properties: { at: { type: "string" }, message: { type: "string" } } } } } } } },
         Role: { enum: [...CONTENT_ROLES] },
         TemplateSummary: {
           type: "object",

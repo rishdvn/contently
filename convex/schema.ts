@@ -141,6 +141,15 @@ export default defineSchema({
     /* Authenticating an API request: hash the bearer token, look it up. */
     .index("by_hash", ["hash"]),
 
+  /* What an organisation has used of the public API's daily quotas
+     (`lib/api/limits.ts`): one row per organisation per UTC day. */
+  apiUsage: defineTable({
+    orgId: v.id("organizations"),
+    /* `2026-09-28`, UTC. */
+    day: v.string(),
+    renders: v.number(),
+  }).index("by_org_day", ["orgId", "day"]),
+
   renderJobs: defineTable({
     orgId: v.id("organizations"),
     projectId: v.id("projects"),

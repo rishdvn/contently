@@ -11,8 +11,10 @@ result. One organisation per API key.
 | `convex/apiKeys.ts` | Keys: make, list, revoke, authenticate + rate limit |
 | `lib/api/content.ts` | Replacing content (by `blockId` or `role`, into catalog blocks too) |
 | `lib/api/view.ts` | What a template or project looks like to a caller |
+| `lib/api/limits.ts` | Render quota and media import limits, in one config |
 | `components/hub/ApiKeysDialog.tsx` | Settings → API keys, in the hub's nav |
 | `scripts/api-e2e.mjs` | The whole flow, end to end, against a deployment |
+| `scripts/api-limits-e2e.mjs` | The limits, end to end: 413, 415, 429 |
 
 Base URL: the Convex deployment's HTTP origin, `https://<deployment>.convex.site`
 (production: `https://chatty-giraffe-3.convex.site`). Machine-readable spec:
@@ -52,8 +54,10 @@ Always the same shape, with the matching status:
 | 400 | `invalid_request` | Malformed JSON, a bad parameter, a replacement that cannot apply |
 | 401 | `unauthorized` | No key, a wrong key, a revoked key |
 | 404 | `not_found` | No such template/project/job — or another organisation's |
-| 413 | `payload_too_large` | A `mediaUrl`/upload over 40 MB |
+| 413 | `payload_too_large` | An image over 20 MB or a video over 40 MB (Limits, below) |
+| 415 | `unsupported_media` | Not an image or video we accept: a type or a codec (HEVC, ProRes, AV1…) outside the list |
 | 429 | `rate_limited` | Over 60 requests this minute |
+| 429 | `quota_exceeded` | Over the organisation's render quota (Limits, below) |
 | 503 | `unavailable` | Rendering is not configured on this deployment |
 
 ## The flow
@@ -162,8 +166,10 @@ Each replacement says **where** — exactly one of:
   `maxLength`; a text block does not, but text longer than its
   `textConstraints.maxChars` comes back as a warning.
 - `mediaId` — the organisation's media or stock (`GET /v1/media`).
-- `mediaUrl` — fetched by the server (public http(s), up to 40 MB, PNG, JPEG,
-  GIF, WebP, MP4 or MOV) into the organisation's media, then placed.
+- `mediaUrl` — fetched by the server (public http(s); what "Limits" below
+  accepts) into the organisation's media, then placed. Inside a batch, a URL
+  refused for its size or type fails the batch with `400`, like any other
+  replacement, and its `details` entry says why.
 - `props` — catalog blocks: inputs to merge into the block's props, checked
   against its `schema`.
 
@@ -224,6 +230,44 @@ curl -s -X POST "$API/v1/media" -H "Authorization: Bearer $KEY" -H "Content-Type
 ```
 
 Width, height and a video's duration are read from the file itself.
+
+## Limits
+
+One config, `lib/api/limits.ts` (`DEFAULT_LIMITS`); every organisation has the
+same limits until there are plans.
+
+**Renders.** Each organisation may ask the API for **100 renders a UTC day**,
+and have **3 render jobs queued or running at once** — its studio exports
+included, since both share the render worker. Past either:
+
+```http
+HTTP/1.1 429 Too Many Requests
+Retry-After: 30
+
+{ "error": { "code": "quota_exceeded", "message": "This organisation already has 3 renders queued or running, the most it may have at once (3); retry when one finishes" } }
+```
+
+`Retry-After` is the seconds until midnight UTC for the daily quota, and 30
+for the concurrent one. Only renders that were queued count; a request
+refused as invalid costs nothing. The day's count is in the `apiUsage` table.
+This is separate from the per-key rate limit (`rate_limited`, 60 requests a
+minute).
+
+**Media imports** (`POST /v1/media`, and `mediaUrl` in a content batch):
+
+| Kind | Up to | Types | Codecs |
+|---|---|---|---|
+| Image | 20 MB | PNG, JPEG, GIF, WebP | |
+| Video | 40 MB | MP4, MOV | H.264 (`avc1`, `avc3`) |
+
+The type comes from the file's own bytes, not its name or `Content-Type`. A
+file over its kind's size is `413 payload_too_large`, with both sizes in the
+message; a URL whose `Content-Length` is over 40 MB is refused before it is
+downloaded. Anything else — an unreadable file, a TIFF, an HEVC, ProRes, AV1 or
+VP9 video — is `415 unsupported_media`, naming the codec and how to re-encode
+it (`ffmpeg -i in.mov -c:v libx264 -pix_fmt yuv420p -c:a aac out.mp4`). HEVC is
+refused because not every browser the studio runs in can play it. A refused upload made through
+`upload-url` is left in storage and never registered.
 
 ## Projects
 

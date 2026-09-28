@@ -32,37 +32,36 @@ export type ProjectSummary = {
   name: string;
   kind: ProjectKind;
   aspect: AspectId;
+  width: number;
+  height: number;
   slides: number;
+  /* Seconds across every scene; only meaningful for a video. */
+  duration: number;
   updatedAt: number;
 };
 
 /*
-  A row plus the document itself. The hub's cards and its enlarged preview
-  render the real document — that is what makes hover playback work — so the
-  list carries documents rather than posters.
+  A card in the Projects grid: the row and its poster, not the document. The
+  card fetches the document (`useProjectDocument`) when it is hovered, to play
+  it, and when it has no poster yet, to draw it.
 */
 export type ProjectRecord = ProjectSummary & {
-  document: Project;
+  posterUrl: string | null;
   /* True for the placeholder a duplicate shows until the server answers. */
   pending: boolean;
 };
 
-type ProjectRow = FunctionReturnType<typeof api.projects.list>[number];
+type ProjectRow = FunctionReturnType<typeof api.projects.listCards>[number];
 
 /* Ids the server has not minted yet. Long enough not to collide with a real
    Convex id, and recognisable so the card can stay inert until it is replaced. */
 const PENDING = "pending:";
 
 function toRecord(row: ProjectRow): ProjectRecord {
-  const document = row.document as Project;
   return {
-    id: row.id,
-    name: row.name,
+    ...row,
     kind: row.kind as ProjectKind,
     aspect: row.aspect as AspectId,
-    slides: document.slides?.length ?? 0,
-    updatedAt: row.updatedAt,
-    document,
     pending: row.id.startsWith(PENDING),
   };
 }
@@ -80,7 +79,7 @@ function noOrg(): never {
 */
 export function useProjectIndex(): ProjectRecord[] | null {
   const { orgId, isLoaded } = useActiveOrg();
-  const rows = useQuery(api.projects.list, orgId ? { orgId } : "skip");
+  const rows = useQuery(api.projects.listCards, orgId ? { orgId } : "skip");
   return useMemo(() => {
     if (!isLoaded) return null;
     /* On a personal account there is no org to scope to; the hub asks the user
@@ -109,6 +108,18 @@ export function useProject(id: string | null): ProjectLoad {
     if (row === null) return { status: "missing" };
     return { status: "ready", project: row.document as Project };
   }, [row, id, orgId, isLoaded]);
+}
+
+/*
+  A project's document for the hub to play or draw, or `undefined` until it
+  arrives (and for `null`, which skips the query). The same query the studio
+  opens a project with, so a card hovered just before it is opened costs
+  nothing twice.
+*/
+export function useProjectDocument(id: string | null): Project | undefined {
+  const { orgId } = useActiveOrg();
+  const row = useQuery(api.projects.get, id && orgId && !id.startsWith(PENDING) ? { orgId, id } : "skip");
+  return (row?.document as Project | undefined) ?? undefined;
 }
 
 /*
@@ -265,9 +276,9 @@ export function useCreateProject(): (document: Project) => Promise<string> {
 
 /* Rewrite the hub's list in place while a mutation is in flight. */
 function patchList(store: OptimisticLocalStore, orgId: string, fn: (rows: ProjectRow[]) => ProjectRow[]) {
-  const rows = store.getQuery(api.projects.list, { orgId });
+  const rows = store.getQuery(api.projects.listCards, { orgId });
   if (!rows) return;
-  store.setQuery(api.projects.list, { orgId }, fn(rows).sort((a, b) => b.updatedAt - a.updatedAt));
+  store.setQuery(api.projects.listCards, { orgId }, fn(rows).sort((a, b) => b.updatedAt - a.updatedAt));
 }
 
 export type ProjectActions = {
@@ -294,7 +305,7 @@ export function useProjectActions(): ProjectActions {
   const rename = useMutation(api.projects.rename).withOptimisticUpdate((store, { orgId: org, id, name }) => {
     patchList(store, org, (rows) => {
       const updatedAt = Date.now();
-      return rows.map((r) => (r.id === id ? { ...r, name, updatedAt, document: { ...r.document, name, updatedAt } } : r));
+      return rows.map((r) => (r.id === id ? { ...r, name, updatedAt } : r));
     });
   });
 
@@ -305,9 +316,9 @@ export function useProjectActions(): ProjectActions {
       /* Unique among the placeholders already on screen, so duplicating twice
          in a row does not put the same key on two cards. */
       const pendingId = `${PENDING}${id}:${rows.filter((r) => r.id.startsWith(PENDING)).length}` as Id<"projects">;
-      const name = `${source.name} copy`;
-      const updatedAt = Date.now();
-      return [...rows, { ...source, id: pendingId, name, updatedAt, document: { ...source.document, id: pendingId, name, updatedAt } }];
+      /* The copy has no poster of its own until it is opened; the source's
+         stands in while the server answers. */
+      return [...rows, { ...source, id: pendingId, name: `${source.name} copy`, updatedAt: Date.now() }];
     });
   });
 

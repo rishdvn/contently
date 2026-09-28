@@ -2,7 +2,7 @@
 
 import { Clapperboard, GalleryHorizontalEnd, Image as ImageIcon, MoreHorizontal, Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { createContext, use, useMemo, useState, type ReactNode } from "react";
+import { createContext, use, useState, type ReactNode } from "react";
 
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -13,14 +13,14 @@ import { useActiveOrg } from "@/lib/auth/useActiveOrg";
 import { cn } from "@/lib/cn";
 import { project as makeProject } from "@/lib/editor/factory";
 import { googleFontsHref } from "@/lib/editor/fonts";
-import { useProjectActions, useProjectIndex, type ProjectRecord } from "@/lib/editor/persistence";
+import { useProjectActions, useProjectDocument, useProjectIndex, type ProjectRecord } from "@/lib/editor/persistence";
 import type { ProjectKind } from "@/lib/editor/types";
 
 import { HubNav } from "./HubNav";
 import { ImportLocalProjects } from "./ImportLocalProjects";
 import { CardCaption, LibraryGrid, usePreviewRoute, type LibraryAdapter } from "./LibraryGrid";
 import { PreviewModal } from "./PreviewModal";
-import { LiveArt, projectMeta, relativeTime } from "./ProjectPreview";
+import { LiveArt, relativeTime } from "./ProjectPreview";
 
 /*
   The workspace: sidebar, page header with the single filled Create action,
@@ -56,8 +56,8 @@ export function Hub() {
     }
   };
 
-  const docs = useMemo(() => new Map((projects ?? []).map((p) => [p.id, p.document])), [projects]);
-  const previewDoc = preview.id ? docs.get(preview.id) : undefined;
+  /* The list carries posters, not documents: the preview fetches the one it plays. */
+  const previewDoc = useProjectDocument(preview.id);
 
   return (
     <div className="flex min-h-dvh bg-canvas text-ink">
@@ -121,7 +121,9 @@ export function Hub() {
         <PreviewModal
           key={previewDoc.id}
           project={previewDoc}
-          others={Array.from(docs.values()).filter((d) => d.id !== previewDoc.id)}
+          others={(projects ?? [])
+            .filter((p) => p.id !== previewDoc.id && !p.pending)
+            .map((p) => ({ id: p.id, name: p.name, width: p.width, height: p.height, art: <ProjectArt item={p} playing={false} /> }))}
           relative={relativeTime(previewDoc.updatedAt)}
           onClose={preview.close}
           onSwitch={preview.replace}
@@ -183,13 +185,44 @@ function StartCard({ kind, icon, title, body, onClick, compact }: { kind: Projec
 const PROJECTS: LibraryAdapter<ProjectRecord> = {
   key: (p) => p.id,
   label: (p) => p.name,
-  aspect: (p) => p.document.width / p.document.height,
-  Art: ({ item, playing }) => <LiveArt project={item.document} playing={playing && item.kind !== "image"} />,
+  aspect: (p) => p.width / p.height,
+  Art: ProjectArt,
   Overlay: ProjectOverlay,
   /* A duplicate shows its copy before the server has minted an id for it;
      until it does, the card has nothing to open. */
   pending: (p) => p.pending,
 };
+
+/*
+  At rest, the poster the studio took of the first scene. Hovering fetches the
+  document and plays it over the poster. A project with no poster yet — one
+  that has not been edited since posters existed, or a fresh duplicate — is
+  drawn from its document, as every card was before.
+*/
+function ProjectArt({ item, playing }: { item: ProjectRecord; playing: boolean }) {
+  const live = (playing && item.kind !== "image") || !item.posterUrl;
+  const doc = useProjectDocument(live ? item.id : null);
+  return (
+    <div className="relative w-full overflow-hidden bg-[#1d1d1d]" style={{ aspectRatio: `${item.width} / ${item.height}` }}>
+      {item.posterUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element -- a Convex storage URL, already at card size
+        <img src={item.posterUrl} alt="" draggable={false} className="absolute inset-0 size-full object-cover" />
+      ) : null}
+      {live && doc ? (
+        <div className="absolute inset-0">
+          <LiveArt project={doc} playing={playing && doc.kind !== "image"} />
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+/* "3 scenes · 14s" for a video, "5 slides" for a carousel, the aspect for a still: `projectMeta` from the row alone. */
+function cardMeta(p: ProjectRecord) {
+  if (p.kind === "video") return `${p.slides} scene${p.slides === 1 ? "" : "s"} · ${Math.round(p.duration)}s`;
+  if (p.kind === "carousel") return `${p.slides} slide${p.slides === 1 ? "" : "s"}`;
+  return p.aspect;
+}
 
 type ProjectCardCallbacks = {
   preview: (p: ProjectRecord) => void;
@@ -206,7 +239,6 @@ const ProjectCardActions = ProjectCardContext.Provider;
 
 function ProjectOverlay({ item: p, hover }: { item: ProjectRecord; hover: boolean }) {
   const actions = use(ProjectCardContext);
-  const doc = p.document;
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(p.name);
   const commit = () => {
@@ -218,7 +250,7 @@ function ProjectOverlay({ item: p, hover }: { item: ProjectRecord; hover: boolea
 
   return (
     <>
-      <CardCaption name={p.name} badge={hover ? projectMeta(doc) : undefined}>
+      <CardCaption name={p.name} badge={hover ? cardMeta(p) : undefined}>
         {editing ? (
           <input
             autoFocus

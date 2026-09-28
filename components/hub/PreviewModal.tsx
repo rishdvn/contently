@@ -15,6 +15,9 @@ const GUTTER = 8;
 /* A finished file a viewer can take away, from the render worker's output. */
 export type PreviewDownload = { label: string; url: string };
 
+/* Another project to move on to: its artwork is drawn by whoever lists it. */
+export type PreviewNeighbour = { id: string; name: string; width: number; height: number; art: ReactNode };
+
 /*
   The enlarged preview. The page stays underneath, dimmed and blurred; the
   project plays large in the space left of a floating sidebar of panels —
@@ -35,7 +38,7 @@ export function PreviewModal({
   downloads = [],
 }: {
   project: Project;
-  others?: Project[];
+  others?: PreviewNeighbour[];
   onClose?: () => void;
   onOpen?: (id: string) => void;
   onSwitch?: (id: string) => void;
@@ -100,7 +103,7 @@ export function PreviewModal({
           <div className="text-ui text-ink">More projects</div>
           <div className="mt-3 grid grid-cols-2 gap-2">
             {others.map((o) => (
-              <MiniCard key={o.id} project={o} onClick={() => onSwitch(o.id)} />
+              <MiniCard key={o.id} item={o} onClick={() => onSwitch(o.id)} />
             ))}
           </div>
         </PreviewPanel>
@@ -333,17 +336,18 @@ export function ShareButton({ id, url }: { id: string; url?: string }) {
 }
 
 /* A neighbour in the library: poster frame with its name over a scrim. */
-function MiniCard({ project, onClick }: { project: Project; onClick: () => void }) {
-  const clock = useProjectClock(project, false);
+function MiniCard({ item, onClick }: { item: PreviewNeighbour; onClick: () => void }) {
   /* Tiles share one portrait frame; wider documents are cropped to cover it. */
   const tile = 4 / 5;
-  const own = project.width / project.height;
+  const own = item.width / item.height;
   const width = own > tile ? `${(own / tile) * 100}%` : "100%";
   return (
-    <button type="button" onClick={onClick} className="group relative flex aspect-[4/5] items-center justify-center overflow-hidden rounded-[8px] bg-card text-left outline-none focus-visible:ring-2 focus-visible:ring-ink/40" aria-label={`Preview ${project.name}`}>
-      <ProjectStage project={project} clock={clock} className="shrink-0" style={{ width }} />
+    <button type="button" onClick={onClick} className="group relative flex aspect-[4/5] items-center justify-center overflow-hidden rounded-[8px] bg-card text-left outline-none focus-visible:ring-2 focus-visible:ring-ink/40" aria-label={`Preview ${item.name}`}>
+      <div className="shrink-0" style={{ width }}>
+        {item.art}
+      </div>
       <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/2 scrim" />
-      <div className="pointer-events-none absolute inset-x-2 bottom-2 truncate text-cap font-medium text-white">{project.name}</div>
+      <div className="pointer-events-none absolute inset-x-2 bottom-2 truncate text-cap font-medium text-white">{item.name}</div>
     </button>
   );
 }

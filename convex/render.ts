@@ -45,6 +45,19 @@ const TOKEN_TTL_MS = 10 * 60 * 1000;
    third attempt will not fix, and the caller is waiting. */
 const MAX_ATTEMPTS = 2;
 
+/*
+  A worker not heard from for this long is taken to be gone. An idle worker
+  claims every couple of seconds; a busy one claims again at least every
+  `JOB_TIMEOUT_MS`, when its job finishes or is taken from it. Twice that is
+  room for a busy queue and a redeploy, and short enough that a job asked for
+  while nothing is running fails within a quarter of an hour, not never.
+*/
+const WORKER_GONE_MS = 2 * JOB_TIMEOUT_MS;
+
+/* How stale the heartbeat may get before a claim writes it again. A claim
+   every two seconds per lane would otherwise be a write every two seconds. */
+const HEARTBEAT_EVERY_MS = 60 * 1000;
+
 export type RenderFormat = "png" | "carousel-zip" | "mp4";
 
 const format = v.union(v.literal("png"), v.literal("carousel-zip"), v.literal("mp4"));
@@ -281,12 +294,11 @@ async function queuePosition(ctx: QueryCtx, job: Doc<"renderJobs">) {
   Shared by the studio (`enqueue`, a signed-in member) and the public API
   (`api/router.ts`, an API key), so both follow the same rules.
 */
-export async function enqueueJob(
-  ctx: MutationCtx,
-  orgId: Id<"organizations">,
-  requestedBy: Id<"users">,
-  { projectId, format: wanted, scene, scale, fps }: { projectId: string; format: RenderFormat; scene?: number; scale?: number; fps?: number },
-) {
+type JobRequest = { projectId: string; format: RenderFormat; scene?: number; scale?: number; fps?: number };
+
+/* The checks `enqueueJob` makes, on their own, so the API can answer a bad
+   request as such before it says whether anything could render it. */
+export async function validateJob(ctx: QueryCtx, orgId: Id<"organizations">, { projectId, format: wanted, scene }: JobRequest) {
   const id = ctx.db.normalizeId("projects", projectId);
   const project = id ? await ctx.db.get(id) : null;
   if (!project || project.orgId !== orgId) fail("missing", "No such project in this organisation");
@@ -298,6 +310,16 @@ export async function enqueueJob(
   if (scene !== undefined && (!Number.isInteger(scene) || scene < 0 || scene >= slides)) {
     fail("invalid", `This project has no scene ${scene}`);
   }
+  return project;
+}
+
+export async function enqueueJob(ctx: MutationCtx, orgId: Id<"organizations">, requestedBy: Id<"users">, job: JobRequest) {
+  const project = await validateJob(ctx, orgId, job);
+  const { format: wanted, scene, scale, fps } = job;
+
+  /* The moment this job could first be given up on (`sweepTimedOut`). The
+     five-minute cron would get there too, up to five minutes later. */
+  await ctx.scheduler.runAfter(WORKER_GONE_MS, internal.render.sweep, {});
 
   return await ctx.db.insert("renderJobs", {
     orgId,
@@ -415,9 +437,15 @@ export const cancel = mutation({
     const row = id ? await ctx.db.get(id) : null;
     if (!row || row.orgId !== org._id) fail("missing", "No such render job");
     if (row.status !== "queued") fail("invalid", `Render job is ${row.status}; only a queued job can be cancelled`);
-    await ctx.db.patch(row._id, { status: "failed", error: "Cancelled", finishedAt: Date.now() });
+    await cancelQueued(ctx, row);
   },
 });
+
+/* Shared with the API's cancel (`api/render.ts`), which answers a job that is
+   not queued in its own words. */
+export async function cancelQueued(ctx: MutationCtx, row: Doc<"renderJobs">) {
+  await ctx.db.patch(row._id, { status: "failed", error: "Cancelled", finishedAt: Date.now() });
+}
 
 /* Every render asked for on one project, newest first. */
 export const jobsForProject = query({
@@ -438,12 +466,40 @@ export const jobsForProject = query({
 
 /* ─────────────────────────────────────────────────────────────── worker ─── */
 
+/* When a worker last claimed (or asked for work and found none); null if none
+   ever has on this deployment. */
+async function workerLastSeen(ctx: QueryCtx): Promise<number | null> {
+  return (await ctx.db.query("renderWorkers").first())?.lastSeenAt ?? null;
+}
+
+/* Whether anything is draining the queue, as far as the heartbeat can tell. */
+export async function workerAvailable(ctx: QueryCtx, now: number) {
+  const seen = await workerLastSeen(ctx);
+  return seen !== null && now - seen < WORKER_GONE_MS;
+}
+
+async function markWorkerSeen(ctx: MutationCtx, now: number) {
+  const row = await ctx.db.query("renderWorkers").first();
+  if (!row) await ctx.db.insert("renderWorkers", { lastSeenAt: now });
+  else if (now - row.lastSeenAt >= HEARTBEAT_EVERY_MS) await ctx.db.patch(row._id, { lastSeenAt: now });
+}
+
 /*
-  Jobs whose claim has expired. A worker that died mid-render leaves a row in
-  `running` that nothing will ever finish, so it is put back — once. This runs
-  both on a schedule and at the top of every claim, because the schedule is the
-  only thing that moves when no worker is polling, and the claim is what makes
-  a queue recover the moment one comes back.
+  Jobs nothing is going to finish.
+
+  A worker that died mid-render leaves a row in `running`, so once its claim
+  expires it is put back — once.
+
+  A row in `queued` waits for a worker; if none has been seen for
+  `WORKER_GONE_MS` and the job has waited at least that long, nothing is coming
+  for it and it fails, which also frees its place in the organisation's
+  concurrent-render quota. A healthy worker, however busy, claims often enough
+  that this never fires: the clock is the worker's silence, not the queue's
+  length.
+
+  This runs on a schedule, after every enqueue, and at the top of every claim:
+  the schedule is the only thing that moves when no worker is polling, and the
+  claim is what makes a queue recover the moment one comes back.
 */
 async function sweepTimedOut(ctx: MutationCtx, now: number) {
   const running = await ctx.db
@@ -464,6 +520,22 @@ async function sweepTimedOut(ctx: MutationCtx, now: number) {
       });
     }
   }
+
+  if (await workerAvailable(ctx, now)) return;
+  const queued = await ctx.db
+    .query("renderJobs")
+    .withIndex("by_status", (q) => q.eq("status", "queued"))
+    .collect();
+  for (const row of queued) {
+    if (now - row._creationTime < WORKER_GONE_MS) continue;
+    await ctx.db.patch(row._id, {
+      status: "failed",
+      error: row.attempts
+        ? `The render worker stopped part way through this job and none took it back up within ${WORKER_GONE_MS / 60_000} minutes; nothing is rendering right now. Ask for the render again later.`
+        : `No render worker picked this job up within ${WORKER_GONE_MS / 60_000} minutes; nothing is rendering right now. Ask for the render again later.`,
+      finishedAt: now,
+    });
+  }
 }
 
 export const sweep = internalMutation({
@@ -483,6 +555,9 @@ export const claim = mutation({
   handler: async (ctx, { secret }) => {
     requireWorker(secret);
     const now = Date.now();
+    /* First, so the sweep below never gives up on a job this worker is
+       about to take. */
+    await markWorkerSeen(ctx, now);
     await sweepTimedOut(ctx, now);
 
     const next = await ctx.db

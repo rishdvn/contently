@@ -199,6 +199,13 @@ export default defineSchema({
     /* The render worker claims jobs oldest-first. */
     .index("by_status", ["status"]),
 
+  /* When a render worker last asked the queue for work (`render.claim`). One
+     row, whichever worker polled: the question it answers is "is anything
+     draining the queue", not "which machine". */
+  renderWorkers: defineTable({
+    lastSeenAt: v.number(),
+  }),
+
   /* ── Shared libraries (not org-scoped) ─────────────────────────────── */
 
   templates: defineTable({

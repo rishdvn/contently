@@ -158,6 +158,10 @@ export class ContentlyClient {
     return this.request<RenderJob>("GET", `/v1/render-jobs/${encodeURIComponent(jobId)}`);
   }
 
+  cancelRender(jobId: string) {
+    return this.request<RenderJob>("POST", `/v1/render-jobs/${encodeURIComponent(jobId)}/cancel`);
+  }
+
   /* A file the API pointed at (a poster, a render): public URLs, no key. */
   async download(url: string): Promise<{ bytes: Uint8Array; mimeType: string }> {
     let response: Response;

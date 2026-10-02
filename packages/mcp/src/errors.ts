@@ -18,11 +18,14 @@ export function describeError(error: unknown): string {
         return `Not found (404: ${error.message}). Use ids from list_templates, create_project_from_template or list_media; ids from another organisation are not visible with this key.`;
       case 400:
         return `Contently refused the request (400: ${error.message}).${details}\nFix the listed fields and call again; nothing was changed.`;
+      case 409:
+        return `Contently could not do that to it now (409: ${error.message}).`;
       case 413:
         return `The file is too large (413: ${error.message}).`;
       case 429:
         return `Rate limited (429: ${error.message}). Wait ${error.retryAfter ?? 60} seconds before the next call.`;
       case 503:
+        if (error.code === "no_render_worker") return `No render worker is running, so the render was not queued (503: ${error.message}). Tell the user rendering is unavailable right now; don't retry in a loop.`;
         return `Contently cannot do this right now (503: ${error.message}).`;
       default:
         return `Contently answered ${error.status} (${error.code}): ${error.message}${details}`;

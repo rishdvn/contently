@@ -111,6 +111,9 @@ export const inputs = {
     format: z.enum(["png", "carousel-zip", "mp4"]).describe("png: stills (one per scene); carousel-zip: carousels; mp4: videos"),
     scene: z.number().int().min(0).optional().describe("png only: just this scene"),
   },
+  cancelRender: {
+    jobId: id("Render job id, from render_project"),
+  },
   getRender: {
     jobId: id("Render job id, from render_project"),
     waitSeconds: z.number().int().min(0).max(600).optional().describe("Poll until done or this many seconds pass (default 50). 0: answer at once"),
@@ -283,6 +286,21 @@ export function createServer(client: ContentlyClient, { sleep = realSleep, pollM
           job = await client.getRender(jobId);
         }
         return ok({ type: "text", text: renderSummary(job) }, json(job));
+      }),
+  );
+
+  server.registerTool(
+    "cancel_render",
+    {
+      title: "Cancel a render",
+      description: "Take back a render that is still queued, freeing its place in the organisation's limit of 3 renders at once. A render that has started cannot be cancelled.",
+      inputSchema: inputs.cancelRender,
+      annotations: { destructiveHint: true, idempotentHint: true },
+    },
+    ({ jobId }) =>
+      guarded(async () => {
+        const job = await client.cancelRender(jobId);
+        return ok({ type: "text", text: `Cancelled render ${job.id}.` }, json(job));
       }),
   );
 

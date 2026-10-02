@@ -51,10 +51,10 @@ const template = {
 };
 
 describe("tools", () => {
-  it("lists the eight tools with their input schemas", async () => {
+  it("lists the nine tools with their input schemas", async () => {
     const { client } = await connect(() => jsonResponse(200, {}));
     const { tools } = await client.listTools();
-    assert.deepEqual(tools.map((t) => t.name).sort(), ["create_project_from_template", "get_render", "get_template", "list_media", "list_templates", "render_project", "replace_content", "upload_media"]);
+    assert.deepEqual(tools.map((t) => t.name).sort(), ["cancel_render", "create_project_from_template", "get_render", "get_template", "list_media", "list_templates", "render_project", "replace_content", "upload_media"]);
     const replace = tools.find((t) => t.name === "replace_content")!;
     assert.deepEqual(replace.inputSchema.required, ["projectId", "replacements"]);
   });
@@ -111,6 +111,12 @@ describe("tools", () => {
     });
     const result = await call("get_render", { jobId: "j1" });
     assert.match(text(result), /Done\. File:\n- out\.mp4: https:\/\/files\.test\/out\.mp4/);
+  });
+
+  it("cancels a queued render", async () => {
+    const { calls, call } = await connect(() => jsonResponse(200, { id: "j1", status: "failed", error: "Cancelled", outputs: [] }));
+    assert.match(text(await call("cancel_render", { jobId: "j1" })), /^Cancelled render j1\./);
+    assert.deepEqual(calls.map((c) => [c.method, c.url]), [["POST", "https://api.test/v1/render-jobs/j1/cancel"]]);
   });
 
   it("stops waiting when asked not to", async () => {
@@ -178,6 +184,16 @@ describe("error mapping", () => {
   it("429 → how long to wait", async () => {
     const { call } = await connect(() => jsonResponse(429, { error: { code: "rate_limited", message: "Rate limit: 60 requests a minute per key" } }, { "Retry-After": "12" }));
     assert.match(text(await call("list_media", {})), /Rate limited \(429: .*\)\. Wait 12 seconds/);
+  });
+
+  it("503 no_render_worker → say rendering is unavailable, don't loop", async () => {
+    const { call } = await connect(() => jsonResponse(503, { error: { code: "no_render_worker", message: "No render worker is running" } }, { "Retry-After": "60" }));
+    assert.match(text(await call("render_project", { projectId: "p1", format: "png" })), /^No render worker is running, so the render was not queued \(503: .*\)\. Tell the user/);
+  });
+
+  it("409 → not in a state for it", async () => {
+    const { call } = await connect(() => apiError(409, "conflict", "Render job j1 is running; only a queued job can be cancelled"));
+    assert.match(text(await call("cancel_render", { jobId: "j1" })), /\(409: Render job j1 is running/);
   });
 
   it("an unreachable API → where it tried", async () => {

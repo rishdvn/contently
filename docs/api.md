@@ -54,11 +54,13 @@ Always the same shape, with the matching status:
 | 400 | `invalid_request` | Malformed JSON, a bad parameter, a replacement that cannot apply |
 | 401 | `unauthorized` | No key, a wrong key, a revoked key |
 | 404 | `not_found` | No such template/project/job — or another organisation's |
+| 409 | `conflict` | Cancelling a render job that is no longer queued |
 | 413 | `payload_too_large` | An image over 20 MB or a video over 40 MB (Limits, below) |
 | 415 | `unsupported_media` | Not an image or video we accept: a type or a codec (HEVC, ProRes, AV1…) outside the list |
 | 429 | `rate_limited` | Over 60 requests this minute |
 | 429 | `quota_exceeded` | Over the organisation's render quota (Limits, below) |
 | 503 | `unavailable` | Rendering is not configured on this deployment |
+| 503 | `no_render_worker` | No render worker is running to take a render; nothing was queued (Render, below) |
 
 ## The flow
 
@@ -212,6 +214,27 @@ are ahead while queued. An MP4 takes about as long as the video to render,
 plus a few seconds. Renders run on the render worker (`docs/render-worker.md`),
 the same queue as the studio's Export.
 
+A render never waits for ever:
+
+- **No worker running.** If no render worker has polled the queue in the last
+  10 minutes, the render is refused up front: `503 no_render_worker` with
+  `Retry-After: 60`. Nothing is queued and it does not count toward the quota.
+- **The worker goes away after you asked.** A job that no worker picks up
+  within 10 minutes of the last one being seen becomes `failed`, with an
+  `error` that says so, and stops counting toward the 3-at-once limit. A busy
+  but healthy worker never trips this: the clock is the worker's silence, not
+  the length of the queue.
+- **A render you no longer want.** Cancel it while it is queued:
+
+```bash
+curl -s -X POST "$API/v1/render-jobs/k97…/cancel" -H "Authorization: Bearer $KEY"
+# → 200 { "id": "k97…", "status": "failed", "error": "Cancelled", … }
+```
+
+Cancelling frees its place in the 3-at-once limit at once. A job that is
+already `running`, `done` or `failed` is `409 conflict`; a running render is
+left to finish.
+
 ## Media
 
 ```bash
@@ -285,5 +308,7 @@ CONTENTLY_API_KEY=ctly_… OTHER_ORG_API_KEY=ctly_… node scripts/api-e2e.mjs
 Walks steps 1–5 against a video template, downloads the MP4 and checks its
 duration with `ffprobe`, then checks the failures: no key and a wrong key
 (`401`), another organisation's key (`404`), malformed and wrong-kind
-replacements (`400`). The render step needs a worker draining the queue
-(`workers/render`, `npm run once`).
+replacements (`400`), and cancelling a queued render (`200`, then `409` a
+second time). The render step needs a worker draining the queue
+(`workers/render`, `npm run once`); without one, the script checks that the
+render is refused with `503 no_render_worker` instead.

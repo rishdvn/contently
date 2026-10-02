@@ -60,12 +60,14 @@ npx @contently/mcp --http --port 8787        # → http://127.0.0.1:8787/mcp
 | `upload_media(url \| base64, name, mimeType?, tags?)` | Add a file to the organisation's library |
 | `render_project(projectId, format, scene?)` | Queue `mp4` / `png` / `carousel-zip` |
 | `get_render(jobId, waitSeconds?)` | Waits (default 50 s) and answers the download URLs |
+| `cancel_render(jobId)` | Takes back a render that is still queued |
 
 Arguments are checked against their schemas before any request (and the
 "exactly one target, exactly one value" rule of a replacement). API failures
 come back as tool errors that say what to do: a 401 points at the key and
 where to make one, a 404 at using ids from the tools, a 400 lists each bad
-field, a 429 says how long to wait.
+field, a 429 says how long to wait, a 503 `no_render_worker` says rendering is
+unavailable right now rather than inviting a retry loop.
 
 **Resources**
 

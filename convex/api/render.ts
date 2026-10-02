@@ -3,7 +3,7 @@ import { v } from "convex/values";
 import { checkRenderQuota, dayKey, limitsFor } from "../../lib/api/limits";
 import type { Id } from "../_generated/dataModel";
 import { internalMutation, internalQuery, type MutationCtx } from "../_generated/server";
-import { enqueueJob, viewWithUrls } from "../render";
+import { cancelQueued, enqueueJob, validateJob, viewWithUrls, workerAvailable } from "../render";
 
 import { apiFail } from "./errors";
 
@@ -15,7 +15,17 @@ import { apiFail } from "./errors";
   renders a UTC day, counted in `apiUsage`, and so many of the organisation's
   jobs queued or running at once, Export's included, since both share the
   worker. Past either it is 429 with `Retry-After`.
+
+  And unlike Export, a render is refused up front (503 `no_render_worker`)
+  while no worker has polled the queue lately: there is no browser on the
+  other end to fall back to, and a job accepted with nothing to run it would
+  only fail later (`render.ts`, `sweepTimedOut`).
 */
+
+/* How soon to ask again after `no_render_worker`. A worker that is
+   redeploying is back within a minute; one that is not hosted is not coming
+   back on any timescale a client would wait for. */
+const NO_WORKER_RETRY_S = 60;
 
 /* The organisation's jobs waiting for or on the worker. Few at any time
    across every organisation, so the status index is the short way in. */
@@ -45,6 +55,12 @@ export const enqueue = internalMutation({
   },
   handler: async (ctx, { orgId, userId, ...job }) => {
     const now = Date.now();
+    /* A request that could never be queued is told so before being told there is nothing to run it. */
+    await validateJob(ctx, orgId, job);
+    if (!(await workerAvailable(ctx, now))) {
+      apiFail("no_render_worker", "No render worker is running, so nothing was queued and the quota is untouched. Try again later.", undefined, NO_WORKER_RETRY_S);
+    }
+
     const day = dayKey(now);
     const usage = await ctx.db
       .query("apiUsage")
@@ -77,5 +93,22 @@ export const job = internalQuery({
             .collect()).filter((other) => other._creationTime < row._creationTime).length
         : undefined;
     return { ...(await viewWithUrls(ctx, row)), ...(ahead !== undefined ? { queuePosition: ahead } : {}) };
+  },
+});
+
+/*
+  Take back a render nothing has started, which frees its place in the
+  concurrent-render quota. A job that is running, done or failed is a 409:
+  there is nothing left to take back.
+*/
+export const cancel = internalMutation({
+  args: { orgId: v.id("organizations"), id: v.string() },
+  handler: async (ctx, { orgId, id }) => {
+    const jobId = ctx.db.normalizeId("renderJobs", id);
+    const row = jobId ? await ctx.db.get(jobId) : null;
+    if (!row || row.orgId !== orgId) apiFail("not_found", `No render job ${id}`);
+    if (row.status !== "queued") apiFail("conflict", `Render job ${id} is ${row.status}; only a queued job can be cancelled`);
+    await cancelQueued(ctx, row);
+    return await viewWithUrls(ctx, (await ctx.db.get(row._id))!);
   },
 });

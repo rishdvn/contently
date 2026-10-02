@@ -359,6 +359,11 @@ const routes: Route[] = [
       return json(200, job);
     },
   },
+  {
+    method: "POST",
+    path: "/v1/render-jobs/:id/cancel",
+    handler: async (ctx, { params, auth }) => json(200, await ctx.runMutation(internal.api.render.cancel, { orgId: auth.orgId, id: params.id! })),
+  },
 ];
 
 function match(path: string, pattern: string): Params | null {

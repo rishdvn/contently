@@ -121,5 +121,8 @@ looks as designed, then render it.
 - **401**: the API key is wrong or revoked. Tell the user to make one in
   Contently → Settings → API keys.
 - **429**: wait the number of seconds given, then continue.
-- A render that stays `queued` with nothing ahead of it means no render
-  worker is running. Say so; don't loop.
+- **503 `no_render_worker`** from `render_project`: no render worker is
+  running, and nothing was queued. Say so; don't loop. A render that fails
+  saying no worker picked it up means the same.
+- `cancel_render` takes back a render you no longer need while it is still
+  queued, which frees a place in the limit of 3 at once.

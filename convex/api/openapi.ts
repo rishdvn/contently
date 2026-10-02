@@ -9,7 +9,7 @@ import { CONTENT_ROLES } from "../../lib/editor/types";
 const ref = (name: string) => ({ $ref: `#/components/schemas/${name}` });
 const ok = (description: string, schema: object) => ({ description, content: { "application/json": { schema } } });
 const errors = (...codes: number[]) =>
-  Object.fromEntries(codes.map((c) => [String(c), { description: { 400: "Malformed request", 401: "Missing, invalid or revoked API key", 404: "Not found in this organisation", 413: "File too large for its kind (images 20 MB, videos 40 MB)", 415: "Not an accepted type or codec (PNG, JPEG, GIF, WebP; H.264 MP4/MOV)", 429: "Rate limited (60 requests a minute per key), or over the organisation's render quota; see Retry-After" }[c], content: { "application/json": { schema: ref("Error") } } }]));
+  Object.fromEntries(codes.map((c) => [String(c), { description: { 400: "Malformed request", 401: "Missing, invalid or revoked API key", 404: "Not found in this organisation", 409: "The resource is not in a state that allows this", 413: "File too large for its kind (images 20 MB, videos 40 MB)", 415: "Not an accepted type or codec (PNG, JPEG, GIF, WebP; H.264 MP4/MOV)", 429: "Rate limited (60 requests a minute per key), or over the organisation's render quota; see Retry-After", 503: "No render worker is running (no_render_worker), or rendering is not configured (unavailable); see Retry-After" }[c], content: { "application/json": { schema: ref("Error") } } }]));
 const idParam = (name: string, description: string) => ({ name, in: "path", required: true, schema: { type: "string" }, description });
 const query = (name: string, schema: object, description: string) => ({ name, in: "query", required: false, schema, description });
 const jsonBody = (schema: object) => ({ required: true, content: { "application/json": { schema } } });
@@ -112,18 +112,33 @@ export function openapi(server: string) {
             required: ["format"],
             properties: { format: { enum: ["png", "carousel-zip", "mp4"], description: "png: one PNG per scene (or `scene`); carousel-zip: carousels; mp4: videos" }, scene: { type: "integer", minimum: 0 }, scale: { enum: [1, 2] }, fps: { enum: [24, 25, 30, 60] } },
           }),
-          description: "Each organisation may ask for 100 renders a UTC day and have 3 of its jobs queued or running at once; past either, 429 quota_exceeded with Retry-After.",
-          responses: { 202: ok("The queued job", ref("RenderJob")), ...errors(400, 401, 404, 429) },
+          description:
+            "Queues a render for the render worker; poll GET /v1/render-jobs/{id} for the files. Each organisation may ask for 100 renders a UTC day and have 3 of its jobs queued or running at once; past either, 429 quota_exceeded with Retry-After. While no render worker has polled the queue in the last 10 minutes the render is refused with 503 no_render_worker and Retry-After: nothing is queued and the quota is untouched.",
+          responses: { 202: ok("The queued job", ref("RenderJob")), ...errors(400, 401, 404, 429, 503) },
         },
       },
       "/v1/render-jobs/{id}": {
-        get: { summary: "A render job's status and files", parameters: [idParam("id", "Render job id")], responses: { 200: ok("The job", ref("RenderJob")), ...errors(401, 404, 429) } },
+        get: {
+          summary: "A render job's status and files",
+          description:
+            "Poll every few seconds until status is done (outputs carry download URLs) or failed (error says why). While queued, queuePosition counts the jobs ahead across every organisation. A job no render worker picks up within 10 minutes fails on its own with an error saying so, and stops counting toward the concurrent-render quota.",
+          parameters: [idParam("id", "Render job id")],
+          responses: { 200: ok("The job", ref("RenderJob")), ...errors(401, 404, 429) },
+        },
+      },
+      "/v1/render-jobs/{id}/cancel": {
+        post: {
+          summary: "Cancel a queued render",
+          description: "Takes back a job nothing has started: it becomes failed with error \"Cancelled\" and frees its place in the concurrent-render quota. A job that is running, done or failed is 409 conflict.",
+          parameters: [idParam("id", "Render job id")],
+          responses: { 200: ok("The cancelled job", ref("RenderJob")), ...errors(401, 404, 409, 429) },
+        },
       },
     },
     components: {
       securitySchemes: { apiKey: { type: "http", scheme: "bearer", bearerFormat: "ctly_…", description: "An organisation's API key (Contently → API keys)" } },
       schemas: {
-        Error: { type: "object", properties: { error: { type: "object", required: ["code", "message"], properties: { code: { enum: ["invalid_request", "unauthorized", "not_found", "payload_too_large", "unsupported_media", "rate_limited", "quota_exceeded", "unavailable", "internal"] }, message: { type: "string" }, details: { type: "array", items: { type: "object", properties: { at: { type: "string" }, message: { type: "string" } } } } } } } },
+        Error: { type: "object", properties: { error: { type: "object", required: ["code", "message"], properties: { code: { enum: ["invalid_request", "unauthorized", "not_found", "conflict", "payload_too_large", "unsupported_media", "rate_limited", "quota_exceeded", "unavailable", "no_render_worker", "internal"] }, message: { type: "string" }, details: { type: "array", items: { type: "object", properties: { at: { type: "string" }, message: { type: "string" } } } } } } } },
         Role: { enum: [...CONTENT_ROLES] },
         TemplateSummary: {
           type: "object",
@@ -194,10 +209,16 @@ export function openapi(server: string) {
             id: { type: "string" },
             projectId: { type: "string" },
             format: { enum: ["png", "carousel-zip", "mp4"] },
-            status: { enum: ["queued", "running", "done", "failed"] },
-            queuePosition: { type: "integer", description: "While queued: jobs ahead of this one" },
-            error: { type: "string" },
-            outputs: { type: "array", items: { type: "object", properties: { name: { type: "string" }, url: { type: ["string", "null"] } } } },
+            status: { enum: ["queued", "running", "done", "failed"], description: "queued: waiting for the render worker; running: being rendered; done: outputs are ready; failed: see error" },
+            queuePosition: { type: "integer", minimum: 0, description: "Only while queued, on GET: how many jobs, from every organisation, are ahead of this one. 0 means it is next." },
+            scene: { type: "integer", description: "The one scene asked for; absent for every scene" },
+            progress: { type: "number", minimum: 0, maximum: 1, description: "While running, how far the worker has got" },
+            error: { type: "string", description: "Why it failed: the worker's reason, \"Cancelled\", or that no render worker picked it up in time" },
+            createdAt: { type: "number", description: "When it was asked for, ms since the epoch" },
+            finishedAt: { type: "number", description: "When it became done or failed, ms since the epoch" },
+            browser: { type: "boolean", description: "True for an export a studio user made in their own browser: a history entry with no files, never queued. Always false for renders asked for through the API." },
+            fileName: { type: "string", description: "Browser exports only: what the file was saved as" },
+            outputs: { type: "array", description: "Once done: the files, one per scene for png", items: { type: "object", properties: { storageId: { type: "string" }, name: { type: "string" }, url: { type: ["string", "null"], description: "Download URL; null if the file is gone" } } } },
           },
         },
       },

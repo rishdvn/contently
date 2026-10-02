@@ -9,7 +9,7 @@
   render (MP4 for a video, PNG for an image, ZIP for a carousel) → poll →
   download → ffprobe the duration or size. Then the failures a caller should
   get: a wrong key (401), another organisation's project (404), a malformed
-  replacement (400).
+  replacement (400). Last, cancelling a queued render (200, then 409).
 
   Environment:
     CONTENTLY_API_URL   default https://chatty-giraffe-3.convex.site
@@ -22,7 +22,8 @@
     RENDER_TIMEOUT_S    optional: how long to wait for the render (default 600)
 
   Rendering needs a render worker draining the queue (`workers/render`,
-  `npm run once`); without one the job stays queued and the script says so.
+  `npm run once`); without one the render is refused (503 no_render_worker)
+  and the script checks that instead.
 */
 
 import { execFileSync } from "node:child_process";
@@ -63,7 +64,7 @@ async function call(method, path, { body, auth = key } = {}) {
     json = text;
   }
   console.log(`${method} ${path} → ${res.status}${res.headers.get("x-ratelimit-remaining") ? ` (${res.headers.get("x-ratelimit-remaining")} left this minute)` : ""}`);
-  return { status: res.status, json };
+  return { status: res.status, json, headers: res.headers };
 }
 
 step("OpenAPI (no key)");
@@ -137,13 +138,21 @@ if (otherKey) {
 const missing = await call("GET", "/v1/projects/not-a-project");
 check(missing.status === 404, "unknown project → 404");
 
+/* With no worker running, a render is refused rather than queued for ever. */
+const noWorker = (res) => res.status === 503 && res.json.error?.code === "no_render_worker";
+const checkRefused = (res) => {
+  check(noWorker(res) && Number(res.headers.get("retry-after")) > 0, `no render worker → 503 no_render_worker, Retry-After ${res.headers.get("retry-after")}: ${res.json.error?.message}`);
+  console.log("   No render worker is running (workers/render, npm run once); the render steps that need one are skipped.");
+};
+
 step(`Render (${format})`);
 const job = await call("POST", `/v1/projects/${projectId}/render`, { body: { format } });
-check(job.status === 202, `job ${job.json.id} ${job.json.status}`);
+if (noWorker(job)) checkRefused(job);
+else check(job.status === 202, `job ${job.json.id} ${job.json.status}`);
 const started = Date.now();
-let state = job.json;
+let state = job.status === 202 ? job.json : { status: "refused" };
 let last = "";
-while (!["done", "failed"].includes(state.status) && Date.now() - started < renderTimeout) {
+while (["queued", "running"].includes(state.status) && Date.now() - started < renderTimeout) {
   await new Promise((r) => setTimeout(r, 3000));
   const polled = await fetch(`${base}/v1/render-jobs/${job.json.id}`, { headers: { Authorization: `Bearer ${key}` } });
   state = await polled.json();
@@ -151,8 +160,7 @@ while (!["done", "failed"].includes(state.status) && Date.now() - started < rend
   if (now !== last) console.log(`   ${Math.round((Date.now() - started) / 1000)}s: ${now}`);
   last = now;
 }
-check(state.status === "done", `render ${state.status}${state.error ? `: ${state.error}` : ""}`);
-if (state.status === "queued") console.log("   Still queued: is a render worker running? (workers/render, npm run once)");
+if (state.status !== "refused") check(state.status === "done", `render ${state.status}${state.error ? `: ${state.error}` : ""}`);
 
 if (state.status === "done") {
   mkdirSync(outDir, { recursive: true });
@@ -179,6 +187,24 @@ if (state.status === "done") {
     }
   }
 }
+
+step("Cancel a queued render");
+const extra = await call("POST", `/v1/projects/${projectId}/render`, { body: { format } });
+if (noWorker(extra)) checkRefused(extra);
+else {
+  check(extra.status === 202, `job ${extra.json.id} ${extra.json.status}`);
+  const cancelled = await call("POST", `/v1/render-jobs/${extra.json.id}/cancel`);
+  if (cancelled.status === 409) {
+    /* A worker polling every two seconds can get there first; that is the 409 a caller would see. */
+    check(cancelled.json.error?.code === "conflict", `the worker took it first → 409 conflict: ${cancelled.json.error?.message}`);
+  } else {
+    check(cancelled.status === 200 && cancelled.json.status === "failed" && cancelled.json.error === "Cancelled", `cancel → 200, ${cancelled.json.status}: ${cancelled.json.error}`);
+    const again = await call("POST", `/v1/render-jobs/${extra.json.id}/cancel`);
+    check(again.status === 409 && again.json.error?.code === "conflict", `cancel again → 409 conflict: ${again.json.error?.message}`);
+  }
+}
+const unknownJob = await call("POST", "/v1/render-jobs/not-a-job/cancel");
+check(unknownJob.status === 404, "cancel an unknown job → 404");
 
 console.log(failures ? `\n${failures} check(s) failed` : "\nAll checks passed");
 process.exit(failures ? 1 : 0);
